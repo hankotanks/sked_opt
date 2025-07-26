@@ -8,14 +8,14 @@
 #include <string.h>
 #include <assert.h>
 
-#define CAT_LIST\
-    X(cat_station)
+#define CAT_LIST \
+    X(cat_station) \
+    X(cat_pos)
 #if 0
-    X(cat_pos)\
-    X(cat_antenna)\
-    X(cat_mask)\
-    X(cat_source)\
-    X(cat_flux)\
+    X(cat_antenna) \
+    X(cat_mask) \
+    X(cat_source) \
+    X(cat_flux) \
     X(cat_equip)
 #endif
 
@@ -77,21 +77,11 @@ CAT_DECL(cat_station, "stations.cat") {
     if(span.len < 8) entry->name_pos[span.len] = '\0';
     // rack type
     if(!hh_span_next(&span)) return false;
-    entry->rack = RACK_OTHER;
-    switch(span.len) {
-    case 2:
-        if(strncmp(span.ptr, "K4", 2) == 0) entry->rack = RACK_K4;
-        break;
-    case 3:
-        if(strncmp(span.ptr, "Mk3", 3) == 0) entry->rack = RACK_MK3;
-        else if(strncmp(span.ptr, "Mk4", 3) == 0) entry->rack = RACK_MK4;
-        break;
-    case 4:
-        if(strncmp(span.ptr, "VLBA", 4) == 0) entry->rack = RACK_VLBA;
-        break;
-    default:
-        break;
-    }
+    if(hh_span_equals(span, "K4")) entry->rack = RACK_K4;
+    else if(hh_span_equals(span, "Mk3")) entry->rack = RACK_MK3;
+    else if(hh_span_equals(span, "Mk4")) entry->rack = RACK_MK4;
+    else if(hh_span_equals(span, "VLBA")) entry->rack = RACK_VLBA;
+    else entry->rack = RACK_OTHER;
     // head count
     if(!hh_span_next(&span)) return false;
     char* endptr = NULL;
@@ -108,6 +98,76 @@ CAT_DECL(cat_station, "stations.cat") {
     if(strncmp(span.ptr, "Thin", 4) == 0) entry->tape_width = TAPE_THIN;
     else if (strncmp(span.ptr, "Thick", 5) == 0) entry->tape_width = TAPE_THICK;
     else return false;
+    return true;
+}
+
+enum PositionEpoch {
+    EPOCH_2020C,
+    EPOCH_GLB1069,
+    EPOCH_OTHER,
+};
+
+CAT_TYPE(cat_pos) {
+    char id[2];
+    char name[8];
+    double x, y, z;
+    char occ[8];
+    double lon, lat;
+    enum PositionEpoch epoch;
+};
+
+CAT_DECL(cat_pos, "position.cat") {
+    hh_span_t span;
+    span.ptr = line;
+    span.len = 0;
+    // id
+    if(!hh_span_next(&span)) return false;
+    if(span.len != 2) return false;
+    entry->id[0] = span.ptr[0];
+    entry->id[1] = span.ptr[1];
+    // name
+    if(!hh_span_next(&span)) return false;
+    memcpy(entry->name, span.ptr, HH_MIN(span.len, 8));
+    if(span.len < 8) entry->name[span.len] = '\0';
+    // x
+    if(!hh_span_next(&span)) return false;
+    char* endptr = NULL;
+    entry->x = strtod(span.ptr, &endptr);
+    if(endptr == NULL) return false;
+    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    // y
+    if(!hh_span_next(&span)) return false;
+    endptr = NULL;
+    entry->y = strtod(span.ptr, &endptr);
+    if(endptr == NULL) return false;
+    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    // z
+    if(!hh_span_next(&span)) return false;
+    endptr = NULL;
+    entry->z = strtod(span.ptr, &endptr);
+    if(endptr == NULL) return false;
+    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    // occ
+    if(!hh_span_next(&span)) return false;
+    if(span.len != 8) return false;
+    memcpy(entry->name, span.ptr, 8);
+    // lon
+    if(!hh_span_next(&span)) return false;
+    endptr = NULL;
+    entry->lon = strtod(span.ptr, &endptr);
+    if(endptr == NULL) return false;
+    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    // lat
+    if(!hh_span_next(&span)) return false;
+    endptr = NULL;
+    entry->lat = strtod(span.ptr, &endptr);
+    if(endptr == NULL) return false;
+    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    // epoch
+    if(!hh_span_next(&span)) return false;
+    if(hh_span_equals(span, "2020c")) entry->epoch = EPOCH_2020C;
+    else if(hh_span_equals(span, "GLB1069")) entry->epoch = EPOCH_GLB1069;
+    else entry->epoch = EPOCH_OTHER;
     return true;
 }
 
@@ -149,21 +209,6 @@ void cat_parse(const char* path) {
 }
 
 #if 0
-enum PositionEpoch {
-    EPOCH_2020C,
-    EPOCH_GLB1069,
-    EPOCH_OTHER,
-};
-
-CAT_TYPE(cat_Pos) {
-    unsigned char id[2];
-    unsigned char name[8];
-    double x, y, z;
-    unsigned char occ[8];
-    double lat, lon;
-    enum PositionEpoch epoch;
-};
-
 enum AntennaAxes {
     AXES_AZEL,
     AXES_XYNS,

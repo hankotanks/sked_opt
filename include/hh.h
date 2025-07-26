@@ -205,8 +205,12 @@ typedef struct {
 
 bool
 hh_span_next(hh_span_t* span);
+bool
+hh_span_equals(const hh_span_t span, const char* other);
 const char*
 hh_skip_whitespace(const char* ptr);
+bool
+hh_starts_with(const char* ptr, const char* prefix);
 
 #endif // HH_H__
 
@@ -463,10 +467,22 @@ hh_span_next(hh_span_t* span) {
 	return (span->len != 0);
 }
 
+bool
+hh_span_equals(const hh_span_t span, const char* other) {
+	size_t len = strlen(other);
+	if(span.len != len) return false;
+	return strncmp(span.ptr, other, span.len) == 0;
+}
+
 const char*
 hh_skip_whitespace(const char* ptr) {
 	while(strchr(" \t\r\n", *ptr) && (*ptr) != '\0') ++ptr;
 	return ptr;
+}
+
+bool
+hh_starts_with(const char* ptr, const char* prefix) {
+	return strncmp(ptr, prefix, strlen(prefix)) == 0;
 }
 
 #endif // HH_IMPL
