@@ -9,11 +9,11 @@
 #include <assert.h>
 
 #define CAT_LIST \
-    X(cat_station) \
-    X(cat_pos) \
-    X(cat_antenna) \
-    X(cat_mask) \
-    X(cat_source)
+    X(station) \
+    X(position) \
+    X(antenna) \
+    X(mask) \
+    X(source)
 #if 0
     X(cat_flux) \
     X(cat_equip)
@@ -30,7 +30,7 @@
     static const char* CAT_H__UNUSED CAT_H__##type_##_file = file_; \
     static bool CAT_H__UNUSED CAT_H__##type_##_parse(const char* line, CAT_TYPE(type_)* entry)
 
-enum StationRackType {
+enum rack_type {
     RACK_MK3,
     RACK_MK4,
     RACK_VLBA,
@@ -38,27 +38,27 @@ enum StationRackType {
     RACK_OTHER,
 };
 
-enum StationTapeDensity {
+enum tape_density {
     TAPE_LOW,
     TAPE_HIGH,
 };
 
-enum StationTapeWidth {
+enum tape_width {
     TAPE_THIN,
     TAPE_THICK,
 };
 
-CAT_TYPE(cat_station) {
+CAT_TYPE(station) {
     char id[2];
     char name_ant[8];
     char name_pos[8];
-    enum StationRackType rack;
+    enum rack_type rack;
     size_t head_count;
-    enum StationTapeDensity tape_density;
-    enum StationTapeWidth tape_width;
+    enum tape_density tape_density;
+    enum tape_width tape_width;
 };
 
-CAT_DECL(cat_station, "stations.cat") {
+CAT_DECL(station, "stations.cat") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;
@@ -100,22 +100,22 @@ CAT_DECL(cat_station, "stations.cat") {
     return true;
 }
 
-enum PositionEpoch {
+enum solution_epoch {
     EPOCH_2020C,
     EPOCH_GLB1069,
     EPOCH_OTHER,
 };
 
-CAT_TYPE(cat_pos) {
+CAT_TYPE(position) {
     char id[2];
     char name[8];
     double x, y, z;
     char occ[8];
     double lon, lat;
-    enum PositionEpoch epoch;
+    enum solution_epoch epoch;
 };
 
-CAT_DECL(cat_pos, "position.cat") {
+CAT_DECL(position, "position.cat") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;
@@ -156,32 +156,30 @@ CAT_DECL(cat_pos, "position.cat") {
     return true;
 }
 
-enum AntennaAxes {
+enum dish_axes {
     AXES_AZEL,
     AXES_XYNS,
     AXES_HADC,
     AXES_XYEW,
 };
 
-struct AntennaAxisLimits {
+struct dish_limits {
     double rate;
     double limits[2];
     size_t c;
 };
 
-CAT_TYPE(cat_antenna) {
+CAT_TYPE(antenna) {
     char id;
     char name[8];
-    enum AntennaAxes axis;
+    enum dish_axes axis;
     double offset;
-    struct AntennaAxisLimits axis_limits[2];
+    struct dish_limits axis_limits[2];
     double diam;
-    char po[2];
-    char eq[3];
-    char ms[2];
+    char po[2], eq[3], ms[2];
 };
 
-CAT_DECL(cat_antenna, "antenna.cat") {
+CAT_DECL(antenna, "antenna.cat") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;
@@ -242,13 +240,13 @@ CAT_DECL(cat_antenna, "antenna.cat") {
     return true;
 }
 
-enum MaskType {
+enum station_mask {
     MASK_COORD,
     MASK_HORIZON,
 };
 
-CAT_TYPE(cat_mask) {
-    enum MaskType type;
+CAT_TYPE(mask) {
+    enum station_mask type;
     char name[8];
     char id[2];
     size_t count;
@@ -258,7 +256,7 @@ CAT_TYPE(cat_mask) {
     } entries;
 };
 
-CAT_DECL(cat_mask, "mask.cat") {
+CAT_DECL(mask, "mask.cat") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;
@@ -303,7 +301,7 @@ CAT_DECL(cat_mask, "mask.cat") {
     return !ext;
 }
 
-enum SourceFrom {
+enum quasar_origin {
     FROM_GSFC,
     FROM_ICRF3,
     FROM_2010A,
@@ -311,7 +309,7 @@ enum SourceFrom {
     FROM_OTHER,
 };
 
-CAT_TYPE(cat_source) {
+CAT_TYPE(source) {
     unsigned char name_iau[8];
     unsigned char name_common[8];
     size_t raan_hrs;
@@ -321,10 +319,10 @@ CAT_TYPE(cat_source) {
     size_t decl_min;
     double decl_sec;
     double epoch;
-    enum SourceFrom origin;
+    enum quasar_origin origin;
 };
 
-CAT_DECL(cat_source, "source.cat.geodetic.good") {
+CAT_DECL(source, "source.cat.geodetic.good") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;

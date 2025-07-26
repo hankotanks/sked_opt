@@ -1,0 +1,1 @@
+ ctags -x --c-kinds=+pstuvg-em ./include/cat.h | grep -v -E '^(CAT_H__|X)'
