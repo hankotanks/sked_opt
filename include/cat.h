@@ -10,10 +10,10 @@
 
 #define CAT_LIST \
     X(cat_station) \
-    X(cat_pos)
-#if 0
+    X(cat_pos) \
     X(cat_antenna) \
-    X(cat_mask) \
+    X(cat_mask)
+#if 0
     X(cat_source) \
     X(cat_flux) \
     X(cat_equip)
@@ -84,10 +84,7 @@ CAT_DECL(cat_station, "stations.cat") {
     else entry->rack = RACK_OTHER;
     // head count
     if(!hh_span_next(&span)) return false;
-    char* endptr = NULL;
-    entry->head_count = (size_t) strtol(span.ptr, &endptr, 10);
-    if(endptr == NULL) return false;
-    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    if(!hh_span_size_t(span, &entry->head_count)) return false;
     // tape density
     if(!hh_span_next(&span)) return false;
     if(strncmp(span.ptr, "Low", 3) == 0) entry->tape_density = TAPE_LOW;
@@ -131,44 +128,174 @@ CAT_DECL(cat_pos, "position.cat") {
     if(span.len < 8) entry->name[span.len] = '\0';
     // x
     if(!hh_span_next(&span)) return false;
-    char* endptr = NULL;
-    entry->x = strtod(span.ptr, &endptr);
-    if(endptr == NULL) return false;
-    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    if(!hh_span_double(span, &entry->x)) return false;
     // y
     if(!hh_span_next(&span)) return false;
-    endptr = NULL;
-    entry->y = strtod(span.ptr, &endptr);
-    if(endptr == NULL) return false;
-    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    if(!hh_span_double(span, &entry->y)) return false;
     // z
     if(!hh_span_next(&span)) return false;
-    endptr = NULL;
-    entry->z = strtod(span.ptr, &endptr);
-    if(endptr == NULL) return false;
-    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    if(!hh_span_double(span, &entry->z)) return false;
     // occ
     if(!hh_span_next(&span)) return false;
     if(span.len != 8) return false;
     memcpy(entry->name, span.ptr, 8);
     // lon
     if(!hh_span_next(&span)) return false;
-    endptr = NULL;
-    entry->lon = strtod(span.ptr, &endptr);
-    if(endptr == NULL) return false;
-    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    if(!hh_span_double(span, &entry->lon)) return false;
     // lat
     if(!hh_span_next(&span)) return false;
-    endptr = NULL;
-    entry->lat = strtod(span.ptr, &endptr);
-    if(endptr == NULL) return false;
-    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+    if(!hh_span_double(span, &entry->lat)) return false;
     // epoch
     if(!hh_span_next(&span)) return false;
     if(hh_span_equals(span, "2020c")) entry->epoch = EPOCH_2020C;
     else if(hh_span_equals(span, "GLB1069")) entry->epoch = EPOCH_GLB1069;
     else entry->epoch = EPOCH_OTHER;
     return true;
+}
+
+enum AntennaAxes {
+    AXES_AZEL,
+    AXES_XYNS,
+    AXES_HADC,
+    AXES_XYEW,
+};
+
+struct AntennaAxisLimits {
+    double rate;
+    double limits[2];
+    size_t c;
+};
+
+CAT_TYPE(cat_antenna) {
+    char id;
+    char name[8];
+    enum AntennaAxes axis;
+    double offset;
+    struct AntennaAxisLimits axis_limits[2];
+    double diam;
+    char po[2];
+    char eq[3];
+    char ms[2];
+};
+
+CAT_DECL(cat_antenna, "antenna.cat") {
+    hh_span_t span;
+    span.ptr = line;
+    span.len = 0;
+    // id
+    if(!hh_span_next(&span)) return false;
+    if(span.len != 1) return false;
+    entry->id = span.ptr[0];
+    // name
+    if(!hh_span_next(&span)) return false;
+    memcpy(entry->name, span.ptr, HH_MIN(span.len, 8));
+    if(span.len < 8) entry->name[span.len] = '\0';
+    // axis
+    if(!hh_span_next(&span)) return false;
+    if(hh_span_equals(span, "AZEL")) entry->axis = AXES_AZEL;
+    else if(hh_span_equals(span, "HADC")) entry->axis = AXES_HADC;
+    else if(hh_span_equals(span, "XYNS")) entry->axis = AXES_XYNS;
+    else if(hh_span_equals(span, "XYEW")) entry->axis = AXES_XYEW;
+    else return false;
+    // offset
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_double(span, &entry->offset)) return false;
+    // axis_limits
+    for(size_t i = 0, j; i <= 1; ++i) {
+        if(!hh_span_next(&span)) return false;
+        if(!hh_span_double(span, &(entry->axis_limits[i].rate))) return false;
+        if(!hh_span_next(&span)) return false;
+        if(!hh_span_size_t(span, &(entry->axis_limits[i].c))) return false;
+        for(j = 0; j <= 1; ++j) {
+            if(!hh_span_next(&span)) return false;
+            if(!hh_span_double(span, &(entry->axis_limits[i].limits[j]))) return false;
+        }
+    }
+    // diam
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_double(span, &entry->diam)) return false;
+    // po
+    if(!hh_span_next(&span)) return false;
+    if(span.len != 2) return false;
+    entry->po[0] = span.ptr[0];
+    entry->po[1] = span.ptr[1];
+    // eq
+    if(!hh_span_next(&span)) return false;
+    if(span.len < 2 || span.len > 3) return false;
+    if(hh_span_equals(span, "--")) {
+        entry->eq[0] = '\0';
+    } else {
+        entry->eq[0] = span.ptr[0];
+        entry->eq[1] = span.ptr[1];
+        if(span.len == 3) entry->eq[2] = span.ptr[2];
+        else entry->eq[2] = '\0';
+    }
+    // ms
+    if(!hh_span_next(&span)) return false;
+    if(span.len != 2) return false;
+    entry->ms[0] = span.ptr[0];
+    entry->ms[1] = span.ptr[1];
+    return true;
+}
+
+enum MaskType {
+    MASK_COORD,
+    MASK_HORIZON,
+};
+
+CAT_TYPE(cat_mask) {
+    enum MaskType type;
+    char name[8];
+    char id[2];
+    size_t count;
+    union {
+        double azi_el[81];
+        double dec_ha[61];
+    } entries;
+};
+
+CAT_DECL(cat_mask, "mask.cat") {
+    hh_span_t span;
+    span.ptr = line;
+    span.len = 0;
+    // count (must set it to 0 pre-emptively)
+    entry->count = 0;
+    // type
+    if(!hh_span_next(&span)) return false;
+    if(span.len != 1) return false;
+    // keep track of whether this entry is a continuation
+    bool ext = false;
+    if(span.ptr[0] == 'H') entry->type = MASK_HORIZON;
+    else if(span.ptr[0] == 'C') entry->type = MASK_COORD;
+    else if(span.ptr[0] == '-') { entry -= 1; ext = true; } 
+    else return false;
+    if(!ext) {
+        // name
+        if(!hh_span_next(&span)) return false;
+        memcpy(entry->name, span.ptr, HH_MIN(span.len, 8));
+        if(span.len < 8) entry->name[span.len] = '\0';
+        // id
+        if(!hh_span_next(&span)) return false;
+        if(span.len != 2) return false;
+        entry->id[0] = span.ptr[0];
+        entry->id[1] = span.ptr[1];
+    }
+    // entries and count
+#define CAT_H__ENTRIES ((entry->type == MASK_HORIZON) ? \
+    entry->entries.azi_el : \
+    entry->entries.dec_ha)
+#define CAT_H__ENTRIES_LEN ((entry->type == MASK_HORIZON) ? \
+    (sizeof(entry->entries.azi_el) / sizeof(entry->entries.azi_el[0])) : \
+    (sizeof(entry->entries.dec_ha) / sizeof(entry->entries.dec_ha[0])))
+    if(!hh_span_next(&span)) return false;
+    do {
+        if(!hh_span_double(span, CAT_H__ENTRIES + entry->count)) return false;
+        hh_span_next(&span);
+        entry->count++;
+    } while(span.len && entry->count < CAT_H__ENTRIES_LEN);
+#undef CAT_H__ENTRIES
+#undef CAT_H__ENTRIES_LEN
+    return !ext;
 }
 
 static struct {
@@ -193,11 +320,11 @@ void cat_parse(const char* path) {
         hh_path_join(path_file, type_##_file); \
         file = fopen(path_file, "r"); \
         HH_ASSERT_MSG(file, "Failed to open catalog [%s].", path_file); \
-        CAT_TYPE(type_) entry; \
+        hh_arradd(cat.type_##_list, 1); \
         while((line_read = hh_getline(&line, &line_len, file)) != -1) { \
             line_temp = hh_skip_whitespace(line); \
             if(line_temp[0] == '*' || line_temp[0] == '\0') continue; \
-            if(type_##_parse(line, &entry)) hh_arrput(cat.type_##_list, entry); \
+            if(type_##_parse(line, &hh_arrlast(cat.type_##_list))) hh_arradd(cat.type_##_list, 1); \
         } \
         HH_MSG("Parsed %zu entries from [%s].", \
             hh_arrlen(cat.type_##_list), path_file); \
@@ -209,31 +336,6 @@ void cat_parse(const char* path) {
 }
 
 #if 0
-enum AntennaAxes {
-    AXES_AZEL,
-    AXES_XYNS,
-    AXES_HADC,
-    AXES_XYEW,
-};
-
-struct AntennaAxisLimits {
-    double rate;
-    double c;
-    double limits[2];
-};
-
-CAT_TYPE(cat_Antenna) {
-    unsigned char id;
-    unsigned char name[8];
-    enum AntennaAxes axis;
-    double offset;
-    struct AntennaAxisLimits axis_limits[2];
-    double diam;
-    unsigned char po[2];
-    unsigned char eq[3];
-    unsigned char ms[2];
-};
-
 enum EquipHeadStacks {
     HEADS_1X56000,
     HEADS_2X56000,
@@ -261,22 +363,6 @@ CAT_TYPE(cat_Equip) {
     size_t s_flux;
     enum EquipBand x, s;
     // TODO: Omitting SEFD param/Equip field
-};
-
-enum MaskType {
-    MASK_COORD,
-    MASK_HORIZON,
-};
-
-CAT_TYPE(cat_Mask) {
-    enum MaskType type;
-    unsigned char name[8];
-    unsigned char id[2];
-    size_t count;
-    union {
-        double azi_el[80];
-        double dec_ha[60];
-    } entries;
 };
 
 enum SourceFrom {

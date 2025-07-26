@@ -206,6 +206,12 @@ typedef struct {
 bool
 hh_span_next(hh_span_t* span);
 bool
+hh_span_double(const hh_span_t span, double* out);
+bool
+hh_span_long(const hh_span_t span, long* out);
+bool
+hh_span_size_t(const hh_span_t span, size_t* out);
+bool
 hh_span_equals(const hh_span_t span, const char* other);
 const char*
 hh_skip_whitespace(const char* ptr);
@@ -465,6 +471,37 @@ hh_span_next(hh_span_t* span) {
     while(strchr(" \t\r\n", *ptr) == NULL && (*ptr) != '\0') ++ptr;
 	span->len = (size_t) (ptr - span->ptr);
 	return (span->len != 0);
+}
+
+bool
+hh_span_double(const hh_span_t span, double* out) {
+	char* endptr = NULL;
+	double temp;
+    temp = strtod(span.ptr, &endptr);
+    if(endptr == NULL) return false;
+    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+	*out = temp;
+	return true;
+}
+
+bool
+hh_span_long(const hh_span_t span, long* out) {
+	char* endptr = NULL;
+	long temp;
+    temp = strtol(span.ptr, &endptr, 10);
+    if(endptr == NULL) return false;
+    if(endptr != (span.ptr + (ptrdiff_t) span.len)) return false;
+	*out = temp;
+	return true;
+}
+
+bool
+hh_span_size_t(const hh_span_t span, size_t* out) {
+	long temp;
+	if(!hh_span_long(span, &temp)) return false;
+	if(temp < 0) return false;
+	*out = (size_t) temp;
+	return true;
 }
 
 bool
