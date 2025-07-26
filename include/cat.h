@@ -12,23 +12,23 @@
     X(cat_station) \
     X(cat_pos) \
     X(cat_antenna) \
-    X(cat_mask)
+    X(cat_mask) \
+    X(cat_source)
 #if 0
-    X(cat_source) \
     X(cat_flux) \
     X(cat_equip)
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-#define CAT_PARSER_UNUSED __attribute__((unused))
+#define CAT_H__UNUSED __attribute__((unused))
 #else
-#define CAT_PARSER_UNUSED
+#define CAT_H__UNUSED
 #endif
 
-#define CAT_TYPE(type_) struct type_##_entry
+#define CAT_TYPE(type_) struct CAT_H__##type_##_entry
 #define CAT_DECL(type_, file_) \
-    static const char* CAT_PARSER_UNUSED type_##_file = file_; \
-    static bool CAT_PARSER_UNUSED type_##_parse(const char* line, CAT_TYPE(type_)* entry)
+    static const char* CAT_H__UNUSED CAT_H__##type_##_file = file_; \
+    static bool CAT_H__UNUSED CAT_H__##type_##_parse(const char* line, CAT_TYPE(type_)* entry)
 
 enum StationRackType {
     RACK_MK3,
@@ -69,10 +69,12 @@ CAT_DECL(cat_station, "stations.cat") {
     entry->id[1] = span.ptr[1];
     // antenna name
     if(!hh_span_next(&span)) return false;
+    if(span.len > 8) return false;
     memcpy(entry->name_ant, span.ptr, HH_MIN(span.len, 8));
     if(span.len < 8) entry->name_ant[span.len] = '\0';
     // position name
     if(!hh_span_next(&span)) return false;
+    if(span.len > 8) return false;
     memcpy(entry->name_pos, span.ptr, HH_MIN(span.len, 8));
     if(span.len < 8) entry->name_pos[span.len] = '\0';
     // rack type
@@ -124,6 +126,7 @@ CAT_DECL(cat_pos, "position.cat") {
     entry->id[1] = span.ptr[1];
     // name
     if(!hh_span_next(&span)) return false;
+    if(span.len > 8) return false;
     memcpy(entry->name, span.ptr, HH_MIN(span.len, 8));
     if(span.len < 8) entry->name[span.len] = '\0';
     // x
@@ -188,6 +191,7 @@ CAT_DECL(cat_antenna, "antenna.cat") {
     entry->id = span.ptr[0];
     // name
     if(!hh_span_next(&span)) return false;
+    if(span.len > 8) return false;
     memcpy(entry->name, span.ptr, HH_MIN(span.len, 8));
     if(span.len < 8) entry->name[span.len] = '\0';
     // axis
@@ -272,6 +276,7 @@ CAT_DECL(cat_mask, "mask.cat") {
     if(!ext) {
         // name
         if(!hh_span_next(&span)) return false;
+        if(span.len > 8) return false;
         memcpy(entry->name, span.ptr, HH_MIN(span.len, 8));
         if(span.len < 8) entry->name[span.len] = '\0';
         // id
@@ -298,12 +303,78 @@ CAT_DECL(cat_mask, "mask.cat") {
     return !ext;
 }
 
+enum SourceFrom {
+    FROM_GSFC,
+    FROM_ICRF3,
+    FROM_2010A,
+    FROM_ICRF2,
+    FROM_OTHER,
+};
+
+CAT_TYPE(cat_source) {
+    unsigned char name_iau[8];
+    unsigned char name_common[8];
+    size_t raan_hrs;
+    size_t raan_min;
+    double raan_sec;
+    long decl_deg;
+    size_t decl_min;
+    double decl_sec;
+    double epoch;
+    enum SourceFrom origin;
+};
+
+CAT_DECL(cat_source, "source.cat.geodetic.good") {
+    hh_span_t span;
+    span.ptr = line;
+    span.len = 0;
+    // name_iau
+    if(!hh_span_next(&span)) return false;
+    if(span.len != 8) return false;
+    memcpy(entry->name_iau, span.ptr, 8);
+    // name_common
+    if(!hh_span_next(&span)) return false;
+    if(span.len == 1 && span.ptr[0] == '$') entry->name_common[0] = '\0';
+    else if(span.len > 8) return false;
+    else {
+        memcpy(entry->name_common, span.ptr, HH_MIN(span.len, 8));
+        if(span.len < 8) entry->name_common[span.len] = '\0';
+    }
+    // raan
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_size_t(span, &entry->raan_hrs)) return false;
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_size_t(span, &entry->raan_min)) return false;
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_double(span, &entry->raan_sec)) return false;
+    //decl
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_long(span, &entry->decl_deg)) return false;
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_size_t(span, &entry->decl_min)) return false;
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_double(span, &entry->decl_sec)) return false;
+    // epoch
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_double(span, &entry->decl_sec)) return false;
+    // skip null field
+    if(!hh_span_next(&span)) return false;
+    // origin
+    if(!hh_span_next(&span)) return false;
+    if(hh_span_equals(span, "GSFC")) entry->origin = FROM_GSFC;
+    else if(hh_span_equals(span, "ICRF3")) entry->origin = FROM_ICRF3;
+    else if(hh_span_equals(span, "ICRF2")) entry->origin = FROM_ICRF2;
+    else if(hh_span_equals(span, "2010a")) entry->origin = FROM_2010A;
+    else entry->origin = FROM_OTHER;
+    return true;
+}
+
 static struct {
-#define X(type_) CAT_TYPE(type_)* type_##_list;
+#define X(type_) CAT_TYPE(type_)* CAT_H__##type_##_list;
     CAT_LIST
 #undef X
 } cat = {
-#define X(type_) .type_##_list = NULL,
+#define X(type_) .CAT_H__##type_##_list = NULL,
     CAT_LIST
 #undef X
 };
@@ -317,17 +388,17 @@ void cat_parse(const char* path) {
 #define X(type_) \
     do { \
         path_file = hh_path(path); \
-        hh_path_join(path_file, type_##_file); \
+        hh_path_join(path_file, CAT_H__##type_##_file); \
         file = fopen(path_file, "r"); \
         HH_ASSERT_MSG(file, "Failed to open catalog [%s].", path_file); \
-        hh_arradd(cat.type_##_list, 1); \
+        hh_arradd(cat.CAT_H__##type_##_list, 1); \
         while((line_read = hh_getline(&line, &line_len, file)) != -1) { \
             line_temp = hh_skip_whitespace(line); \
             if(line_temp[0] == '*' || line_temp[0] == '\0') continue; \
-            if(type_##_parse(line, &hh_arrlast(cat.type_##_list))) hh_arradd(cat.type_##_list, 1); \
+            if(CAT_H__##type_##_parse(line, &hh_arrlast(cat.CAT_H__##type_##_list))) hh_arradd(cat.CAT_H__##type_##_list, 1); \
         } \
         HH_MSG("Parsed %zu entries from [%s].", \
-            hh_arrlen(cat.type_##_list), path_file); \
+            hh_arrlen(cat.CAT_H__##type_##_list), path_file); \
         fclose(file); \
         hh_arrfree(path_file); \
     } while(0);
@@ -363,27 +434,6 @@ CAT_TYPE(cat_Equip) {
     size_t s_flux;
     enum EquipBand x, s;
     // TODO: Omitting SEFD param/Equip field
-};
-
-enum SourceFrom {
-    FROM_GSFC,
-    FROM_ICRF3,
-    FROM_2010A,
-    FROM_ICRF2,
-    FROM_OTHER,
-};
-
-CAT_TYPE(cat_Source) {
-    unsigned char name_iau[8];
-    unsigned char name_common[8];
-    size_t raan_hrs;
-    size_t raan_min;
-    double raan_sec;
-    size_t decl_deg;
-    size_t decl_min;
-    double decl_sec;
-    double epoch;
-    enum SourceFrom origin;
 };
 
 // TODO: flux.cat
