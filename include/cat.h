@@ -25,10 +25,22 @@
 #define CAT_H__UNUSED
 #endif
 
-#define CAT_TYPE(type_) struct CAT_H__##type_##_entry
-#define CAT_DECL(type_, file_) \
+#define CAT_DECL(type_) struct CAT_H__##type_##_entry
+#define CAT_IMPL(type_, file_) \
     static const char* CAT_H__UNUSED CAT_H__##type_##_file = file_; \
-    static bool CAT_H__UNUSED CAT_H__##type_##_parse(const char* line, CAT_TYPE(type_)* entry)
+    static bool CAT_H__UNUSED CAT_H__##type_##_parse(const char* line, CAT_DECL(type_)* entry)
+
+struct cat_t {
+#define X(type_) CAT_DECL(type_)* type_##_list;
+    CAT_LIST
+#undef X
+}; extern struct cat_t* cat;
+
+void cat_parse(const char* path);
+
+//
+// station
+//
 
 enum rack_type {
     RACK_MK3,
@@ -48,7 +60,7 @@ enum tape_width {
     TAPE_THICK,
 };
 
-CAT_TYPE(station) {
+CAT_DECL(station) {
     char id[2];
     char name_ant[8];
     char name_pos[8];
@@ -58,7 +70,7 @@ CAT_TYPE(station) {
     enum tape_width tape_width;
 };
 
-CAT_DECL(station, "stations.cat") {
+CAT_IMPL(station, "stations.cat") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;
@@ -100,13 +112,17 @@ CAT_DECL(station, "stations.cat") {
     return true;
 }
 
+//
+// position
+//
+
 enum solution_epoch {
     EPOCH_2020C,
     EPOCH_GLB1069,
     EPOCH_OTHER,
 };
 
-CAT_TYPE(position) {
+CAT_DECL(position) {
     char id[2];
     char name[8];
     double x, y, z;
@@ -115,7 +131,7 @@ CAT_TYPE(position) {
     enum solution_epoch epoch;
 };
 
-CAT_DECL(position, "position.cat") {
+CAT_IMPL(position, "position.cat") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;
@@ -156,6 +172,10 @@ CAT_DECL(position, "position.cat") {
     return true;
 }
 
+//
+// antenna
+//
+
 enum dish_axes {
     AXES_AZEL,
     AXES_XYNS,
@@ -169,7 +189,7 @@ struct dish_limits {
     size_t c;
 };
 
-CAT_TYPE(antenna) {
+CAT_DECL(antenna) {
     char id;
     char name[8];
     enum dish_axes axis;
@@ -179,7 +199,7 @@ CAT_TYPE(antenna) {
     char po[2], eq[3], ms[2];
 };
 
-CAT_DECL(antenna, "antenna.cat") {
+CAT_IMPL(antenna, "antenna.cat") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;
@@ -240,12 +260,16 @@ CAT_DECL(antenna, "antenna.cat") {
     return true;
 }
 
+//
+// mask
+//
+
 enum station_mask {
     MASK_COORD,
     MASK_HORIZON,
 };
 
-CAT_TYPE(mask) {
+CAT_DECL(mask) {
     enum station_mask type;
     char name[8];
     char id[2];
@@ -256,7 +280,7 @@ CAT_TYPE(mask) {
     } entries;
 };
 
-CAT_DECL(mask, "mask.cat") {
+CAT_IMPL(mask, "mask.cat") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;
@@ -301,6 +325,10 @@ CAT_DECL(mask, "mask.cat") {
     return !ext;
 }
 
+//
+// source
+//
+
 enum quasar_origin {
     FROM_GSFC,
     FROM_ICRF3,
@@ -309,7 +337,7 @@ enum quasar_origin {
     FROM_OTHER,
 };
 
-CAT_TYPE(source) {
+CAT_DECL(source) {
     unsigned char name_iau[8];
     unsigned char name_common[8];
     size_t raan_hrs;
@@ -322,7 +350,7 @@ CAT_TYPE(source) {
     enum quasar_origin origin;
 };
 
-CAT_DECL(source, "source.cat.geodetic.good") {
+CAT_IMPL(source, "source.cat.geodetic.good") {
     hh_span_t span;
     span.ptr = line;
     span.len = 0;
@@ -367,43 +395,6 @@ CAT_DECL(source, "source.cat.geodetic.good") {
     return true;
 }
 
-static struct {
-#define X(type_) CAT_TYPE(type_)* CAT_H__##type_##_list;
-    CAT_LIST
-#undef X
-} cat = {
-#define X(type_) .CAT_H__##type_##_list = NULL,
-    CAT_LIST
-#undef X
-};
-
-void cat_parse(const char* path) {
-    FILE* file;
-    char* path_file;
-    char* line = NULL;
-    const char* line_temp;
-    size_t line_len; ptrdiff_t line_read;
-#define X(type_) \
-    do { \
-        path_file = hh_path(path); \
-        hh_path_join(path_file, CAT_H__##type_##_file); \
-        file = fopen(path_file, "r"); \
-        HH_ASSERT_MSG(file, "Failed to open catalog [%s].", path_file); \
-        hh_arradd(cat.CAT_H__##type_##_list, 1); \
-        while((line_read = hh_getline(&line, &line_len, file)) != -1) { \
-            line_temp = hh_skip_whitespace(line); \
-            if(line_temp[0] == '*' || line_temp[0] == '\0') continue; \
-            if(CAT_H__##type_##_parse(line, &hh_arrlast(cat.CAT_H__##type_##_list))) hh_arradd(cat.CAT_H__##type_##_list, 1); \
-        } \
-        HH_MSG("Parsed %zu entries from [%s].", \
-            hh_arrlen(cat.CAT_H__##type_##_list), path_file); \
-        fclose(file); \
-        hh_arrfree(path_file); \
-    } while(0);
-    CAT_LIST
-#undef X
-}
-
 #if 0
 enum EquipHeadStacks {
     HEADS_1X56000,
@@ -421,7 +412,7 @@ enum EquipBand {
     BAND_OTHER,
 };
 
-CAT_TYPE(cat_Equip) {
+CAT_DECL(cat_Equip) {
     unsigned char name_ant[8];
     unsigned char id[2];
     unsigned char name_dat[8];
@@ -441,7 +432,7 @@ enum FluxEntryType {
     FLUX_M,
 };
 
-CAT_TYPE(cat_Flux) {
+CAT_DECL(cat_Flux) {
     unsigned char name_iau[8];
     enum EquipBand band;
     enum FluxEntryType type;
