@@ -1,0 +1,17 @@
+#ifndef STATION_H__
+#define STATION_H__
+
+#include "cat.h"
+
+typedef struct {
+    char id[2];
+    char name[8];
+    double x, y, z, lat, lon;
+    enum dish_axes axes;
+    struct dish_limits axes_limits[2];
+} Station;
+
+void
+Station_dump(const Station* const sta);
+
+#endif // STATION_H__

@@ -41,6 +41,18 @@ void cat_parse(const char* path);
 void cat_clean();
 
 //
+// helper functions
+//
+
+size_t
+cat_name_len(const char name[static 8]);
+bool
+cat_name_eq(const char fst[static 8], const char snd[static 8]);
+void
+cat_name_print(const char name[static 8]);
+
+
+//
 // station
 //
 
@@ -340,8 +352,8 @@ enum quasar_origin {
 };
 
 CAT_DECL(source) {
-    unsigned char name_iau[8];
-    unsigned char name_common[8];
+    char name_iau[8];
+    char name_common[8];
     size_t raan_hrs;
     size_t raan_min;
     double raan_sec;
@@ -384,7 +396,7 @@ CAT_IMPL(source, "source.cat.geodetic.good") {
     if(!hh_span_double(span, &entry->decl_sec)) return false;
     // epoch
     if(!hh_span_next(&span)) return false;
-    if(!hh_span_double(span, &entry->decl_sec)) return false;
+    if(!hh_span_double(span, &entry->epoch)) return false;
     // skip null field
     if(!hh_span_next(&span)) return false;
     // origin

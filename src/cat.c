@@ -38,3 +38,24 @@ void cat_clean() {
     CAT_LIST
 #undef X
 }
+
+//
+// helper functions
+//
+
+size_t
+cat_name_len(const char name[static 8]) {
+    return memchr(name, '\0', 8) ? strlen(name) : 8;
+}
+
+bool
+cat_name_eq(const char fst[static 8], const char snd[static 8]) {
+    size_t len = cat_name_len(fst);
+    if(len != cat_name_len(snd)) return false;
+    return memcmp(fst, snd, len) == 0;
+}
+
+void
+cat_name_print(const char name[static 8]) {
+    printf("%.*s", (int) cat_name_len(name), name);
+}
