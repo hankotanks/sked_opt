@@ -4,7 +4,7 @@
 #ifndef _WIN32
 #define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
-#endif // _WIN32
+#endif // not _WIN32
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -62,17 +62,30 @@ enum {
     return NULL; \
 } while(0)
 
-#define HH_ASSERT(cond) for(; !(cond); assert(cond), (cond) = (cond))
-#define HH_ASSERT_MSG(cond, ...) do { HH_ASSERT(cond) HH_ERR(__VA_ARGS__); } while(0)
-
 #else
 #define HH_DBG(...)
 #define HH_MSG(...)
 #define HH_ERR(...)
 #define HH_ERR_AND_CLOSE(stream, ...)
-#define HH_ASSERT(cond)
-#define HH_ASSERT_MSG(cond, ...)
 #endif
+
+//
+// MISC
+//
+
+#define HH_ASSERT(cond, ...) do { for(; !(cond); assert(cond)) HH_ERR(__VA_ARGS__); } while(0)
+
+#define HH_UNREACHABLE HH_ASSERT(false, "Unreachable!")
+
+#define HH_MALLOC(var, size) do { \
+		(var) = malloc(size); \
+		HH_ASSERT(var != NULL, "Failed to allocate [%s].", #var); \
+	} while(0);
+
+#define HH_CALLOC(var, size) do { \
+		(var) = calloc(1, size); \
+		HH_ASSERT(var != NULL, "Failed to allocate [%s].", #var); \
+	} while(0);
 
 //
 // DYNAMIC ARRAYS

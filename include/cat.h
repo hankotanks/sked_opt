@@ -1,12 +1,12 @@
 #ifndef CAT_H__
 #define CAT_H__
 
-#include "hh.h"
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 #include <assert.h>
+
+#include "hh.h"
 
 #define CAT_LIST \
     X(station) \
@@ -37,6 +37,8 @@ struct cat_t {
 }; extern struct cat_t* cat;
 
 void cat_parse(const char* path);
+
+void cat_clean();
 
 //
 // station
@@ -143,7 +145,7 @@ CAT_IMPL(position, "position.cat") {
     // name
     if(!hh_span_next(&span)) return false;
     if(span.len > 8) return false;
-    memcpy(entry->name, span.ptr, HH_MIN(span.len, 8));
+    memcpy(entry->name, span.ptr, span.len);
     if(span.len < 8) entry->name[span.len] = '\0';
     // x
     if(!hh_span_next(&span)) return false;
@@ -157,7 +159,7 @@ CAT_IMPL(position, "position.cat") {
     // occ
     if(!hh_span_next(&span)) return false;
     if(span.len != 8) return false;
-    memcpy(entry->name, span.ptr, 8);
+    memcpy(entry->occ, span.ptr, 8);
     // lon
     if(!hh_span_next(&span)) return false;
     if(!hh_span_double(span, &entry->lon)) return false;
@@ -192,9 +194,9 @@ struct dish_limits {
 CAT_DECL(antenna) {
     char id;
     char name[8];
-    enum dish_axes axis;
+    enum dish_axes axes;
     double offset;
-    struct dish_limits axis_limits[2];
+    struct dish_limits axes_limits[2];
     double diam;
     char po[2], eq[3], ms[2];
 };
@@ -214,23 +216,23 @@ CAT_IMPL(antenna, "antenna.cat") {
     if(span.len < 8) entry->name[span.len] = '\0';
     // axis
     if(!hh_span_next(&span)) return false;
-    if(hh_span_equals(span, "AZEL")) entry->axis = AXES_AZEL;
-    else if(hh_span_equals(span, "HADC")) entry->axis = AXES_HADC;
-    else if(hh_span_equals(span, "XYNS")) entry->axis = AXES_XYNS;
-    else if(hh_span_equals(span, "XYEW")) entry->axis = AXES_XYEW;
+    if(hh_span_equals(span, "AZEL")) entry->axes = AXES_AZEL;
+    else if(hh_span_equals(span, "HADC")) entry->axes = AXES_HADC;
+    else if(hh_span_equals(span, "XYNS")) entry->axes = AXES_XYNS;
+    else if(hh_span_equals(span, "XYEW")) entry->axes = AXES_XYEW;
     else return false;
     // offset
     if(!hh_span_next(&span)) return false;
     if(!hh_span_double(span, &entry->offset)) return false;
-    // axis_limits
+    // axes_limits
     for(size_t i = 0, j; i <= 1; ++i) {
         if(!hh_span_next(&span)) return false;
-        if(!hh_span_double(span, &(entry->axis_limits[i].rate))) return false;
+        if(!hh_span_double(span, &(entry->axes_limits[i].rate))) return false;
         if(!hh_span_next(&span)) return false;
-        if(!hh_span_size_t(span, &(entry->axis_limits[i].c))) return false;
+        if(!hh_span_size_t(span, &(entry->axes_limits[i].c))) return false;
         for(j = 0; j <= 1; ++j) {
             if(!hh_span_next(&span)) return false;
-            if(!hh_span_double(span, &(entry->axis_limits[i].limits[j]))) return false;
+            if(!hh_span_double(span, &(entry->axes_limits[i].limits[j]))) return false;
         }
     }
     // diam

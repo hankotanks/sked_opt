@@ -17,7 +17,7 @@ void cat_parse(const char* path) {
         path_file = hh_path(path); \
         hh_path_join(path_file, CAT_H__##type_##_file); \
         file = fopen(path_file, "r"); \
-        HH_ASSERT_MSG(file, "Failed to open catalog [%s].", path_file); \
+        HH_ASSERT(file != NULL, "Failed to open catalog [%s].", path_file); \
         hh_arradd(cat->type_##_list, 1); \
         while(hh_getline(&line, &len, file) != -1) { \
             line_temp = hh_skip_whitespace(line); \
@@ -29,6 +29,12 @@ void cat_parse(const char* path) {
         fclose(file); \
         hh_arrfree(path_file); \
     } while(0);
+    CAT_LIST
+#undef X
+}
+
+void cat_clean() {
+#define X(type_) hh_arrfree(cat->type_##_list);
     CAT_LIST
 #undef X
 }
