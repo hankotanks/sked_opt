@@ -1,5 +1,6 @@
 opt
 opt.exe
 compile_commands.json
+valgrind.log
 .cache/*
 .vscode/*

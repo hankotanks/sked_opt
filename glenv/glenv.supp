@@ -1,0 +1,41 @@
+{
+   ignore_iris_dri_losses
+   Memcheck:Leak
+   match-leak-kinds:possible
+   obj:*iris_dri.so
+   ...
+}
+{
+   ignore_iris_dri_losses
+   Memcheck:Leak
+   match-leak-kinds:possible
+   ...
+   obj:*iris_dri.so
+   ...
+}
+{
+   rgfw_uninitialized_dependency
+   Memcheck:Param
+   writev(vector[...])
+   ...
+   fun:RGFW_createWindow
+}
+{
+   rgfw_uninitialized_dependency
+   Memcheck:Cond
+   fun:malloc
+   fun:RGFW_createWindow
+   ...
+}
+{
+   rgfw_uninitialized_dependency
+   Memcheck:Cond
+   fun:RGFW_window_checkEvent
+   ...
+}
+{
+   rgfw_uninitialized_dependency
+   Memcheck:Cond
+   fun:RGFW_window_shouldClose
+   ...
+}

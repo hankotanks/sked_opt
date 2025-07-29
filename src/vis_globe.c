@@ -1,8 +1,10 @@
-#include "vis_globe.h"
-
-#include "hh.h"
 #include "vis.h"
 
+#include "hh.h"
+
+// TODO: globe_tex_offset is a bandaid solution,
+// at the very least, make sure its cross-platform consistent
+#define OFFSET 5.f
 #define STACKS 48
 #define SLICES 64
 #define COUNT_V (SLICES * (STACKS - 1) + 2)
@@ -94,9 +96,8 @@ globe_layer_render(const void* const data) {
     glBindVertexArray(layer->VAO);
     glDrawElements(GL_TRIANGLES, COUNT_E, GL_UNSIGNED_INT, (GLvoid*) 0);
     glBindTexture(GL_TEXTURE_2D, 0);
-    glBindVertexArray(0);
     glActiveTexture(0);
-    glUseProgram(0);
+    glBindVertexArray(0);
     glDisable(GL_DEPTH_TEST);
 }
 
@@ -123,7 +124,7 @@ static const char* shader_source_globe = \
     "}\n";
 
 bool
-Vis_add_globe_layer(Vis* const vis, const char* path_globe_image) {
+Vis_add_globe(Vis* const vis, const char* path_globe_image) {
     // construct globe geometry
     HH_ASSERT(STACKS > 2 && SLICES > 2, "Unreachable!");
     GLfloat* vertices = malloc(sizeof(GLfloat) * COUNT_V * 3);
@@ -197,6 +198,11 @@ Vis_add_globe_layer(Vis* const vis, const char* path_globe_image) {
         .deinit = globe_layer_deinit }, sizeof(struct globe_layer));
     // assign texture
     data->tex = tex;
+    // set uniforms
+    GLint program = 0;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+    glUniform1i(glGetUniformLocation((GLuint) program, "globe_tex_sampler"), 0);
+    glUniform1f(glGetUniformLocation((GLuint) program, "globe_tex_offset"), OFFSET);
     // buffers (vis->buf)
     glGenVertexArrays(1, &data->VAO);
     glGenBuffers(1, &data->VBO);
@@ -213,20 +219,5 @@ Vis_add_globe_layer(Vis* const vis, const char* path_globe_image) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) buffer_size, indices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
-    glUseProgram(0);
     return true;
 }
-
-#if 0
-#pragma GCC diagnostic ignored "-Wunused-variable"
-static const char* shader_source_color = \
-    "#version 330 core\n"
-    "flat in uint f_type;\n"
-    "uniform vec3 fst_color;\n"
-    "uniform vec3 snd_color;\n"
-    "out vec4 f_color;\n"
-    "void main() {\n"
-    "    bool b_type = (f_type != 0u);\n"
-    "    f_color = vec4(b_type ? fst_color : snd_color, 1.f);\n"
-    "}\n";
-#endif

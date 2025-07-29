@@ -1,1 +1,3 @@
  ctags -x --c-kinds=+pstuvg-em ./include/cat.h | grep -v -E '^(CAT_H__|X)'
+
+ valgrind --leak-check=full --track-origins=yes --log-file=./valgrind.log --suppressions=./glenv/glenv.supp ./opt

@@ -104,7 +104,7 @@ hh_arrgrow_impl(void*, size_t, size_t, size_t);
 #define hh_arrcap(arr)       ((arr) ? hh_arrheader(arr)->capacity : 0)
 #define hh_arrcapset(arr, n) ((arr) = hh_arrgrow_impl((arr), sizeof *(arr), 0, (n))) 
 #define hh_arrlen(arr)       ((arr) ? hh_arrheader(arr)->length : 0)
-#define hh_arrlenset(arr, n) ((hh_arrcap(arr) < (size_t) (n) ? hh_arrcapset((arr), (size_t) (n)), 0 : 0), (arr) ? hh_arrheader(a)->length = (size_t) (n) : 0)
+#define hh_arrlenset(arr, n) ((hh_arrcap(arr) < (size_t) (n) ? hh_arrcapset((arr), (size_t) (n)), 0 : 0), (arr) ? hh_arrheader(arr)->length = (size_t) (n) : 0)
 #define hh_arrput(arr, val)  (hh_arrcheck(arr, 1), (arr)[(hh_arrheader(arr)->length)++] = (val))
 #define hh_arrpop(arr)       ((hh_arrheader(arr)->length)--, (arr)[hh_arrheader(arr)->length])
 // add n zero-initialized elements to array and return the index of the first added element

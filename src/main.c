@@ -4,13 +4,10 @@
 
 #include <stdio.h>
 
-#if 0
 #include "cat.h"
 #include "network.h"
-#include "sky.h"
-#endif
 #include "vis.h"
-#include "vis_globe.h"
+// #include "sky.h"
 
 // window configuration options
 #define WINDOW_TITLE "sked_opt"
@@ -19,25 +16,13 @@
 
 int main(void) {
     const char* path_root = hh_path(PROJECT_ROOT);
-#if 0
-    { // parse catalog
-        char* path_cat = hh_path_join(hh_path(path_root), "catalogs");
-        cat_parse(path_cat);
-        hh_arrfree(path_cat);
-    }
-    { // network
-        Network net;
-        Network_init(&net);
-        Network_free(&net);
-    }
-    { // source list
-        Sky sky;
-        Sky_init(&sky);
-        Sky_free(&sky);
-    }
-    // clean up catalog
-    cat_clean();
-#endif
+    // parse catalog
+    char* path_cat = hh_path_join(hh_path(path_root), "catalogs");
+    cat_parse(path_cat);
+    hh_arrfree(path_cat);
+    // initialize network
+    Network net;
+    Network_init(&net);
     // initialize window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));
@@ -52,7 +37,8 @@ int main(void) {
     Vis vis;
     Vis_init(&vis, window);
     char* path_globe_image = hh_path_join(hh_path_join(hh_path(path_root), "assets"), "globe.bmp");
-    Vis_add_globe_layer(&vis, path_globe_image);
+    Vis_add_globe(&vis, path_globe_image);
+    Vis_add_stations(&vis, &net);
     hh_arrfree(path_globe_image);
     // event loop
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
@@ -64,10 +50,14 @@ int main(void) {
         }
         glenv_new_frame();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        Vis_update_and_draw(&vis);
+        Vis_update_and_draw(&vis, 0.f);
         glenv_render(NK_ANTI_ALIASING_ON);
     }
     glenv_deinit();
     RGFW_window_close(window);
+    // clean up network
+    Network_free(&net);
+    // finally free catalog
+    cat_clean();
     return 0;
 }

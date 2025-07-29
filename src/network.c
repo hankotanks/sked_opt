@@ -39,6 +39,11 @@ Network_get_sta(const Network* const net, const char id[static 2]) {
     return NULL;
 }
 
+Station*
+Network_get_sta_by_idx(const Network* const net, const size_t idx) {
+    return net->entries[idx].used ? &(net->entries[idx].station) : NULL;
+}
+
 void
 Network_init(Network* const net) {
     HH_ASSERT(cat->station_list != NULL, "No stations were parsed from raw catalogs.");

@@ -31,6 +31,7 @@ void cat_parse(const char* path) {
     } while(0);
     CAT_LIST
 #undef X
+    if(line != NULL) free(line);
 }
 
 void cat_clean() {

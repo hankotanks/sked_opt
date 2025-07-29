@@ -153,7 +153,7 @@ look_at(GLfloat view[static 16], const GLfloat eye[static 3], const GLfloat up[s
 }
 
 void
-Vis_update_and_draw(Vis* const vis) {
+Vis_update_and_draw(Vis* const vis, const float gmst) {
     // update camera
     static const GLfloat up[3] = { 0.f, 1.f, 0.f };
     GLfloat eye[3];
@@ -166,6 +166,7 @@ Vis_update_and_draw(Vis* const vis) {
         glUseProgram(vis->layers[i].program);
         glUniformMatrix4fv(vis->layers[i].loc_proj, 1, GL_FALSE, vis->camera.proj);
         glUniformMatrix4fv(vis->layers[i].loc_view, 1, GL_FALSE, vis->camera.view);
+        glUniform1f(vis->layers[i].loc_gmst, gmst);
         glUseProgram(0);
     }
     // draw layers
@@ -244,6 +245,7 @@ Vis_add_layer(Vis* const vis, GLuint frag, VisLayerMethods methods, size_t data_
     glUseProgram(layer.program);
     layer.loc_proj = glGetUniformLocation(layer.program, "proj");
     layer.loc_view = glGetUniformLocation(layer.program, "view");
+    layer.loc_gmst = glGetUniformLocation(layer.program, "gmst");
     glUniform1f(glGetUniformLocation(layer.program, "globe_radius"), RADIUS);
     glUniform1f(glGetUniformLocation(layer.program, "shell_radius"), RADIUS * SCALAR);
     hh_arrput(vis->layers, layer);
