@@ -9,31 +9,27 @@
 #include "sky.h"
 #include "vis.h"
 
-// #define CAT_DUMP
-
 // window configuration options
 #define WINDOW_TITLE "sked_viewer"
 #define WINDOW_BOUNDS RGFW_RECT(0, 0, 800, 600)
 
 int main(void) {
     const char* path_root = hh_path(PROJECT_ROOT);
-    char* path_cat = hh_path_join(hh_path(path_root), "catalogs");
-    cat_parse(path_cat);
-    hh_arrfree(path_cat);
-    // network
-    Network net;
-    Network_init(&net);
-#ifdef CAT_DUMP
-    Network_dump(&net);
-#endif
-    Network_free(&net);
-    // source list
-    Sky sky;
-    Sky_init(&sky);
-#ifdef CAT_DUMP
-    Sky_dump(&sky);
-#endif
-    Sky_free(&sky);
+    { // parse catalog
+        char* path_cat = hh_path_join(hh_path(path_root), "catalogs");
+        cat_parse(path_cat);
+        hh_arrfree(path_cat);
+    }
+    { // network
+        Network net;
+        Network_init(&net);
+        Network_free(&net);
+    }
+    { // source list
+        Sky sky;
+        Sky_init(&sky);
+        Sky_free(&sky);
+    }
     // clean up catalog
     cat_clean();
 //
@@ -63,8 +59,7 @@ int main(void) {
         }
         glenv_new_frame();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        Vis_update(&vis);
-        Vis_draw(&vis);
+        Vis_update_and_draw(&vis);
         glenv_render(NK_ANTI_ALIASING_ON);
     }
     glenv_deinit();

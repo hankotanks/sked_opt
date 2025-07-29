@@ -248,15 +248,15 @@ Vis_init(Vis* const vis, const RGFW_window* const win, const char* path_globe_im
     }
     glUseProgram(vis->program);
     // buffers (vis->buf)
-    glGenVertexArrays(1, &vis->buf[0]);
-    glGenBuffers(1, &vis->buf[1]);
-    glGenBuffers(1, &vis->buf[2]);
-    glBindVertexArray(vis->buf[0]);
-    glBindBuffer(GL_ARRAY_BUFFER, vis->buf[1]);
+    glGenVertexArrays(1, &vis->VAO);
+    glGenBuffers(1, &vis->VBO);
+    glGenBuffers(1, &vis->EBO);
+    glBindVertexArray(vis->VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, vis->VBO);
     size_t buffer_size;
     buffer_size = COUNT_VERT * 3 * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vis->buf[2]);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vis->EBO);
     buffer_size = COUNT_IDX * sizeof(GLuint);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) buffer_size, indices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
@@ -287,7 +287,15 @@ Vis_init(Vis* const vis, const RGFW_window* const win, const char* path_globe_im
     return true;
 }
 
-static inline float 
+void
+Vis_free(Vis* const vis) {
+    glDeleteProgram(vis->program);
+    glDeleteTextures(1, &(vis->tex));
+    glDeleteVertexArrays(1, &(vis->VAO));
+    glDeleteBuffers(2, &(vis->VBO));
+}
+
+inline static float 
 mag(const GLfloat vec[static 3]) {
     return sqrtf((float) (vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]));
 }
@@ -314,7 +322,7 @@ dot(const GLfloat a[static 3], const GLfloat b[static 3]) {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
-void
+inline static void
 look_at(GLfloat view[static 16], const GLfloat eye[static 3], const GLfloat up[static 3]) {
     GLfloat f[3], s[3], u[3];
     f[0] = eye[0] * -1.f;
@@ -329,34 +337,30 @@ look_at(GLfloat view[static 16], const GLfloat eye[static 3], const GLfloat up[s
     view[8] = s[2]; view[9] = u[2]; view[10] = -f[2]; view[11] = 0.f;
     view[12] = -dot(s, eye); 
     view[13] = -dot(u, eye); 
-    view[14] = dot(f, eye); view[15] = 1.f;
+    view[14] =  dot(f, eye); view[15] = 1.f;
 }
 
 void
-Vis_update(Vis* const vis) {
+Vis_update_and_draw(Vis* const vis) {
+    // update
     static const GLfloat up[3] = { 0.f, 1.f, 0.f };
     GLfloat eye[3];
     eye[0] = (GLfloat) (vis->camera.rad * cosf(vis->camera.ele) * sinf(vis->camera.azi));
     eye[1] = (GLfloat) (vis->camera.rad * sinf(vis->camera.ele));
     eye[2] = (GLfloat) (vis->camera.rad * cosf(vis->camera.ele) * cosf(vis->camera.azi));
     look_at(vis->camera.view, eye, up);
+    // draw
     glUseProgram(vis->program);
     glUniformMatrix4fv(vis->loc_proj, 1, GL_FALSE, vis->camera.proj);
     glUniformMatrix4fv(vis->loc_view, 1, GL_FALSE, vis->camera.view);
     glUseProgram(0);
-}
-
-void
-Vis_draw(const Vis* const vis) {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glUseProgram(vis->program);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, vis->tex);
-    glBindVertexArray(vis->buf[0]);
-    size_t buffer_size;
-    buffer_size = COUNT_IDX * sizeof(GLuint);
-    glDrawElements(GL_TRIANGLES, (GLsizei) buffer_size, GL_UNSIGNED_INT, (GLvoid*) 0);
+    glBindVertexArray(vis->VAO);
+    glDrawElements(GL_TRIANGLES, COUNT_IDX, GL_UNSIGNED_INT, (GLvoid*) 0);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindVertexArray(0);
     glActiveTexture(0);
