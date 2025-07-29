@@ -56,17 +56,10 @@ enum {
     } \
 } while(0)
 
-#define HH_ERR_AND_CLOSE(stream, ...) do { \
-    HH_ERR(__VA_ARGS__); \
-    fclose((stream)); \
-    return NULL; \
-} while(0)
-
 #else
 #define HH_DBG(...)
 #define HH_MSG(...)
 #define HH_ERR(...)
-#define HH_ERR_AND_CLOSE(stream, ...)
 #endif
 
 //
@@ -74,6 +67,12 @@ enum {
 //
 
 #define HH_ASSERT(cond, ...) do { for(; !(cond); assert(cond)) HH_ERR(__VA_ARGS__); } while(0)
+
+#define HH_CHECK_STREAM(stream, cond, ...) if(!(cond)) { \
+		fclose((stream)); \
+		HH_ERR(__VA_ARGS__); \
+	} \
+	if(!(cond))
 
 #define HH_UNREACHABLE HH_ASSERT(false, "Unreachable!")
 

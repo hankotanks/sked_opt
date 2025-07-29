@@ -1,0 +1,7 @@
+*.lib
+*.a
+*.o
+# bear output
+compile_commands.json
+# clangd cache
+.cache/*
