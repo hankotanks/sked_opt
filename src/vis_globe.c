@@ -1,0 +1,232 @@
+#include "vis_globe.h"
+
+#include "hh.h"
+#include "vis.h"
+
+#define STACKS 48
+#define SLICES 64
+#define COUNT_V (SLICES * (STACKS - 1) + 2)
+#define COUNT_E (SLICES * 6 * (STACKS - 1))
+
+struct BMP {
+    unsigned char header[54];
+    size_t data_offset, data_size;
+    size_t w, h;
+    unsigned char* data;
+};
+
+// fails gracefully, truthy if succeeded
+bool
+image_load(struct BMP* const img, const char* path) {
+    FILE* stream = fopen(path, "rb");
+    HH_CHECK_STREAM(stream, stream != NULL, "Failed to open image [%s].", path) return false;
+    size_t header_size = fread(img->header, 1, 54, stream);
+    HH_CHECK_STREAM(stream, header_size == 54 && img->header[0] == 'B' && img->header[1] == 'M', \
+        "Image header was malformed [%s].", path) return false;
+    img->data_offset = (size_t) (*(int*) &(img->header[0x0A]));
+    img->data_size = (size_t) (*(int*) &(img->header[0x22]));
+    img->w = (size_t) (*(int*) &(img->header[0x12]));
+    img->h = (size_t) (*(int*) &(img->header[0x16]));
+    if(img->data_size == 0) {
+        HH_DBG("Image header does report size of data [%s].", path);
+        img->data_size = img->w * img->h * 3;
+    }
+    if(img->data_offset == 0) {
+        HH_DBG("Image data offset not indicated by header [%s].", path);
+        img->data_offset = 54;
+    }
+    HH_MALLOC(img->data, img->data_size);
+    size_t read_size = fread(img->data, 1, img->data_size, stream);
+    HH_CHECK_STREAM(stream, read_size >= img->data_size, "Image data size did not match allocated buffer [%s].", path) {
+        free(img->data);
+        return false;
+    }
+    fclose(stream);
+    return true;
+}
+
+void
+image_free(const struct BMP* const img) {
+    free(img->data);
+}
+
+// fails gracefully, 0 if failed
+GLuint
+image_build_tex(const struct BMP img, GLenum tex_unit) {
+    GLuint tex;
+    glActiveTexture(tex_unit);
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    GLsizei w = (GLsizei) img.w;
+    GLsizei h = (GLsizei) img.h;
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_BGR, GL_UNSIGNED_BYTE, img.data);
+    if(glGetError() != GL_NO_ERROR) {
+        glDeleteTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(0);
+        return 0;
+    }
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(0);
+    return tex;
+}
+
+struct globe_layer {
+    GLuint VAO, VBO, EBO, tex;
+};
+
+bool 
+globe_layer_events(void* const data, const RGFW_window* const win) {
+    (void) data;
+    (void) win;
+    return false;
+}
+
+void 
+globe_layer_render(const void* const data) {
+    const struct globe_layer* layer = data;
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, layer->tex);
+    glBindVertexArray(layer->VAO);
+    glDrawElements(GL_TRIANGLES, COUNT_E, GL_UNSIGNED_INT, (GLvoid*) 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindVertexArray(0);
+    glActiveTexture(0);
+    glUseProgram(0);
+    glDisable(GL_DEPTH_TEST);
+}
+
+void 
+globe_layer_deinit(void* const data) {
+    struct globe_layer* layer = data;
+    glDeleteTextures(1, &layer->tex);
+    glDeleteVertexArrays(1, &layer->VAO);
+    glDeleteBuffers(1, &layer->VBO);
+    glDeleteBuffers(1, &layer->EBO);
+}
+
+static const char* shader_source_globe = \
+    "#version 330 core\n"
+    "in vec3 f_lam_phi;\n"
+    "out vec4 color;"
+    "uniform float globe_tex_offset;\n"
+    "uniform sampler2D globe_tex_sampler;\n"
+    "void main() {"
+    "    float lam = atan(f_lam_phi.x, f_lam_phi.y) - radians(globe_tex_offset);\n"
+    "    float u = 0.5 - lam / radians(360.0);\n"
+    "    float v = 1.0 - f_lam_phi.z / radians(180.0);\n"
+    "    color = texture(globe_tex_sampler, vec2(u, v));\n"
+    "}\n";
+
+bool
+Vis_add_globe_layer(Vis* const vis, const char* path_globe_image) {
+    // construct globe geometry
+    HH_ASSERT(STACKS > 2 && SLICES > 2, "Unreachable!");
+    GLfloat* vertices = malloc(sizeof(GLfloat) * COUNT_V * 3);
+    if(vertices == NULL) {
+        HH_ERR("Failed to allocate space for vertices.");
+        return false;
+    }
+    size_t k_v = 0;
+    vertices[k_v++] = 180.f;
+    vertices[k_v++] = 0.f;
+    vertices[k_v++] = 0.f;
+    for(size_t i = 0; i < (STACKS - 1); ++i) {
+        float phi = 180.f * (float) (i + 1) / (float) STACKS;
+        for(size_t j = 0; j < SLICES; ++j) {
+            vertices[k_v++] = (GLfloat) 360.f * (GLfloat) j / (GLfloat) SLICES;
+            vertices[k_v++] = phi;
+            vertices[k_v++] = 0.f;
+        }
+    }
+    vertices[k_v++] = 180.f;
+    vertices[k_v++] = 180.f;
+    vertices[k_v++] = 0.f;
+    HH_ASSERT(k_v == COUNT_V * 3, "INVALID! %zu, %i", k_v, COUNT_V);
+    GLuint* indices = malloc(sizeof(GLuint) * COUNT_E);
+    if(indices == NULL) {
+        HH_ERR("Failed to allocate space for indices.");
+        free(vertices);
+        return false;
+    }
+    size_t k_i = 0;
+    for(GLuint i = 0; i < SLICES; ++i) {
+        GLuint i0 = i + 1;
+        GLuint i1 = (i0 % SLICES) + 1;
+        indices[k_i++] = 0;
+        indices[k_i++] = i1;
+        indices[k_i++] = i0;
+        i0 = i + SLICES * (STACKS - 2) + 1;
+        i1 = (i + 1) % SLICES + SLICES * (STACKS - 2) + 1;
+        indices[k_i++] = COUNT_V - 1;
+        indices[k_i++] = i0;
+        indices[k_i++] = i1;
+    }
+    for(GLuint j = 0; j < (STACKS - 2); ++j) {
+        GLuint j0 = j * SLICES + 1;
+        GLuint j1 = (j + 1) * SLICES + 1;
+        for(GLuint i = 0; i < SLICES; ++i) {
+            GLuint i0 = j0 + i;
+            GLuint i1 = j0 + (i + 1) % SLICES;
+            GLuint i2 = j1 + (i + 1) % SLICES;
+            GLuint i3 = j1 + i;
+            indices[k_i++] = i3; indices[k_i++] = i0; 
+            indices[k_i++] = i1;
+            indices[k_i++] = i1; indices[k_i++] = i2; 
+            indices[k_i++] = i3;
+        }
+    }
+    // load texture (vis->tex)
+    struct BMP image_globe;
+    if(!image_load(&image_globe, path_globe_image)) return false;
+    GLuint tex;
+    tex = image_build_tex(image_globe, GL_TEXTURE0);
+    if(tex == 0) return false;
+    image_free(&image_globe);
+    // create the fragment shader
+    GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_globe);
+    if(!frag) return false;
+    // allocate space for the layer data
+    struct globe_layer* data = Vis_add_layer(vis, frag, (VisLayerMethods) {
+        .events = globe_layer_events,
+        .render = globe_layer_render,
+        .deinit = globe_layer_deinit }, sizeof(struct globe_layer));
+    // assign texture
+    data->tex = tex;
+    // buffers (vis->buf)
+    glGenVertexArrays(1, &data->VAO);
+    glGenBuffers(1, &data->VBO);
+    glGenBuffers(1, &data->EBO);
+    glBindVertexArray(data->VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, data->VBO);
+    size_t buffer_size;
+    buffer_size = COUNT_V * 3 * sizeof(GLfloat);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, vertices, GL_STATIC_DRAW);
+    free(vertices);
+    free(indices);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data->EBO);
+    buffer_size = COUNT_E * sizeof(GLuint);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) buffer_size, indices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
+    glEnableVertexAttribArray(0);
+    glUseProgram(0);
+    return true;
+}
+
+#if 0
+#pragma GCC diagnostic ignored "-Wunused-variable"
+static const char* shader_source_color = \
+    "#version 330 core\n"
+    "flat in uint f_type;\n"
+    "uniform vec3 fst_color;\n"
+    "uniform vec3 snd_color;\n"
+    "out vec4 f_color;\n"
+    "void main() {\n"
+    "    bool b_type = (f_type != 0u);\n"
+    "    f_color = vec4(b_type ? fst_color : snd_color, 1.f);\n"
+    "}\n";
+#endif

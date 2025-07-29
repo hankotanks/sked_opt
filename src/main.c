@@ -4,17 +4,22 @@
 
 #include <stdio.h>
 
+#if 0
 #include "cat.h"
 #include "network.h"
 #include "sky.h"
+#endif
 #include "vis.h"
+#include "vis_globe.h"
 
 // window configuration options
-#define WINDOW_TITLE "sked_viewer"
-#define WINDOW_BOUNDS RGFW_RECT(0, 0, 800, 600)
+#define WINDOW_TITLE "sked_opt"
+#define WINDOW_W 800
+#define WINDOW_H 600
 
 int main(void) {
     const char* path_root = hh_path(PROJECT_ROOT);
+#if 0
     { // parse catalog
         char* path_cat = hh_path_join(hh_path(path_root), "catalogs");
         cat_parse(path_cat);
@@ -32,24 +37,24 @@ int main(void) {
     }
     // clean up catalog
     cat_clean();
-//
-//
-//
-    RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
-    RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_BOUNDS.w, WINDOW_BOUNDS.h));
+#endif
+    // initialize window
+    RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
+    RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));
     if(glewInit() != GLEW_OK) {
         HH_ERR("Failed to initialize GLEW.");
         return 1;
     }
+    // initialize glenv.h
     glenv_init(window);
     glClearColor(0.f, 0.f, 0.f, 1.f);
+    // create visualization layers
     Vis vis;
+    Vis_init(&vis, window);
     char* path_globe_image = hh_path_join(hh_path_join(hh_path(path_root), "assets"), "globe.bmp");
-    Vis_init(&vis, window, path_globe_image);
+    Vis_add_globe_layer(&vis, path_globe_image);
     hh_arrfree(path_globe_image);
-//
-//
-//
+    // event loop
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while(RGFW_window_checkEvent(window)) {
             if(window->event.type == RGFW_windowResized) 
