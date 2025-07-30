@@ -6,6 +6,7 @@
 #include <glenv.h>
 
 #include "network.h"
+#include "sky.h"
 
 GLuint
 shader_compile_from_source(GLenum type, const char* source);
@@ -70,5 +71,7 @@ bool
 Vis_add_globe(Vis* const vis, const char* path_globe_image);
 bool
 Vis_add_stations(Vis* const vis, const Network* const net);
+bool
+Vis_add_sources(Vis* const vis, const Sky* const net);
 
 #endif // VIS_H__

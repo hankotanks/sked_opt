@@ -9,6 +9,7 @@
 struct NETWORK_H__StationEntry {
     Station station;
     bool used;
+    bool active;
 };
 
 static size_t 
@@ -23,25 +24,31 @@ Network_add_sta(const Network* const net, const Station sta) {
         if(!net->entries[k].used || (memcmp(net->entries[k].station.id, sta.id, 2) == 0)) {
             net->entries[k].station = sta;
             net->entries[k].used = true;
+            net->entries[k].active = false;
             return;
         }
     }
-    HH_ASSERT(false, "Unreachable! Network ran out of space.");
+    HH_UNREACHABLE;
 }
 
-Station*
-Network_get_sta(const Network* const net, const char id[static 2]) {
+bool
+Network_get_sta(const Network* const net, const char id[static 2], Station** out) {
     for(size_t i = Network_hash(net, id), j = 0, k; j < net->count; ++j) {
         k = (i + j) % net->count;
-        if(!net->entries[k].used) return NULL;
-        if(memcmp(net->entries[k].station.id, id, 2) == 0) return &(net->entries[k].station);
+        if(!net->entries[k].used) continue;
+        if(memcmp(net->entries[k].station.id, id, 2) == 0) {
+            *out = &(net->entries[k].station);
+            return net->entries[k].active;
+        }
     }
-    return NULL;
+    *out = NULL;
+    return false;
 }
 
-Station*
-Network_get_sta_by_idx(const Network* const net, const size_t idx) {
-    return net->entries[idx].used ? &(net->entries[idx].station) : NULL;
+bool
+Network_get_sta_by_idx(const Network* const net, const size_t idx, Station** out) {
+    *out = net->entries[idx].used ? &(net->entries[idx].station) : NULL;
+    return net->entries[idx].active;
 }
 
 void

@@ -112,14 +112,14 @@ globe_layer_deinit(void* const data) {
 
 static const char* shader_source_globe = \
     "#version 330 core\n"
-    "in vec3 f_lam_phi;\n"
+    "in vec3 pos;\n"
     "out vec4 color;"
     "uniform float globe_tex_offset;\n"
     "uniform sampler2D globe_tex_sampler;\n"
     "void main() {"
-    "    float lam = atan(f_lam_phi.x, f_lam_phi.y) - radians(globe_tex_offset);\n"
+    "    float lam = atan(pos.x, pos.y) - radians(globe_tex_offset);\n"
     "    float u = 0.5 - lam / radians(360.0);\n"
-    "    float v = 1.0 - f_lam_phi.z / radians(180.0);\n"
+    "    float v = 1.0 - pos.z / radians(180.0);\n"
     "    color = texture(globe_tex_sampler, vec2(u, v));\n"
     "}\n";
 
@@ -127,7 +127,7 @@ bool
 Vis_add_globe(Vis* const vis, const char* path_globe_image) {
     // construct globe geometry
     HH_ASSERT(STACKS > 2 && SLICES > 2, "Unreachable!");
-    GLfloat* vertices = malloc(sizeof(GLfloat) * COUNT_V * 3);
+    GLfloat* vertices = malloc(sizeof(GLfloat) * COUNT_V * 4);
     if(vertices == NULL) {
         HH_ERR("Failed to allocate space for vertices.");
         return false;
@@ -136,18 +136,21 @@ Vis_add_globe(Vis* const vis, const char* path_globe_image) {
     vertices[k_v++] = 180.f;
     vertices[k_v++] = 0.f;
     vertices[k_v++] = 0.f;
+    vertices[k_v++] = 1.f;
     for(size_t i = 0; i < (STACKS - 1); ++i) {
         float phi = 180.f * (float) (i + 1) / (float) STACKS;
         for(size_t j = 0; j < SLICES; ++j) {
             vertices[k_v++] = (GLfloat) 360.f * (GLfloat) j / (GLfloat) SLICES;
             vertices[k_v++] = phi;
             vertices[k_v++] = 0.f;
+            vertices[k_v++] = 1.f;
         }
     }
     vertices[k_v++] = 180.f;
     vertices[k_v++] = 180.f;
     vertices[k_v++] = 0.f;
-    HH_ASSERT(k_v == COUNT_V * 3, "INVALID! %zu, %i", k_v, COUNT_V);
+    vertices[k_v++] = 1.f;
+    HH_ASSERT(k_v == COUNT_V * 4, "INVALID! %zu, %i", k_v, COUNT_V);
     GLuint* indices = malloc(sizeof(GLuint) * COUNT_E);
     if(indices == NULL) {
         HH_ERR("Failed to allocate space for indices.");
@@ -210,14 +213,14 @@ Vis_add_globe(Vis* const vis, const char* path_globe_image) {
     glBindVertexArray(data->VAO);
     glBindBuffer(GL_ARRAY_BUFFER, data->VBO);
     size_t buffer_size;
-    buffer_size = COUNT_V * 3 * sizeof(GLfloat);
+    buffer_size = COUNT_V * 4 * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, vertices, GL_STATIC_DRAW);
     free(vertices);
     free(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data->EBO);
     buffer_size = COUNT_E * sizeof(GLuint);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) buffer_size, indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
     return true;
 }

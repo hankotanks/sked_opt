@@ -7,7 +7,7 @@
 #include "cat.h"
 #include "network.h"
 #include "vis.h"
-// #include "sky.h"
+#include "sky.h"
 
 // window configuration options
 #define WINDOW_TITLE "sked_opt"
@@ -23,6 +23,9 @@ int main(void) {
     // initialize network
     Network net;
     Network_init(&net);
+    // initialize sky
+    Sky sky;
+    Sky_init(&sky);
     // initialize window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));
@@ -39,6 +42,7 @@ int main(void) {
     char* path_globe_image = hh_path_join(hh_path_join(hh_path(path_root), "assets"), "globe.bmp");
     Vis_add_globe(&vis, path_globe_image);
     Vis_add_stations(&vis, &net);
+    Vis_add_sources(&vis, &sky);
     hh_arrfree(path_globe_image);
     // event loop
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
@@ -55,8 +59,9 @@ int main(void) {
     }
     glenv_deinit();
     RGFW_window_close(window);
-    // clean up network
+    // clean up
     Network_free(&net);
+    Sky_free(&sky);
     // finally free catalog
     cat_clean();
     return 0;

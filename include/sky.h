@@ -2,6 +2,7 @@
 #define SKY_H__
 
 #include <stddef.h>
+#include <stdbool.h>
 
 #include "source.h"
 
@@ -15,8 +16,10 @@ void
 Sky_init(Sky* const sky);
 void
 Sky_free(const Sky* const sky);
-Source* 
-Sky_get_src(const Sky* const sky, const char id[static 8]);
+bool
+Sky_get_src(const Sky* const sky, const char id[static 8], Source** out);
+bool
+Sky_get_src_by_idx(const Sky* const sky, const size_t idx, Source** out);
 void
 Sky_add_src(const Sky* const sky, const Source src);
 void

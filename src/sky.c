@@ -11,7 +11,7 @@
 
 struct SKY_H__SourceEntry {
     Source source;
-    bool used;
+    bool used, active;
 };
 
 void
@@ -59,14 +59,24 @@ Sky_hash(const Sky* const sky, const char id[static 8]) {
     return hash % sky->count;
 }
 
-Source*
-Sky_get_src(const Sky* const sky, const char id[static 8]) {
+bool
+Sky_get_src(const Sky* const sky, const char id[static 8], Source** out) {
     for(size_t i = Sky_hash(sky, id), j = 0, k; j < sky->count; ++j) {
         k = (i + j) % sky->count;
-        if(!sky->entries[k].used) return NULL;
-        if(cat_name_eq(sky->entries[k].source.name, id)) return &(sky->entries[k].source);
+        if(!sky->entries[k].used) continue;
+        if(cat_name_eq(sky->entries[k].source.name, id)) {
+            *out = &(sky->entries[k].source);
+            return sky->entries[k].active;
+        }
     }
-    return NULL;
+    *out = NULL;
+    return false;
+}
+
+bool
+Sky_get_src_by_idx(const Sky* const sky, const size_t idx, Source** out) {
+    *out = sky->entries[idx].used ? &(sky->entries[idx].source) : NULL;
+    return sky->entries[idx].active;
 }
 
 void
@@ -76,10 +86,11 @@ Sky_add_src(const Sky* const sky, const Source src) {
         if(!sky->entries[k].used || cat_name_eq(sky->entries[k].source.name, src.name)) {
             sky->entries[k].source = src;
             sky->entries[k].used = true;
+            sky->entries[k].active = false;
             return;
         }
     }
-    HH_ASSERT(false, "Unreachable! Sky ran out of space.");
+    HH_UNREACHABLE;
 }
 
 void
