@@ -68,10 +68,10 @@ Vis_add_layer(Vis* const vis, GLuint frag, VisLayerMethods methods, size_t data_
 
 // layer declarations
 bool
-Vis_add_globe(Vis* const vis, const char* path_globe_image);
+Vis_layer_globe(Vis* const vis, const char* path_globe_image);
 bool
-Vis_add_stations(Vis* const vis, const Network* const net);
+Vis_layer_stations(Vis* const vis, const Network* const net);
 bool
-Vis_add_sources(Vis* const vis, const Sky* const net);
+Vis_layer_sources(Vis* const vis, const Sky* const net);
 
 #endif // VIS_H__

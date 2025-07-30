@@ -40,9 +40,9 @@ int main(void) {
     Vis vis;
     Vis_init(&vis, window);
     char* path_globe_image = hh_path_join(hh_path_join(hh_path(path_root), "assets"), "globe.bmp");
-    Vis_add_globe(&vis, path_globe_image);
-    Vis_add_stations(&vis, &net);
-    Vis_add_sources(&vis, &sky);
+    Vis_layer_globe(&vis, path_globe_image);
+    Vis_layer_stations(&vis, &net);
+    Vis_layer_sources(&vis, &sky);
     hh_arrfree(path_globe_image);
     // event loop
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {

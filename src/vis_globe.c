@@ -75,25 +75,25 @@ image_build_tex(const struct BMP img, GLenum tex_unit) {
     return tex;
 }
 
-struct globe_layer {
+struct vis_layer_globe_state {
     GLuint VAO, VBO, EBO, tex;
 };
 
 bool 
-globe_layer_events(void* const data, const RGFW_window* const win) {
+vis_layer_globe_events(void* const data, const RGFW_window* const win) {
     (void) data;
     (void) win;
     return false;
 }
 
 void 
-globe_layer_render(const void* const data) {
-    const struct globe_layer* layer = data;
+vis_layer_globe_render(const void* const data) {
+    const struct vis_layer_globe_state* state = data;
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, layer->tex);
-    glBindVertexArray(layer->VAO);
+    glBindTexture(GL_TEXTURE_2D, state->tex);
+    glBindVertexArray(state->VAO);
     glDrawElements(GL_TRIANGLES, COUNT_E, GL_UNSIGNED_INT, (GLvoid*) 0);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(0);
@@ -102,29 +102,29 @@ globe_layer_render(const void* const data) {
 }
 
 void 
-globe_layer_deinit(void* const data) {
-    struct globe_layer* layer = data;
-    glDeleteTextures(1, &layer->tex);
-    glDeleteVertexArrays(1, &layer->VAO);
-    glDeleteBuffers(1, &layer->VBO);
-    glDeleteBuffers(1, &layer->EBO);
+vis_layer_globe_deinit(void* const data) {
+    struct vis_layer_globe_state* state = data;
+    glDeleteTextures(1, &state->tex);
+    glDeleteVertexArrays(1, &state->VAO);
+    glDeleteBuffers(1, &state->VBO);
+    glDeleteBuffers(1, &state->EBO);
 }
 
 static const char* shader_source_globe = \
     "#version 330 core\n"
     "in vec3 pos;\n"
-    "out vec4 color;"
-    "uniform float globe_tex_offset;\n"
-    "uniform sampler2D globe_tex_sampler;\n"
+    "uniform sampler2D tex_sampler;\n"
+    "uniform float tex_offset;\n"
+    "out vec4 color_out;"
     "void main() {"
-    "    float lam = atan(pos.x, pos.y) - radians(globe_tex_offset);\n"
+    "    float lam = atan(pos.x, pos.y) - radians(tex_offset);\n"
     "    float u = 0.5 - lam / radians(360.0);\n"
     "    float v = 1.0 - pos.z / radians(180.0);\n"
-    "    color = texture(globe_tex_sampler, vec2(u, v));\n"
+    "    color_out = texture(tex_sampler, vec2(u, v));\n"
     "}\n";
 
 bool
-Vis_add_globe(Vis* const vis, const char* path_globe_image) {
+Vis_layer_globe(Vis* const vis, const char* path_globe_image) {
     // construct globe geometry
     HH_ASSERT(STACKS > 2 && SLICES > 2, "Unreachable!");
     GLfloat* vertices = malloc(sizeof(GLfloat) * COUNT_V * 4);
@@ -195,29 +195,29 @@ Vis_add_globe(Vis* const vis, const char* path_globe_image) {
     GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_globe);
     if(!frag) return false;
     // allocate space for the layer data
-    struct globe_layer* data = Vis_add_layer(vis, frag, (VisLayerMethods) {
-        .events = globe_layer_events,
-        .render = globe_layer_render,
-        .deinit = globe_layer_deinit }, sizeof(struct globe_layer));
+    struct vis_layer_globe_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
+        .events = vis_layer_globe_events,
+        .render = vis_layer_globe_render,
+        .deinit = vis_layer_globe_deinit }, sizeof(struct vis_layer_globe_state));
     // assign texture
-    data->tex = tex;
+    state->tex = tex;
     // set uniforms
     GLint program = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &program);
     glUniform1i(glGetUniformLocation((GLuint) program, "globe_tex_sampler"), 0);
     glUniform1f(glGetUniformLocation((GLuint) program, "globe_tex_offset"), OFFSET);
     // buffers (vis->buf)
-    glGenVertexArrays(1, &data->VAO);
-    glGenBuffers(1, &data->VBO);
-    glGenBuffers(1, &data->EBO);
-    glBindVertexArray(data->VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, data->VBO);
+    glGenVertexArrays(1, &state->VAO);
+    glGenBuffers(1, &state->VBO);
+    glGenBuffers(1, &state->EBO);
+    glBindVertexArray(state->VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
     size_t buffer_size;
     buffer_size = COUNT_V * 4 * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, vertices, GL_STATIC_DRAW);
     free(vertices);
     free(indices);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data->EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, state->EBO);
     buffer_size = COUNT_E * sizeof(GLuint);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) buffer_size, indices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, (GLvoid*) 0);

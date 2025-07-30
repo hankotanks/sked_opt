@@ -59,6 +59,10 @@ VisCamera_update_projection(VisCamera* camera, const RGFW_window* const win) {
     camera->proj[14] = (GLfloat) ((2.f * ZFAR * ZNEAR) / (ZFAR - ZNEAR) * -1.f); 
 }
 
+// NOTE:
+// vertices are given in the form [lon, lat, rad, active] to the shader
+// where rad == 0.f for points on the globe and rad == 1.f for celestial objects
+// active == 1.f if the vertex is included in the schedule
 static const char* shader_source_vert = \
     "#version 330 core\n"
     "layout(location = 0) in vec4 lam_phi;\n"
@@ -67,7 +71,7 @@ static const char* shader_source_vert = \
     "uniform float globe_radius;\n"
     "uniform float shell_radius;\n"
     "uniform float gmst;\n"
-    "flat out uint is_active;\n"
+    "flat out uint state;\n"
     "out vec3 pos;\n"
     "void main() {\n"
     "    bool shell = (abs(lam_phi.z) != 0.f);\n"
@@ -78,7 +82,7 @@ static const char* shader_source_vert = \
     "    float y = cos(phi) * rad;\n"
     "    float z = sin(phi) * sin(lam) * rad;\n"
     "    gl_Position = proj * view * vec4(x, y, z, 1.f);\n"
-    "    is_active = (abs(lam_phi.w) > 0.5f) ? 0u : 1u;\n"
+    "    state = (abs(lam_phi.w) > 0.5f) ? 0u : 1u;\n"
     "    pos = vec3(sin(lam), cos(lam), phi);\n"
     "}\n";
 

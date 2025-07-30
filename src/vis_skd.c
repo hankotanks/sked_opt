@@ -18,29 +18,30 @@ const GLfloat COLOR_ACTIVE_SRC[3] = { 1.f, 0.8f, 0.0f };
 
 static const char* shader_source_stations = \
     "#version 330 core\n"
-    "flat in uint is_active;\n"
-    "out vec4 color_out;\n"
+    "flat in uint state;\n"
     "uniform vec3 color_normal;\n"
     "uniform vec3 color_active;\n"
+    "out vec4 color_out;\n"
     "void main() {\n"
-    "    color_out = vec4((is_active != 0u) ? color_normal : color_active, 1.f);\n"
+    "    color_out = vec4((state != 0u) ? color_normal : color_active, 1.f);\n"
     "}\n";
 
-struct layer_data {
+struct vis_layer_skd_state {
     GLuint VAO, VBO;
     size_t vertex_count;
 };
 
+// TODO: Implement mouse picking here
 bool 
-layer_events(void* const data, const RGFW_window* const win) {
+vis_layer_skd_events(void* const data, const RGFW_window* const win) {
     (void) data;
     (void) win;
     return false;
 }
 
 void 
-layer_render(const void* const data) {
-    const struct layer_data* layer = data;
+vis_layer_skd_render(const void* const data) {
+    const struct vis_layer_skd_state* layer = data;
     glEnable(GL_DEPTH_TEST);
     glPointSize(5.f);
     glBindVertexArray(layer->VAO);    
@@ -48,14 +49,14 @@ layer_render(const void* const data) {
 }
 
 void 
-layer_deinit(void* const data) {
-    struct layer_data* layer = data;
+vis_layer_skd_deinit(void* const data) {
+    struct vis_layer_skd_state* layer = data;
     glDeleteVertexArrays(1, &layer->VAO);
     glDeleteBuffers(1, &layer->VBO);
 }
 
 bool
-Vis_add_stations(Vis* const vis, const Network* const net) {
+Vis_layer_stations(Vis* const vis, const Network* const net) {
     // TODO: remove when i stop randomizing
     srand((unsigned int) time(NULL));
     GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_stations);
@@ -75,21 +76,21 @@ Vis_add_stations(Vis* const vis, const Network* const net) {
         hh_arrput(vertices, active ? 1.f : 0.f);
     }
     // allocate data
-    struct layer_data* data = Vis_add_layer(vis, frag, (VisLayerMethods) {
-        .events = layer_events,
-        .render = layer_render,
-        .deinit = layer_deinit }, sizeof(struct layer_data));
-    data->vertex_count = hh_arrlen(vertices) / 4;
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
+        .events = vis_layer_skd_events,
+        .render = vis_layer_skd_render,
+        .deinit = vis_layer_skd_deinit }, sizeof(struct vis_layer_skd_state));
+    state->vertex_count = hh_arrlen(vertices) / 4;
     // set uniform locations
     GLint program = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &program);
     glUniform3f(glGetUniformLocation((GLuint) program, "color_normal"), COLOR_NORMAL_STA[0], COLOR_NORMAL_STA[1], COLOR_NORMAL_STA[2]);
     glUniform3f(glGetUniformLocation((GLuint) program, "color_active"), COLOR_ACTIVE_STA[0], COLOR_ACTIVE_STA[1], COLOR_ACTIVE_STA[2]);
     // configure buffers
-    glGenVertexArrays(1, &data->VAO);
-    glGenBuffers(1, &data->VBO);
-    glBindVertexArray(data->VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, data->VBO);
+    glGenVertexArrays(1, &state->VAO);
+    glGenBuffers(1, &state->VBO);
+    glBindVertexArray(state->VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) (hh_arrlen(vertices) * sizeof(GLfloat)), vertices, GL_STATIC_DRAW);
     hh_arrfree(vertices);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, (GLvoid*) 0);
@@ -98,7 +99,7 @@ Vis_add_stations(Vis* const vis, const Network* const net) {
 }
 
 bool
-Vis_add_sources(Vis* const vis, const Sky* const sky) {
+Vis_layer_sources(Vis* const vis, const Sky* const sky) {
     // TODO: remove when i stop randomizing
     srand((unsigned int) time(NULL));
     GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_stations);
@@ -118,21 +119,21 @@ Vis_add_sources(Vis* const vis, const Sky* const sky) {
         hh_arrput(vertices, active ? 1.f : 0.f);
     }
     // allocate data
-    struct layer_data* data = Vis_add_layer(vis, frag, (VisLayerMethods) {
-        .events = layer_events,
-        .render = layer_render,
-        .deinit = layer_deinit }, sizeof(struct layer_data));
-    data->vertex_count = hh_arrlen(vertices) / 4;
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
+        .events = vis_layer_skd_events,
+        .render = vis_layer_skd_render,
+        .deinit = vis_layer_skd_deinit }, sizeof(struct vis_layer_skd_state));
+    state->vertex_count = hh_arrlen(vertices) / 4;
     // set uniform locations
     GLint program = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &program);
     glUniform3f(glGetUniformLocation((GLuint) program, "color_normal"), COLOR_NORMAL_SRC[0], COLOR_NORMAL_SRC[1], COLOR_NORMAL_SRC[2]);
     glUniform3f(glGetUniformLocation((GLuint) program, "color_active"), COLOR_ACTIVE_SRC[0], COLOR_ACTIVE_SRC[1], COLOR_ACTIVE_SRC[2]);
     // configure buffers
-    glGenVertexArrays(1, &data->VAO);
-    glGenBuffers(1, &data->VBO);
-    glBindVertexArray(data->VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, data->VBO);
+    glGenVertexArrays(1, &state->VAO);
+    glGenBuffers(1, &state->VBO);
+    glBindVertexArray(state->VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) (hh_arrlen(vertices) * sizeof(GLfloat)), vertices, GL_STATIC_DRAW);
     hh_arrfree(vertices);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, (GLvoid*) 0);
