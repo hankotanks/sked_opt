@@ -55,16 +55,16 @@ vis_layer_skd_deinit(void* const data) {
 }
 
 void 
-vis_layer_skd_layout_stations(void* const data, VisOverlay* overlay) {
+vis_layer_net_layout(void* const data, struct nk_context* ctx, float row_height) {
     struct vis_layer_skd_state* state = data;
-    nk_layout_row_dynamic(overlay->ctx, overlay->row_height, 1);
+    nk_layout_row_dynamic(ctx, row_height, 1);
     Station sta;
     bool* active;
     for(size_t i = 0, j = 0; i < net->count; ++i) {
         active = Network_get_sta_by_idx(i, &sta);
         if(active == NULL) continue;
         int temp = *active ? nk_false : nk_true;
-        if(nk_check_text(overlay->ctx, sta.name, (int) cat_name_len(sta.name), temp) != temp) {
+        if(nk_check_text(ctx, sta.name, (int) cat_name_len(sta.name), temp) != temp) {
             *active = !(*active);
             GLfloat val = (*active) ? 0.f : 1.f;
             glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
@@ -77,7 +77,7 @@ vis_layer_skd_layout_stations(void* const data, VisOverlay* overlay) {
 }
 
 bool
-Vis_layer_stations(Vis* const vis) {
+Vis_layer_net(Vis* const vis) {
     GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_stations);
     if(!frag) return false;
     // build station vertices
@@ -93,16 +93,15 @@ Vis_layer_stations(Vis* const vis) {
         hh_arrput(vertices, active ? 1.f : 0.f);
     }
     // allocate data
-    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisPanel) {
-        .title = "stations",
-        .parent = "",
-        .bounds = VIS_PANEL_BOUNDS_LEFT_RATIO(0.2f, 5),
-        .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
-        .layout = vis_layer_skd_layout_stations,
-    }, (VisLayerMethods) {
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
         .events = vis_layer_skd_events,
         .render = vis_layer_skd_render,
         .deinit = vis_layer_skd_deinit }, sizeof(struct vis_layer_skd_state));
+    Vis_attach_panel(vis, (glenv_Panel) {
+        .title = "stations",
+        .bounds = glenv_PanelBounds_left_ratio(0.2f, 5),
+        .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
+        .layout = vis_layer_net_layout }, NULL);
     state->vertex_count = hh_arrlen(vertices) / 4;
     // set uniform locations
     GLint program = 0;
@@ -125,16 +124,16 @@ Vis_layer_stations(Vis* const vis) {
 }
 
 void 
-vis_layer_skd_layout_sources(void* const data, VisOverlay* overlay) {
+vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height) {
     struct vis_layer_skd_state* state = data;
-    nk_layout_row_dynamic(overlay->ctx, overlay->row_height, 1);
+    nk_layout_row_dynamic(ctx, row_height, 1);
     Source src;
     bool* active;
     for(size_t i = 0, j = 0; i < net->count; ++i) {
         active = Sky_get_src_by_idx(i, &src);
         if(active == NULL) continue;
         int temp = *active ? nk_false : nk_true;
-        if(nk_check_text(overlay->ctx, src.name, (int) cat_name_len(src.name), temp) != temp) {
+        if(nk_check_text(ctx, src.name, (int) cat_name_len(src.name), temp) != temp) {
             *active = !(*active);
             GLfloat val = (*active) ? 0.f : 1.f;
             glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
@@ -147,7 +146,7 @@ vis_layer_skd_layout_sources(void* const data, VisOverlay* overlay) {
 }
 
 bool
-Vis_layer_sources(Vis* const vis) {
+Vis_layer_sky(Vis* const vis) {
     GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_stations);
     if(!frag) return false;
     // build station vertices
@@ -163,16 +162,15 @@ Vis_layer_sources(Vis* const vis) {
         hh_arrput(vertices, active ? 1.f : 0.f);
     }
     // allocate data
-    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisPanel) {
-        .title = "sources",
-        .parent = "stations",
-        .bounds = VIS_PANEL_BOUNDS_LEFT_RATIO(0.2f, 5),
-        .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
-        .layout = vis_layer_skd_layout_sources,
-    }, (VisLayerMethods) {
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
         .events = vis_layer_skd_events,
         .render = vis_layer_skd_render,
         .deinit = vis_layer_skd_deinit }, sizeof(struct vis_layer_skd_state));
+    Vis_attach_panel(vis, (glenv_Panel) {
+        .title = "sources",
+        .bounds = glenv_PanelBounds_left_ratio(0.2f, 5),
+        .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
+        .layout = vis_layer_sky_layout }, "stations");
     state->vertex_count = hh_arrlen(vertices) / 4;
     // set uniform locations
     GLint program = 0;

@@ -32,4 +32,51 @@ NK_API void glenv_render(enum nk_anti_aliasing AA);
 // to be called at the end of the event loop
 NK_API void glenv_new_frame(void);
 
+typedef struct {
+    nk_bool right;
+    nk_bool width_prop;
+    union { float full; float ratio; } width;
+    size_t rows;
+} glenv_PanelBounds;
+
+typedef struct GLENV_H__glenv_Panel glenv_Panel;
+struct GLENV_H__glenv_Panel {
+    const char* title;
+    const glenv_Panel* parent;
+    glenv_PanelBounds bounds;
+    enum nk_panel_flags flags;
+    void (*layout)(void* const data, struct nk_context* ctx, float row_height);
+};
+
+void 
+glenv_Panel_render(glenv_Panel* panel, void* data);
+
+#define glenv_PanelBounds_left(_width, _rows) { \
+    .right = nk_false, \
+    .width_prop = nk_false, \
+    .width = { .full = (_width) }, \
+    .rows = (_rows) \
+}
+
+#define glenv_PanelBounds_left_ratio(_width_ratio, _rows) { \
+    .right = nk_false, \
+    .width_prop = nk_true, \
+    .width = { .ratio = (_width_ratio) }, \
+    .rows = (_rows) \
+}
+
+#define glenv_PanelBounds_right(_width, _rows) { \
+    .right = nk_true, \
+    .width_prop = nk_false, \
+    .width = { .full = _width }, \
+    .rows = (_rows) \
+}
+
+#define glenv_PanelBounds_right_ratio(_width_ratio, _rows) { \
+    .right = nk_true, \
+    .width_prop = nk_true, \
+    .width = { .ratio = (_width_ratio) }, \
+    .rows = (_rows) \
+}
+
 #endif // __GLENV_H__

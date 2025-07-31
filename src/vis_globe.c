@@ -199,7 +199,7 @@ Vis_layer_globe(Vis* const vis, const char* path_globe_image) {
     GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_globe);
     if(!frag) return false;
     // allocate space for the layer data
-    struct vis_layer_globe_state* state = Vis_add_layer(vis, frag, (VisPanel) { .layout = NULL }, (VisLayerMethods) {
+    struct vis_layer_globe_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
         .events = vis_layer_globe_events,
         .render = vis_layer_globe_render,
         .deinit = vis_layer_globe_deinit }, sizeof(struct vis_layer_globe_state));

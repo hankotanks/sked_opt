@@ -39,6 +39,7 @@ static struct {
     struct nk_font_atlas atlas;
     unsigned int text[GLENV_TEXT_BUFFER_SIZE], text_len;
     struct nk_vec2 scroll;
+    float row_height;
 } glenv_WindowHandler;
 
 NK_API void glenv_key_callback(RGFW_window* win, unsigned char key, char ch, unsigned char lock_state, RGFW_bool pressed) {
@@ -47,7 +48,7 @@ NK_API void glenv_key_callback(RGFW_window* win, unsigned char key, char ch, uns
     RGFW_UNUSED(win);
     if(pressed == RGFW_FALSE) return;
     unsigned int* text_len = &(glenv_WindowHandler.text_len);
-    if((*text_len) < GLENV_TEXT_BUFFER_SIZE) glenv_WindowHandler.text[(*text_len)++] = ch;
+    if((*text_len) < GLENV_TEXT_BUFFER_SIZE) glenv_WindowHandler.text[(*text_len)++] = (unsigned int) ch;
 }
 
 NK_API void glenv_scroll_callback(RGFW_window* win, double x_off, double y_off) {
@@ -95,6 +96,10 @@ NK_API struct nk_context* glenv_init(RGFW_window* win) {
         const struct nk_user_font* font = &(atlas->default_font->handle);
         nk_style_set_font(&(glenv_WindowHandler.ctx), font);
     }
+    // row height
+    glenv_WindowHandler.row_height = glenv_WindowHandler.ctx.style.font->height + \
+        glenv_WindowHandler.ctx.style.window.padding.y;
+    // return handle to struct nk_context
     return &(glenv_WindowHandler.ctx);
 }
 
@@ -288,4 +293,43 @@ NK_API void glenv_new_frame(void) {
     // reset text buffer and scroll vector
     glenv_WindowHandler.text_len = 0;
     glenv_WindowHandler.scroll = nk_vec2(0,0);
+}
+
+#define NK_MAGIC 1.555555f
+float 
+glenv_Panel_height(const glenv_Panel* panel) {
+    const struct nk_style style = glenv_WindowHandler.ctx.style;
+    float height = 0.f;
+    const float font_size = style.font->height;
+    if(panel->flags & NK_WINDOW_BORDER) height += style.window.border * 2.f;
+    if(panel->flags & NK_WINDOW_TITLE) {
+        height += font_size + \
+            style.window.header.padding.y * 1.f + \
+            style.window.header.label_padding.y * 2.f + \
+            style.window.header.spacing.y;
+    }
+    if(!nk_window_is_collapsed(&(glenv_WindowHandler.ctx), panel->title)) {
+        const float row_height_full = glenv_WindowHandler.row_height + \
+            style.window.padding.y + \
+            style.window.spacing.y;
+        height += row_height_full * (float) panel->bounds.rows;
+    }
+    return height + NK_MAGIC;
+}
+
+void 
+glenv_Panel_render(glenv_Panel* panel, void* data) {
+    if(panel->layout == NULL) return; // return early if no layout specified
+    float y = 0.0;
+    for(const glenv_Panel* curr = panel->parent; curr != NULL; curr = curr->parent)
+        y += glenv_Panel_height(curr);
+    const float width = panel->bounds.width_prop ? \
+        panel->bounds.width.ratio * (float) glenv_WindowHandler.win->r.w : \
+        panel->bounds.width.full;
+    const struct nk_rect bounds = nk_rect(
+        panel->bounds.right ? (float) glenv_WindowHandler.win->r.w - width : 0.f, y,
+        width, glenv_Panel_height(panel));
+    nk_bool expanded = nk_begin(&(glenv_WindowHandler.ctx), panel->title, bounds, panel->flags);
+    if(expanded) panel->layout(data, &(glenv_WindowHandler.ctx), glenv_WindowHandler.row_height);
+    nk_end(&(glenv_WindowHandler.ctx));
 }

@@ -16,13 +16,6 @@
 #define ZNEAR 1.f
 #define ZFAR SCALAR * RADIUS * 2.f
 
-void
-VisOverlay_init(VisOverlay* overlay, RGFW_window* const win) {
-    overlay->ctx = glenv_init(win);
-    overlay->row_height = overlay->ctx->style.font->height + \
-        overlay->ctx->style.window.padding.y;
-}
-
 // fails gracefully, 0 on failure
 GLuint
 shader_compile_from_source(GLenum type, const char* source) {
@@ -102,8 +95,6 @@ Vis_init(Vis* const vis, RGFW_window* const win) {
     // vert
     vis->vert = shader_compile_from_source(GL_VERTEX_SHADER, shader_source_vert);
     if(!(vis->vert)) return false;
-    // overlay
-    VisOverlay_init(&vis->overlay, win);
     // layers
     vis->layers = NULL;
     return true;
@@ -165,61 +156,8 @@ look_at(GLfloat view[static 16], const GLfloat eye[static 3], const GLfloat up[s
     view[14] =  dot(f, eye); view[15] = 1.f;
 }
 
-#define NK_MAGIC 1.555555f
-float 
-VisPanel_win_height(const Vis* const vis, VisPanel panel) {
-    const struct nk_style style = vis->overlay.ctx->style;
-    float height = 0.f;
-    const float font_size = style.font->height;
-    if(panel.flags & NK_WINDOW_BORDER) height += style.window.border * 2.f;
-    if(panel.flags & NK_WINDOW_TITLE) {
-        height += font_size + \
-            style.window.header.padding.y * 1.f + \
-            style.window.header.label_padding.y * 2.f + \
-            style.window.header.spacing.y;
-    }
-    if(!nk_window_is_collapsed(vis->overlay.ctx, panel.title)) {
-        const float row_height_full = vis->overlay.row_height + \
-            style.window.padding.y + \
-            style.window.spacing.y;
-        height += row_height_full * (float) panel.bounds.rows;
-    }
-    return height + NK_MAGIC;
-}
-
-VisPanel*
-VisPanel_parent(const Vis* const vis, VisPanel panel) {
-    for(size_t i = 0; i < hh_arrlen(vis->layers); ++i) {
-        if(vis->layers[i].panel.layout == NULL) continue;
-        if(strcmp(vis->layers[i].panel.title, panel.parent) == 0) {
-            return &(vis->layers[i].panel);
-        }
-    }
-    return NULL;
-}
-
-void 
-VisLayer_render_panel(Vis* const vis, VisLayer* const layer, const RGFW_window* const win) {
-    // render layer's VisPanel
-    VisPanel panel = layer->panel;
-    if(panel.layout == NULL) return; // return early if no layout specified
-    float y = 0.0;
-    for(VisPanel* curr = VisPanel_parent(vis, panel); curr; curr = VisPanel_parent(vis, *curr))
-        y += VisPanel_win_height(vis, *curr);
-    const float width = panel.bounds.width_prop ? \
-        panel.bounds.width.ratio * (float) win->r.w : \
-        panel.bounds.width.full;
-    const struct nk_rect bounds = nk_rect(
-        panel.bounds.right ? (float) win->r.w - width : 0.f, y,
-        width, VisPanel_win_height(vis, panel)
-    );
-    nk_bool expanded = nk_begin(vis->overlay.ctx, panel.title, bounds, panel.flags);
-    if(expanded) panel.layout(layer->data, &vis->overlay);
-    nk_end(vis->overlay.ctx);
-}
-
 void
-Vis_update_and_draw(Vis* const vis, const RGFW_window* const win, const float gmst) {
+Vis_update_and_draw(Vis* const vis, const float gmst) {
     // update camera
     static const GLfloat up[3] = { 0.f, 1.f, 0.f };
     GLfloat eye[3];
@@ -237,14 +175,13 @@ Vis_update_and_draw(Vis* const vis, const RGFW_window* const win, const float gm
         glUseProgram(0);
     }
     // panels
-    for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
-        VisLayer_render_panel(vis, &vis->layers[i], win);
-    }
+    for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i)
+        glenv_Panel_render(&(vis->layers[i].panel), vis->layers[i].data);
 }
 
 void
 Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
-    int32_t x, y, dx, dy;
+    int x, y, dx, dy;
     switch(win->event.type) {
     case RGFW_windowResized:
         VisCamera_update_projection(&vis->camera, win);
@@ -286,11 +223,11 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
 }
 
 void*
-Vis_add_layer(Vis* const vis, GLuint frag, VisPanel panel, VisLayerMethods methods, size_t data_size) {
+Vis_add_layer(Vis* const vis, GLuint frag, VisLayerMethods methods, size_t data_size) {
     VisLayer layer;
     layer.data = malloc(data_size);
     if(layer.data == NULL) return NULL;
-    layer.panel = panel;
+    memset(&layer.panel, 0, sizeof(glenv_Panel)); // 0 out panel, must be attached with Vis_attach_panel
     layer.methods = methods;
     layer.program = glCreateProgram();
     glAttachShader(layer.program, vis->vert);
@@ -318,3 +255,18 @@ Vis_add_layer(Vis* const vis, GLuint frag, VisPanel panel, VisLayerMethods metho
     return layer.data;
 }
 
+void
+Vis_attach_panel(Vis* const vis, glenv_Panel panel, const char* parent_title) {
+    panel.parent = NULL;
+    if(parent_title != NULL && parent_title[0] != '\0') {
+        for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
+            if(vis->layers[i].panel.title == NULL) continue;
+            if(strcmp(vis->layers[i].panel.title, parent_title) == 0) { 
+                panel.parent = &(vis->layers[i].panel);
+                break;
+            }
+        }
+    }
+    
+    hh_arrlast(vis->layers).panel = panel;
+}

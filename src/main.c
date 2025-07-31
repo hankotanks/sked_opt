@@ -2,7 +2,7 @@
 #include "hh.h"
 #undef HH_IMPL
 
-#include <stdio.h>
+#include <glenv.h>
 
 #include "cat.h"
 #include "network.h"
@@ -31,13 +31,14 @@ int main(void) {
         HH_ERR("Failed to initialize GLEW.");
         return 1;
     }
+    glenv_init(window);
     // create visualization layers
     Vis vis;
     Vis_init(&vis, window);
     char* path_globe_image = hh_path_join(hh_path_join(hh_path(path_root), "assets"), "globe.bmp");
     Vis_layer_globe(&vis, path_globe_image);
-    Vis_layer_stations(&vis);
-    Vis_layer_sources(&vis);
+    Vis_layer_net(&vis);
+    Vis_layer_sky(&vis);
     hh_arrfree(path_globe_image);
     // event loop
     glClearColor(0.f, 0.f, 0.f, 1.f);
@@ -50,7 +51,7 @@ int main(void) {
         }
         glenv_new_frame();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        Vis_update_and_draw(&vis, window, 0.f);
+        Vis_update_and_draw(&vis, 0.f);
         glenv_render(NK_ANTI_ALIASING_ON);
     }
     glenv_deinit();
