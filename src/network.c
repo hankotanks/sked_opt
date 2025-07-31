@@ -12,14 +12,16 @@ struct NETWORK_H__StationEntry {
     bool active;
 };
 
+static Network NETWORK_H__net; Network* net = &NETWORK_H__net;
+
 static size_t 
-Network_hash(const Network* const net, const char id[static 2]) {
+Network_hash(const char id[static 2]) {
     return (size_t) ((unsigned char) id[0] << 8 | (unsigned char) id[1]) % net->count;
 }
 
 void
-Network_add_sta(const Network* const net, const Station sta) {
-    for(size_t i = Network_hash(net, sta.id), j = 0, k; j < net->count; ++j) {
+Network_add_sta(const Station sta) {
+    for(size_t i = Network_hash(sta.id), j = 0, k; j < net->count; ++j) {
         k = (i + j) % net->count;
         if(!net->entries[k].used || (memcmp(net->entries[k].station.id, sta.id, 2) == 0)) {
             net->entries[k].station = sta;
@@ -31,28 +33,28 @@ Network_add_sta(const Network* const net, const Station sta) {
     HH_UNREACHABLE;
 }
 
-bool
-Network_get_sta(const Network* const net, const char id[static 2], Station** out) {
-    for(size_t i = Network_hash(net, id), j = 0, k; j < net->count; ++j) {
+bool*
+Network_get_sta(const char id[static 2], Station* out) {
+    for(size_t i = Network_hash(id), j = 0, k; j < net->count; ++j) {
         k = (i + j) % net->count;
         if(!net->entries[k].used) continue;
         if(memcmp(net->entries[k].station.id, id, 2) == 0) {
-            *out = &(net->entries[k].station);
-            return net->entries[k].active;
+            *out = net->entries[k].station;
+            return &(net->entries[k].active);
         }
     }
-    *out = NULL;
-    return false;
+    return NULL;
 }
 
-bool
-Network_get_sta_by_idx(const Network* const net, const size_t idx, Station** out) {
-    *out = net->entries[idx].used ? &(net->entries[idx].station) : NULL;
-    return net->entries[idx].active;
+bool*
+Network_get_sta_by_idx(const size_t idx, Station* out) {
+    if(!(net->entries[idx].used)) return NULL;
+    if(net->entries[idx].used) *out = net->entries[idx].station;
+    return &(net->entries[idx].active);
 }
 
 void
-Network_init(Network* const net) {
+Network_init() {
     HH_ASSERT(cat->station_list != NULL, "No stations were parsed from raw catalogs.");
     net->count = hh_arrlen(cat->station_list);
     HH_ASSERT(net->count > 0, "No stations were parsed from raw catalogs.");
@@ -86,17 +88,17 @@ Network_init(Network* const net) {
             }
         }
         // add the station
-        Network_add_sta(net, sta);
+        Network_add_sta(sta);
     }
 }
 
 void
-Network_free(const Network* const net) {
+Network_free() {
     free(net->entries);
 }
 
 void
-Network_dump(const Network* const net) {
+Network_dump() {
     for(size_t i = 0; i < net->count; ++i) {
         if(net->entries[i].used) Station_dump(&(net->entries[i].station));
     }

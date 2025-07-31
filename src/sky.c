@@ -14,8 +14,10 @@ struct SKY_H__SourceEntry {
     bool used, active;
 };
 
+static Sky SKY_H__sky; Sky* sky = &SKY_H__sky;
+
 void
-Sky_init(Sky* const sky) {
+Sky_init() {
     HH_ASSERT(cat->source_list != NULL, "No sources were parsed from raw catalogs.");
     sky->count = hh_arrlen(cat->source_list);
     HH_ASSERT(sky->count > 0, "No sources were parsed from raw catalogs.");
@@ -36,17 +38,17 @@ Sky_init(Sky* const sky) {
         // epoch
         src.epoch = cat->source_list[i].epoch;
         // add source
-        Sky_add_src(sky, src);
+        Sky_add_src(src);
     }
 }
 
 void
-Sky_free(const Sky* const sky) {
+Sky_free() {
     free(sky->entries);
 }
 
 static size_t 
-Sky_hash(const Sky* const sky, const char id[static 8]) {
+Sky_hash(const char id[static 8]) {
     unsigned long hash = 14695981039346656037UL;
     unsigned char curr;
     bool term = false;
@@ -59,29 +61,29 @@ Sky_hash(const Sky* const sky, const char id[static 8]) {
     return hash % sky->count;
 }
 
-bool
-Sky_get_src(const Sky* const sky, const char id[static 8], Source** out) {
-    for(size_t i = Sky_hash(sky, id), j = 0, k; j < sky->count; ++j) {
+bool*
+Sky_get_src(const char id[static 8], Source* out) {
+    for(size_t i = Sky_hash(id), j = 0, k; j < sky->count; ++j) {
         k = (i + j) % sky->count;
         if(!sky->entries[k].used) continue;
         if(cat_name_eq(sky->entries[k].source.name, id)) {
-            *out = &(sky->entries[k].source);
-            return sky->entries[k].active;
+            *out = sky->entries[k].source;
+            return &(sky->entries[k].active);
         }
     }
-    *out = NULL;
-    return false;
+    return NULL;
 }
 
-bool
-Sky_get_src_by_idx(const Sky* const sky, const size_t idx, Source** out) {
-    *out = sky->entries[idx].used ? &(sky->entries[idx].source) : NULL;
-    return sky->entries[idx].active;
+bool*
+Sky_get_src_by_idx(const size_t idx, Source* out) {
+    if(!(sky->entries[idx].used)) return NULL;
+    if(sky->entries[idx].used) *out = sky->entries[idx].source;
+    return &(sky->entries[idx].active);
 }
 
 void
-Sky_add_src(const Sky* const sky, const Source src) {
-    for(size_t i = Sky_hash(sky, src.name), j = 0, k; j < sky->count; ++j) {
+Sky_add_src(const Source src) {
+    for(size_t i = Sky_hash(src.name), j = 0, k; j < sky->count; ++j) {
         k = (i + j) % sky->count;
         if(!sky->entries[k].used || cat_name_eq(sky->entries[k].source.name, src.name)) {
             sky->entries[k].source = src;
@@ -94,7 +96,7 @@ Sky_add_src(const Sky* const sky, const Source src) {
 }
 
 void
-Sky_dump(const Sky* const sky) {
+Sky_dump() {
     for(size_t i = 0; i < sky->count; ++i) {
         if(sky->entries[i].used) Source_dump(&(sky->entries[i].source));
     }

@@ -7,10 +7,6 @@
 #include "network.h"
 #include "sky.h"
 
-// TODO: remove these includes when I stop randomly setting station/source activity
-#include <stdlib.h>
-#include <time.h>
-
 const GLfloat COLOR_NORMAL_STA[3] = { 1.f, 0.4f, 0.f };
 const GLfloat COLOR_ACTIVE_STA[3] = { 0.2f, 0.8f, 0.2f };
 const GLfloat COLOR_NORMAL_SRC[3] = { 1.f, 1.f, 1.f };
@@ -41,42 +37,69 @@ vis_layer_skd_events(void* const data, const RGFW_window* const win) {
 
 void 
 vis_layer_skd_render(const void* const data) {
-    const struct vis_layer_skd_state* layer = data;
+    const struct vis_layer_skd_state* state = data;
     glEnable(GL_DEPTH_TEST);
     glPointSize(5.f);
-    glBindVertexArray(layer->VAO);    
-    glDrawArrays(GL_POINTS, 0, (GLsizei) layer->vertex_count);
+    glBindVertexArray(state->VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, state->VBO);  
+    glDrawArrays(GL_POINTS, 0, (GLsizei) state->vertex_count);
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void 
 vis_layer_skd_deinit(void* const data) {
-    struct vis_layer_skd_state* layer = data;
-    glDeleteVertexArrays(1, &layer->VAO);
-    glDeleteBuffers(1, &layer->VBO);
+    struct vis_layer_skd_state* state = data;
+    glDeleteVertexArrays(1, &state->VAO);
+    glDeleteBuffers(1, &state->VBO);
+}
+
+void 
+vis_layer_skd_layout_stations(void* const data, VisOverlay* overlay) {
+    struct vis_layer_skd_state* state = data;
+    nk_layout_row_dynamic(overlay->ctx, overlay->row_height, 1);
+    Station sta;
+    bool* active;
+    for(size_t i = 0, j = 0; i < net->count; ++i) {
+        active = Network_get_sta_by_idx(i, &sta);
+        if(active == NULL) continue;
+        int temp = *active ? nk_false : nk_true;
+        if(nk_check_text(overlay->ctx, sta.name, (int) cat_name_len(sta.name), temp) != temp) {
+            *active = !(*active);
+            GLfloat val = (*active) ? 0.f : 1.f;
+            glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
+            glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((j * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+        j++;
+    }
+    (void) data;
 }
 
 bool
-Vis_layer_stations(Vis* const vis, const Network* const net) {
-    // TODO: remove when i stop randomizing
-    srand((unsigned int) time(NULL));
+Vis_layer_stations(Vis* const vis) {
     GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_stations);
     if(!frag) return false;
     // build station vertices
     GLfloat* vertices = NULL;
-    Station* sta;
-    bool active;
+    Station sta;
+    bool* active;
     for(size_t i = 0; i < net->count; ++i) {
-        active = Network_get_sta_by_idx(net, i, &sta);
-        // TODO: stop randomly setting active and use user selection
-        active = ((bool) (rand() < (RAND_MAX / 2)));
-        if(sta == NULL) continue;
-        hh_arrput(vertices, (GLfloat) sta->lon);
-        hh_arrput(vertices, (GLfloat) (90.0 - sta->lat));
+        active = Network_get_sta_by_idx(i, &sta);
+        if(active == NULL) continue;
+        hh_arrput(vertices, (GLfloat) sta.lon);
+        hh_arrput(vertices, (GLfloat) (90.0 - sta.lat));
         hh_arrput(vertices, 0.f);
         hh_arrput(vertices, active ? 1.f : 0.f);
     }
     // allocate data
-    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisPanel) {
+        .title = "stations",
+        .parent = "",
+        .bounds = VIS_PANEL_BOUNDS_LEFT_RATIO(0.2f, 5),
+        .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
+        .layout = vis_layer_skd_layout_stations,
+    }, (VisLayerMethods) {
         .events = vis_layer_skd_events,
         .render = vis_layer_skd_render,
         .deinit = vis_layer_skd_deinit }, sizeof(struct vis_layer_skd_state));
@@ -95,31 +118,58 @@ Vis_layer_stations(Vis* const vis, const Network* const net) {
     hh_arrfree(vertices);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
     return true;
 }
 
+void 
+vis_layer_skd_layout_sources(void* const data, VisOverlay* overlay) {
+    struct vis_layer_skd_state* state = data;
+    nk_layout_row_dynamic(overlay->ctx, overlay->row_height, 1);
+    Source src;
+    bool* active;
+    for(size_t i = 0, j = 0; i < net->count; ++i) {
+        active = Sky_get_src_by_idx(i, &src);
+        if(active == NULL) continue;
+        int temp = *active ? nk_false : nk_true;
+        if(nk_check_text(overlay->ctx, src.name, (int) cat_name_len(src.name), temp) != temp) {
+            *active = !(*active);
+            GLfloat val = (*active) ? 0.f : 1.f;
+            glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
+            glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((j * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+        j++;
+    }
+    (void) data;
+}
+
 bool
-Vis_layer_sources(Vis* const vis, const Sky* const sky) {
-    // TODO: remove when i stop randomizing
-    srand((unsigned int) time(NULL));
+Vis_layer_sources(Vis* const vis) {
     GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_stations);
     if(!frag) return false;
     // build station vertices
     GLfloat* vertices = NULL;
-    Source* src;
-    bool active;
+    Source src;
+    bool* active;
     for(size_t i = 0; i < sky->count; ++i) {
-        active = Sky_get_src_by_idx(sky, i, &src);
-        // TODO: stop randomly setting active and use user selection
-        active = ((bool) (rand() < (RAND_MAX / 2)));
-        if(src == NULL) continue;
-        hh_arrput(vertices, (GLfloat) src->raan);
-        hh_arrput(vertices, (GLfloat) (90.0 - src->decl));
+        active = Sky_get_src_by_idx(i, &src);
+        if(active == NULL) continue;
+        hh_arrput(vertices, (GLfloat) src.raan);
+        hh_arrput(vertices, (GLfloat) (90.0 - src.decl));
         hh_arrput(vertices, 1.f);
         hh_arrput(vertices, active ? 1.f : 0.f);
     }
     // allocate data
-    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisPanel) {
+        .title = "sources",
+        .parent = "stations",
+        .bounds = VIS_PANEL_BOUNDS_LEFT_RATIO(0.2f, 5),
+        .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
+        .layout = vis_layer_skd_layout_sources,
+    }, (VisLayerMethods) {
         .events = vis_layer_skd_events,
         .render = vis_layer_skd_render,
         .deinit = vis_layer_skd_deinit }, sizeof(struct vis_layer_skd_state));
@@ -138,5 +188,9 @@ Vis_layer_sources(Vis* const vis, const Sky* const sky) {
     hh_arrfree(vertices);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
     return true;
 }
+

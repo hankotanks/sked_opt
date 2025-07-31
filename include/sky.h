@@ -12,17 +12,19 @@ typedef struct {
     SourceEntry* entries;
 } Sky;
 
+extern Sky* sky;
+
 void
-Sky_init(Sky* const sky);
+Sky_init();
 void
-Sky_free(const Sky* const sky);
-bool
-Sky_get_src(const Sky* const sky, const char id[static 8], Source** out);
-bool
-Sky_get_src_by_idx(const Sky* const sky, const size_t idx, Source** out);
+Sky_free();
+bool* // Returns NULL if station not found, otherwise, returns pointer to station toggle
+Sky_get_src(const char id[static 8], Source* out);
+bool*
+Sky_get_src_by_idx(const size_t idx, Source* out);
 void
-Sky_add_src(const Sky* const sky, const Source src);
+Sky_add_src(const Source src);
 void
-Sky_dump(const Sky* const sky);
+Sky_dump();
 
 #endif // SKY_H__

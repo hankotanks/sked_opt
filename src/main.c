@@ -21,11 +21,9 @@ int main(void) {
     cat_parse(path_cat);
     hh_arrfree(path_cat);
     // initialize network
-    Network net;
-    Network_init(&net);
+    Network_init();
     // initialize sky
-    Sky sky;
-    Sky_init(&sky);
+    Sky_init();
     // initialize window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));
@@ -33,18 +31,16 @@ int main(void) {
         HH_ERR("Failed to initialize GLEW.");
         return 1;
     }
-    // initialize glenv.h
-    glenv_init(window);
-    glClearColor(0.f, 0.f, 0.f, 1.f);
     // create visualization layers
     Vis vis;
     Vis_init(&vis, window);
     char* path_globe_image = hh_path_join(hh_path_join(hh_path(path_root), "assets"), "globe.bmp");
     Vis_layer_globe(&vis, path_globe_image);
-    Vis_layer_stations(&vis, &net);
-    Vis_layer_sources(&vis, &sky);
+    Vis_layer_stations(&vis);
+    Vis_layer_sources(&vis);
     hh_arrfree(path_globe_image);
     // event loop
+    glClearColor(0.f, 0.f, 0.f, 1.f);
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while(RGFW_window_checkEvent(window)) {
             if(window->event.type == RGFW_windowResized) 
@@ -54,13 +50,13 @@ int main(void) {
         }
         glenv_new_frame();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        Vis_update_and_draw(&vis, 0.f);
+        Vis_update_and_draw(&vis, window, 0.f);
         glenv_render(NK_ANTI_ALIASING_ON);
     }
     glenv_deinit();
     RGFW_window_close(window);
     // clean up
-    Network_free(&net);
+    Network_free();
     Sky_free(&sky);
     // finally free catalog
     cat_clean();

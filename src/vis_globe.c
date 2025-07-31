@@ -94,10 +94,14 @@ vis_layer_globe_render(const void* const data) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, state->tex);
     glBindVertexArray(state->VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, state->EBO);
     glDrawElements(GL_TRIANGLES, COUNT_E, GL_UNSIGNED_INT, (GLvoid*) 0);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(0);
     glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glDisable(GL_DEPTH_TEST);
 }
 
@@ -195,7 +199,7 @@ Vis_layer_globe(Vis* const vis, const char* path_globe_image) {
     GLuint frag = shader_compile_from_source(GL_FRAGMENT_SHADER, shader_source_globe);
     if(!frag) return false;
     // allocate space for the layer data
-    struct vis_layer_globe_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
+    struct vis_layer_globe_state* state = Vis_add_layer(vis, frag, (VisPanel) { .layout = NULL }, (VisLayerMethods) {
         .events = vis_layer_globe_events,
         .render = vis_layer_globe_render,
         .deinit = vis_layer_globe_deinit }, sizeof(struct vis_layer_globe_state));
@@ -222,5 +226,9 @@ Vis_layer_globe(Vis* const vis, const char* path_globe_image) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) buffer_size, indices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
     return true;
 }

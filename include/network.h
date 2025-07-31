@@ -11,17 +11,19 @@ typedef struct {
     StationEntry* entries;
 } Network;
 
+extern Network* net;
+
 void
-Network_add_sta(const Network* const net, const Station sta);
-bool
-Network_get_sta(const Network* const net, const char id[static 2], Station** out);
-bool
-Network_get_sta_by_idx(const Network* const net, const size_t idx, Station** out);
+Network_add_sta(const Station sta);
+bool* // Returns NULL if station not found, otherwise, returns pointer to station toggle
+Network_get_sta(const char id[static 2], Station* out);
+bool*
+Network_get_sta_by_idx(const size_t idx, Station* out);
 void
-Network_init(Network* const net);
+Network_init();
 void
-Network_free(const Network* const net);
+Network_free();
 void
-Network_dump(const Network* const net);
+Network_dump();
 
 #endif // NETWORK_H__
