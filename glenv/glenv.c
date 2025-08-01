@@ -295,9 +295,74 @@ NK_API void glenv_new_frame(void) {
     glenv_WindowHandler.scroll = nk_vec2(0,0);
 }
 
+struct GLENV_H__glenv_Panel {
+    const char* title;
+    const glenv_Panel* parent;
+    struct {
+        nk_bool init;
+        nk_bool right;
+        nk_bool width_prop;
+        union { unsigned int pixels; float ratio; } width;
+        size_t rows;
+    } config;
+    struct nk_rect bounds;
+    enum nk_panel_flags flags;
+    void (*layout)(void* const data, struct nk_context* ctx, float row_height);
+};
+
+glenv_Panel*
+glenv_Panel_init(const char* title, enum nk_panel_flags flags, glenv_PanelLayout layout) {
+    glenv_Panel* panel = calloc(1, sizeof(*panel));
+    if(panel == NULL) return NULL;
+    panel->title = title;
+    panel->flags = flags;
+    // configure layout function
+    panel->layout = layout;
+    return panel;
+}
+
+const char*
+glenv_Panel_title(const glenv_Panel* const panel) { return panel->title; }
+
+void
+glenv_Panel_set_parent(glenv_Panel* const panel, const glenv_Panel* const parent) {
+    panel->parent = parent;
+}
+
+void
+glenv_Panel_config_left(glenv_Panel* const panel, size_t rows, unsigned int pixels) {
+    panel->config.init = nk_true;
+    panel->config.right = nk_false;
+    panel->config.width_prop = nk_false;
+    panel->config.width.pixels = pixels;
+    panel->config.rows = rows;
+
+}
+void
+glenv_Panel_config_left_ratio(glenv_Panel* const panel, size_t rows, float ratio) {
+    panel->config.init = nk_true;
+    panel->config.right = nk_false;
+    panel->config.width_prop = nk_true;
+    panel->config.width.ratio = ratio;
+    panel->config.rows = rows;
+}
+void
+glenv_Panel_config_right(glenv_Panel* const panel, size_t rows, unsigned int pixels) {
+    glenv_Panel_config_left(panel, rows, pixels);
+    panel->config.right = nk_true;
+}
+void
+glenv_Panel_config_right_ratio(glenv_Panel* const panel, size_t rows, float ratio) {
+    glenv_Panel_config_left_ratio(panel, rows, ratio);
+    panel->config.right = nk_true;
+}
+
 #define NK_MAGIC 1.555555f
 float 
 glenv_Panel_height(const glenv_Panel* panel) {
+    if(panel == NULL) return 0.f;
+    if(panel->layout == NULL) return 0.f;
+    if(panel->config.init == nk_false) return 0.f;
     const struct nk_style style = glenv_WindowHandler.ctx.style;
     float height = 0.f;
     const float font_size = style.font->height;
@@ -312,24 +377,36 @@ glenv_Panel_height(const glenv_Panel* panel) {
         const float row_height_full = glenv_WindowHandler.row_height + \
             style.window.padding.y + \
             style.window.spacing.y;
-        height += row_height_full * (float) panel->bounds.rows;
+        height += row_height_full * (float) panel->config.rows;
     }
     return height + NK_MAGIC;
 }
 
 void 
-glenv_Panel_render(glenv_Panel* panel, void* data) {
+glenv_Panel_render(glenv_Panel* const panel, void* data) {
+    if(panel == NULL) return;
     if(panel->layout == NULL) return; // return early if no layout specified
-    float y = 0.0;
+    if(panel->config.init == nk_false) return;
+    float y = 0.f;
     for(const glenv_Panel* curr = panel->parent; curr != NULL; curr = curr->parent)
         y += glenv_Panel_height(curr);
-    const float width = panel->bounds.width_prop ? \
-        panel->bounds.width.ratio * (float) glenv_WindowHandler.win->r.w : \
-        panel->bounds.width.full;
+    const float width = panel->config.width_prop ? \
+        panel->config.width.ratio * (float) glenv_WindowHandler.win->r.w : \
+        (float) panel->config.width.pixels;
     const struct nk_rect bounds = nk_rect(
-        panel->bounds.right ? (float) glenv_WindowHandler.win->r.w - width : 0.f, y,
+        panel->config.right ? (float) glenv_WindowHandler.win->r.w - width : 0.f, y,
         width, glenv_Panel_height(panel));
     nk_bool expanded = nk_begin(&(glenv_WindowHandler.ctx), panel->title, bounds, panel->flags);
     if(expanded) panel->layout(data, &(glenv_WindowHandler.ctx), glenv_WindowHandler.row_height);
+    panel->bounds = nk_window_get_bounds(&(glenv_WindowHandler.ctx));
     nk_end(&(glenv_WindowHandler.ctx));
+}
+
+nk_bool
+glenv_Panel_mouse_in_region(const glenv_Panel* const panel) {
+    struct nk_rect b = panel->bounds;
+    float x, y;
+    x = (float) glenv_WindowHandler.win->_lastMousePoint.x;
+    y = (float) glenv_WindowHandler.win->_lastMousePoint.y;
+    return x > b.x && x < (b.x + b.w) && y > b.y && y < (b.y + b.h);
 }

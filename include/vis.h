@@ -29,7 +29,7 @@ typedef struct {
 
 typedef struct {
     void* data;
-    glenv_Panel panel;
+    glenv_Panel* panel;
     VisLayerMethods methods;
     GLuint program;
     GLint loc_proj;
@@ -64,14 +64,14 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win);
 void*
 Vis_add_layer(Vis* const vis, GLuint frag, VisLayerMethods methods, size_t data_size);
 void
-Vis_attach_panel(Vis* const vis, glenv_Panel panel, const char* parent);
+Vis_attach_panel(const Vis* const vis, glenv_Panel* panel, const char* parent_title);
 
 // layer declarations
-bool
-Vis_layer_globe(Vis* const vis, const char* path_globe_image);
 bool
 Vis_layer_net(Vis* const vis);
 bool
 Vis_layer_sky(Vis* const vis);
+bool
+Vis_layer_globe(Vis* const vis, const char* path_globe_image);
 
 #endif // VIS_H__

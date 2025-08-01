@@ -105,6 +105,7 @@ Vis_free(Vis* const vis) {
     for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
         (vis->layers[i].methods.deinit)(vis->layers[i].data);
         glDeleteProgram(vis->layers[i].program);
+        if(vis->layers[i].panel != NULL) free(vis->layers[i].panel);
         free(vis->layers[i].data);
     }
     glDeleteShader(vis->vert);
@@ -176,7 +177,16 @@ Vis_update_and_draw(Vis* const vis, const float gmst) {
     }
     // panels
     for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i)
-        glenv_Panel_render(&(vis->layers[i].panel), vis->layers[i].data);
+        glenv_Panel_render(vis->layers[i].panel, vis->layers[i].data);
+}
+
+bool
+Vis_mouse_capture(const Vis* const vis) {
+    for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
+        if(vis->layers[i].panel == NULL) continue;
+        if(glenv_Panel_mouse_in_region(vis->layers[i].panel) == nk_true) return true; 
+    }
+    return false;
 }
 
 void
@@ -187,6 +197,7 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
         VisCamera_update_projection(&vis->camera, win);
         break;
     case RGFW_mouseButtonPressed:
+        if(Vis_mouse_capture(vis)) break;
         vis->cont.drag = true;
         float rad_vel = vis->camera.min * sqrtf(SENSITIVITY) * 2.f;
         float rad_min = vis->camera.min + rad_vel;
@@ -227,7 +238,7 @@ Vis_add_layer(Vis* const vis, GLuint frag, VisLayerMethods methods, size_t data_
     VisLayer layer;
     layer.data = malloc(data_size);
     if(layer.data == NULL) return NULL;
-    memset(&layer.panel, 0, sizeof(glenv_Panel)); // 0 out panel, must be attached with Vis_attach_panel
+    layer.panel = NULL;
     layer.methods = methods;
     layer.program = glCreateProgram();
     glAttachShader(layer.program, vis->vert);
@@ -256,17 +267,18 @@ Vis_add_layer(Vis* const vis, GLuint frag, VisLayerMethods methods, size_t data_
 }
 
 void
-Vis_attach_panel(Vis* const vis, glenv_Panel panel, const char* parent_title) {
-    panel.parent = NULL;
+Vis_attach_panel(const Vis* const vis, glenv_Panel* panel, const char* parent_title) {
+    const char* title;
+    glenv_Panel_set_parent(panel, NULL);
     if(parent_title != NULL && parent_title[0] != '\0') {
         for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
-            if(vis->layers[i].panel.title == NULL) continue;
-            if(strcmp(vis->layers[i].panel.title, parent_title) == 0) { 
-                panel.parent = &(vis->layers[i].panel);
+            if(vis->layers[i].panel == NULL) continue;
+            title = glenv_Panel_title(vis->layers[i].panel);
+            if(strcmp(parent_title, title) == 0) {
+                glenv_Panel_set_parent(panel, vis->layers[i].panel);
                 break;
             }
         }
     }
-    
     hh_arrlast(vis->layers).panel = panel;
 }

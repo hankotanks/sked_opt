@@ -12,6 +12,9 @@ const GLfloat COLOR_ACTIVE_STA[3] = { 0.2f, 0.8f, 0.2f };
 const GLfloat COLOR_NORMAL_SRC[3] = { 1.f, 1.f, 1.f };
 const GLfloat COLOR_ACTIVE_SRC[3] = { 1.f, 0.8f, 0.0f };
 
+#define FLAGS NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE
+#define METHODS (VisLayerMethods) { .events = vis_layer_skd_events, .render = vis_layer_skd_render, .deinit = vis_layer_skd_deinit }
+
 static const char* shader_source_stations = \
     "#version 330 core\n"
     "flat in uint state;\n"
@@ -92,16 +95,13 @@ Vis_layer_net(Vis* const vis) {
         hh_arrput(vertices, 0.f);
         hh_arrput(vertices, active ? 1.f : 0.f);
     }
+    // configure layer's corresponding UI element
+    glenv_Panel* panel = glenv_Panel_init("stations", FLAGS, vis_layer_net_layout);
+    if(panel == NULL) return false;
+    glenv_Panel_config_left_ratio(panel, 5, 0.2f);
     // allocate data
-    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
-        .events = vis_layer_skd_events,
-        .render = vis_layer_skd_render,
-        .deinit = vis_layer_skd_deinit }, sizeof(struct vis_layer_skd_state));
-    Vis_attach_panel(vis, (glenv_Panel) {
-        .title = "stations",
-        .bounds = glenv_PanelBounds_left_ratio(0.2f, 5),
-        .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
-        .layout = vis_layer_net_layout }, NULL);
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, METHODS, sizeof(struct vis_layer_skd_state));
+    Vis_attach_panel(vis, panel, NULL);
     state->vertex_count = hh_arrlen(vertices) / 4;
     // set uniform locations
     GLint program = 0;
@@ -161,16 +161,14 @@ Vis_layer_sky(Vis* const vis) {
         hh_arrput(vertices, 1.f);
         hh_arrput(vertices, active ? 1.f : 0.f);
     }
+    // configure layer's corresponding UI element
+    glenv_Panel* panel = glenv_Panel_init("sources", FLAGS, vis_layer_sky_layout);
+    if(panel == NULL) return false;
+    glenv_Panel_config_left_ratio(panel, 5, 0.2f);
     // allocate data
-    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, (VisLayerMethods) {
-        .events = vis_layer_skd_events,
-        .render = vis_layer_skd_render,
-        .deinit = vis_layer_skd_deinit }, sizeof(struct vis_layer_skd_state));
-    Vis_attach_panel(vis, (glenv_Panel) {
-        .title = "sources",
-        .bounds = glenv_PanelBounds_left_ratio(0.2f, 5),
-        .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
-        .layout = vis_layer_sky_layout }, "stations");
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, METHODS, sizeof(struct vis_layer_skd_state));
+    Vis_attach_panel(vis, panel, "stations");
+    // set vertex_count
     state->vertex_count = hh_arrlen(vertices) / 4;
     // set uniform locations
     GLint program = 0;

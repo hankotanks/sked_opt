@@ -7,6 +7,7 @@
 
 #include <GL/glew.h>
 #include <RGFW.h>
+#include <X11/Xlib.h>
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_DEFAULT_ALLOCATOR
 #define NK_INCLUDE_STANDARD_VARARGS
@@ -23,60 +24,59 @@
 #define GLENV_SEGMENT_COUNT 22
 #endif
 
-NK_API struct nk_context* glenv_init(RGFW_window* win);
-NK_API void glenv_deinit(void);
+// glenv_init
+// initialize the renderingt context
+// NOTE: window must be initialized beforehand and glewInit called
+NK_API struct nk_context* 
+glenv_init(RGFW_window* win);
+// glenv_deinit
+// clean up resources at the end of the program
+NK_API void 
+glenv_deinit(void);
 // glenv_render
 // to be called at the end of the event loop
-NK_API void glenv_render(enum nk_anti_aliasing AA);
+NK_API void 
+glenv_render(enum nk_anti_aliasing AA);
 // glenv_new_frame
-// to be called at the end of the event loop
-NK_API void glenv_new_frame(void);
+// to be called at the start of the event loop
+NK_API void 
+glenv_new_frame(void);
 
-typedef struct {
-    nk_bool right;
-    nk_bool width_prop;
-    union { float full; float ratio; } width;
-    size_t rows;
-} glenv_PanelBounds;
-
+typedef void (*glenv_PanelLayout)(void* const data, struct nk_context* ctx, float row_height);
 typedef struct GLENV_H__glenv_Panel glenv_Panel;
-struct GLENV_H__glenv_Panel {
-    const char* title;
-    const glenv_Panel* parent;
-    glenv_PanelBounds bounds;
-    enum nk_panel_flags flags;
-    void (*layout)(void* const data, struct nk_context* ctx, float row_height);
-};
 
+// initialize a glenv_Panel
+glenv_Panel*
+glenv_Panel_init(const char* title, enum nk_panel_flags flags, glenv_PanelLayout layout);
+// set its parent panel, this determines rendering position
+void
+glenv_Panel_set_parent(glenv_Panel* const panel, const glenv_Panel* const parent);
+
+// retrieve the panel's title
+const char*
+glenv_Panel_title(const glenv_Panel* const panel);
+
+// render the panel,
+// provided that it is properly configured
+// NOTE: does NOT recursively render parents
 void 
-glenv_Panel_render(glenv_Panel* panel, void* data);
+glenv_Panel_render(glenv_Panel* const panel, void* data);
 
-#define glenv_PanelBounds_left(_width, _rows) { \
-    .right = nk_false, \
-    .width_prop = nk_false, \
-    .width = { .full = (_width) }, \
-    .rows = (_rows) \
-}
+// detect if mouse is currently in panel
+// used for determining if mouse events were consumed by panel
+nk_bool
+glenv_Panel_mouse_in_region(const glenv_Panel* const panel);
 
-#define glenv_PanelBounds_left_ratio(_width_ratio, _rows) { \
-    .right = nk_false, \
-    .width_prop = nk_true, \
-    .width = { .ratio = (_width_ratio) }, \
-    .rows = (_rows) \
-}
-
-#define glenv_PanelBounds_right(_width, _rows) { \
-    .right = nk_true, \
-    .width_prop = nk_false, \
-    .width = { .full = _width }, \
-    .rows = (_rows) \
-}
-
-#define glenv_PanelBounds_right_ratio(_width_ratio, _rows) { \
-    .right = nk_true, \
-    .width_prop = nk_true, \
-    .width = { .ratio = (_width_ratio) }, \
-    .rows = (_rows) \
-}
+// configure panel behavior,
+// one of these functions MUST be called,
+// or the panel will not be rendered
+void
+glenv_Panel_config_left(glenv_Panel* const panel, size_t rows, unsigned int pixels);
+void
+glenv_Panel_config_left_ratio(glenv_Panel* const panel, size_t rows, float ratio);
+void
+glenv_Panel_config_right(glenv_Panel* const panel, size_t rows, unsigned int pixels);
+void
+glenv_Panel_config_right_ratio(glenv_Panel* const panel, size_t rows, float ratio);
 
 #endif // __GLENV_H__

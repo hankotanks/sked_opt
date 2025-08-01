@@ -40,6 +40,8 @@ int main(void) {
     Vis_layer_net(&vis);
     Vis_layer_sky(&vis);
     hh_arrfree(path_globe_image);
+    glClearColor(0.f, 0.f, 0.f, 1.f);
+#if 1
     // event loop
     glClearColor(0.f, 0.f, 0.f, 1.f);
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
@@ -54,6 +56,7 @@ int main(void) {
         Vis_update_and_draw(&vis, 0.f);
         glenv_render(NK_ANTI_ALIASING_ON);
     }
+#endif
     glenv_deinit();
     RGFW_window_close(window);
     // clean up
