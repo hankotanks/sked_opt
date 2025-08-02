@@ -185,6 +185,8 @@ Vis_mouse_capture(const Vis* const vis) {
     for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
         if(vis->layers[i].panel == NULL) continue;
         if(glenv_Panel_mouse_in_region(vis->layers[i].panel) == nk_true) return true; 
+        // TODO: if mouse is not in region, clear focus from the panel
+        // ctx->active = NULL;
     }
     return false;
 }

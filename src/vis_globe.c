@@ -220,10 +220,10 @@ Vis_layer_globe(Vis* const vis, const char* path_globe_image) {
     buffer_size = COUNT_V * 4 * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, vertices, GL_STATIC_DRAW);
     free(vertices);
-    free(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, state->EBO);
     buffer_size = COUNT_E * sizeof(GLuint);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) buffer_size, indices, GL_STATIC_DRAW);
+    free(indices);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);

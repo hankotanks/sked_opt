@@ -57,12 +57,14 @@ int main(void) {
         glenv_render(NK_ANTI_ALIASING_ON);
     }
 #endif
-    glenv_deinit();
     RGFW_window_close(window);
+    glenv_deinit();
     // clean up
     Network_free();
-    Sky_free(&sky);
+    Sky_free();
+    Vis_free(&vis);
     // finally free catalog
     cat_clean();
+    hh_arrfree(path_root);
     return 0;
 }

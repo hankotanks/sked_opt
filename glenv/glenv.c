@@ -119,6 +119,7 @@ typedef struct {
 } glenv_Vertex;
 
 NK_API void glenv_render(enum nk_anti_aliasing AA) {
+    nk_input_end(&(glenv_WindowHandler.ctx));
     // setup glenv_Device
     glenv_Device* device = &(glenv_WindowHandler.device);
     // shorter binding for RGFW_window
@@ -289,7 +290,6 @@ NK_API void glenv_new_frame(void) {
     nk_input_button(ctx, NK_BUTTON_MIDDLE, p.x, p.y, RGFW_isMousePressed(win, RGFW_mouseMiddle));
     nk_input_button(ctx, NK_BUTTON_RIGHT, p.x, p.y, RGFW_isMousePressed(win, RGFW_mouseRight));
     nk_input_scroll(ctx, glenv_WindowHandler.scroll);
-    nk_input_end(&(glenv_WindowHandler.ctx));
     // reset text buffer and scroll vector
     glenv_WindowHandler.text_len = 0;
     glenv_WindowHandler.scroll = nk_vec2(0,0);
