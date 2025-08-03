@@ -208,8 +208,8 @@ Vis_layer_globe(Vis* const vis, const char* path_globe_image) {
     // set uniforms
     GLint program = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &program);
-    glUniform1i(glGetUniformLocation((GLuint) program, "globe_tex_sampler"), 0);
-    glUniform1f(glGetUniformLocation((GLuint) program, "globe_tex_offset"), OFFSET);
+    glUniform1i(glGetUniformLocation((GLuint) program, "tex_sampler"), 0);
+    glUniform1f(glGetUniformLocation((GLuint) program, "tex_offset"), OFFSET);
     // buffers (vis->buf)
     glGenVertexArrays(1, &state->VAO);
     glGenBuffers(1, &state->VBO);

@@ -62,10 +62,9 @@ glenv_Panel_title(const glenv_Panel* const panel);
 void 
 glenv_Panel_render(glenv_Panel* const panel, void* data);
 
-// detect if mouse is currently in panel
-// used for determining if mouse events were consumed by panel
+// detect if mouse clicks are consumed by nuklear in this frame
 nk_bool
-glenv_Panel_mouse_in_region(const glenv_Panel* const panel);
+glenv_consumed_mouse();
 
 // configure panel behavior,
 // one of these functions MUST be called,

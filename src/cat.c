@@ -6,7 +6,7 @@ static struct cat_t CAT_H__cat = {
 #undef X
 }; struct cat_t* cat = &CAT_H__cat;
 
-void cat_parse(const char* path) {
+void cat_init(const char* path) {
     FILE* file;
     char* path_file;
     char* line = NULL;
@@ -24,6 +24,7 @@ void cat_parse(const char* path) {
             if(line_temp[0] == '*' || line_temp[0] == '\0') continue; \
             if(CAT_H__##type_##_parse(line, &hh_arrlast(cat->type_##_list))) hh_arradd(cat->type_##_list, 1); \
         } \
+        if(hh_arrlen(cat->type_##_list) > 0) hh_arrpop(cat->type_##_list); \
         HH_MSG("Parsed %zu entries from [%s].", \
             hh_arrlen(cat->type_##_list), path_file); \
         fclose(file); \
@@ -34,7 +35,7 @@ void cat_parse(const char* path) {
     if(line != NULL) free(line);
 }
 
-void cat_clean() {
+void cat_free() {
 #define X(type_) hh_arrfree(cat->type_##_list);
     CAT_LIST
 #undef X

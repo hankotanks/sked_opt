@@ -65,6 +65,8 @@ NK_API void glenv_mouse_button_callback(RGFW_window* win, unsigned char button, 
 }
 
 NK_API struct nk_context* glenv_init(RGFW_window* win) {
+    if(glewInit() != GLEW_OK) return NULL;
+    // begin glenv_init
     glenv_Device* device = &(glenv_WindowHandler.device);
     glenv_WindowHandler.win = win;
     { // set event callbacks
@@ -289,7 +291,8 @@ NK_API void glenv_new_frame(void) {
     nk_input_button(ctx, NK_BUTTON_LEFT, p.x, p.y, RGFW_isMousePressed(win, RGFW_mouseLeft));
     nk_input_button(ctx, NK_BUTTON_MIDDLE, p.x, p.y, RGFW_isMousePressed(win, RGFW_mouseMiddle));
     nk_input_button(ctx, NK_BUTTON_RIGHT, p.x, p.y, RGFW_isMousePressed(win, RGFW_mouseRight));
-    nk_input_scroll(ctx, glenv_WindowHandler.scroll);
+    if(nk_window_is_any_hovered(&(glenv_WindowHandler.ctx)))
+        nk_input_scroll(ctx, glenv_WindowHandler.scroll);
     // reset text buffer and scroll vector
     glenv_WindowHandler.text_len = 0;
     glenv_WindowHandler.scroll = nk_vec2(0,0);
@@ -403,10 +406,11 @@ glenv_Panel_render(glenv_Panel* const panel, void* data) {
 }
 
 nk_bool
-glenv_Panel_mouse_in_region(const glenv_Panel* const panel) {
-    struct nk_rect b = panel->bounds;
-    float x, y;
-    x = (float) glenv_WindowHandler.win->_lastMousePoint.x;
-    y = (float) glenv_WindowHandler.win->_lastMousePoint.y;
-    return x > b.x && x < (b.x + b.w) && y > b.y && y < (b.y + b.h);
+glenv_consumed_mouse() {
+    // struct nk_rect b = panel->bounds;
+    // float x, y;
+    // x = (float) glenv_WindowHandler.win->_lastMousePoint.x;
+    // y = (float) glenv_WindowHandler.win->_lastMousePoint.y;
+    // return x > b.x && x < (b.x + b.w) && y > b.y && y < (b.y + b.h);
+    return nk_window_is_any_hovered(&(glenv_WindowHandler.ctx));
 }

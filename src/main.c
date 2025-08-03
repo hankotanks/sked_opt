@@ -18,19 +18,15 @@ int main(void) {
     const char* path_root = hh_path(PROJECT_ROOT);
     // parse catalog
     char* path_cat = hh_path_join(hh_path(path_root), "catalogs");
-    cat_parse(path_cat);
+    cat_init(path_cat);
     hh_arrfree(path_cat);
     // initialize network
-    Network_init();
+    net_init();
     // initialize sky
-    Sky_init();
+    sky_init();
     // initialize window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));
-    if(glewInit() != GLEW_OK) {
-        HH_ERR("Failed to initialize GLEW.");
-        return 1;
-    }
     glenv_init(window);
     // create visualization layers
     Vis vis;
@@ -60,11 +56,11 @@ int main(void) {
     RGFW_window_close(window);
     glenv_deinit();
     // clean up
-    Network_free();
-    Sky_free();
+    net_free();
+    sky_free();
     Vis_free(&vis);
     // finally free catalog
-    cat_clean();
+    cat_free();
     hh_arrfree(path_root);
     return 0;
 }

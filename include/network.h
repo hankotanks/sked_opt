@@ -14,16 +14,16 @@ typedef struct {
 extern Network* net;
 
 void
-Network_add_sta(const Station sta);
+net_add_sta(const Station sta);
 bool* // Returns NULL if station not found, otherwise, returns pointer to station toggle
-Network_get_sta(const char id[static 2], Station* out);
+net_get_sta(const char id[static 2], Station* out);
 bool*
-Network_get_sta_by_idx(const size_t idx, Station* out);
+net_get_sta_by_idx(const size_t idx, Station* out);
 void
-Network_init();
+net_init();
 void
-Network_free();
+net_free();
 void
-Network_dump();
+net_dump();
 
 #endif // NETWORK_H__

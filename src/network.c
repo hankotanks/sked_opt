@@ -20,7 +20,7 @@ Network_hash(const char id[static 2]) {
 }
 
 void
-Network_add_sta(const Station sta) {
+net_add_sta(const Station sta) {
     for(size_t i = Network_hash(sta.id), j = 0, k; j < net->count; ++j) {
         k = (i + j) % net->count;
         if(!net->entries[k].used || (memcmp(net->entries[k].station.id, sta.id, 2) == 0)) {
@@ -34,7 +34,7 @@ Network_add_sta(const Station sta) {
 }
 
 bool*
-Network_get_sta(const char id[static 2], Station* out) {
+net_get_sta(const char id[static 2], Station* out) {
     for(size_t i = Network_hash(id), j = 0, k; j < net->count; ++j) {
         k = (i + j) % net->count;
         if(!net->entries[k].used) continue;
@@ -47,20 +47,24 @@ Network_get_sta(const char id[static 2], Station* out) {
 }
 
 bool*
-Network_get_sta_by_idx(const size_t idx, Station* out) {
+net_get_sta_by_idx(const size_t idx, Station* out) {
     if(!(net->entries[idx].used)) return NULL;
     if(net->entries[idx].used) *out = net->entries[idx].station;
     return &(net->entries[idx].active);
 }
 
 void
-Network_init() {
+net_init() {
     HH_ASSERT(cat->station_list != NULL, "No stations were parsed from raw catalogs.");
     net->count = hh_arrlen(cat->station_list);
     HH_ASSERT(net->count > 0, "No stations were parsed from raw catalogs.");
     HH_CALLOC(net->entries, sizeof(StationEntry) * net->count);
     Station sta;
+    bool pos_added;
+    bool ant_added;
     for(size_t i = 0, j; i < net->count; ++i) {
+        pos_added = false;
+        ant_added = false;
         // TODO: There is a single parsed station with `\0\0` id and no data
         // this should be caught in cat.h in the future
         if(cat->station_list[i].id[0] == '\0') continue;
@@ -75,6 +79,7 @@ Network_init() {
                 sta.z = cat->position_list[j].z;
                 sta.lat = cat->position_list[j].lat;
                 sta.lon = cat->position_list[j].lon;
+                pos_added = true;
                 break;
             }
         }
@@ -84,21 +89,22 @@ Network_init() {
                 sta.axes = cat->antenna_list[j].axes;
                 sta.axes_limits[0] = cat->antenna_list[j].axes_limits[0];
                 sta.axes_limits[1] = cat->antenna_list[j].axes_limits[1];
+                ant_added = true;
                 break;
             }
         }
         // add the station
-        Network_add_sta(sta);
+        if(ant_added && pos_added) net_add_sta(sta);
     }
 }
 
 void
-Network_free() {
+net_free() {
     free(net->entries);
 }
 
 void
-Network_dump() {
+net_dump() {
     for(size_t i = 0; i < net->count; ++i) {
         if(net->entries[i].used) Station_dump(&(net->entries[i].station));
     }

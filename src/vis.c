@@ -180,17 +180,6 @@ Vis_update_and_draw(Vis* const vis, const float gmst) {
         glenv_Panel_render(vis->layers[i].panel, vis->layers[i].data);
 }
 
-bool
-Vis_mouse_capture(const Vis* const vis) {
-    for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
-        if(vis->layers[i].panel == NULL) continue;
-        if(glenv_Panel_mouse_in_region(vis->layers[i].panel) == nk_true) return true; 
-        // TODO: if mouse is not in region, clear focus from the panel
-        // ctx->active = NULL;
-    }
-    return false;
-}
-
 void
 Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
     int x, y, dx, dy;
@@ -199,7 +188,7 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
         VisCamera_update_projection(&vis->camera, win);
         break;
     case RGFW_mouseButtonPressed:
-        if(Vis_mouse_capture(vis)) break;
+        if(glenv_consumed_mouse()) break;
         vis->cont.drag = true;
         float rad_vel = vis->camera.min * sqrtf(SENSITIVITY) * 2.f;
         float rad_min = vis->camera.min + rad_vel;

@@ -17,7 +17,7 @@ struct SKY_H__SourceEntry {
 static Sky SKY_H__sky; Sky* sky = &SKY_H__sky;
 
 void
-Sky_init() {
+sky_init() {
     HH_ASSERT(cat->source_list != NULL, "No sources were parsed from raw catalogs.");
     sky->count = hh_arrlen(cat->source_list);
     HH_ASSERT(sky->count > 0, "No sources were parsed from raw catalogs.");
@@ -38,17 +38,17 @@ Sky_init() {
         // epoch
         src.epoch = cat->source_list[i].epoch;
         // add source
-        Sky_add_src(src);
+        sky_add_src(src);
     }
 }
 
 void
-Sky_free() {
+sky_free() {
     free(sky->entries);
 }
 
 static size_t 
-Sky_hash(const char id[static 8]) {
+sky_hash(const char id[static 8]) {
     unsigned long hash = 14695981039346656037UL;
     unsigned char curr;
     bool term = false;
@@ -62,8 +62,8 @@ Sky_hash(const char id[static 8]) {
 }
 
 bool*
-Sky_get_src(const char id[static 8], Source* out) {
-    for(size_t i = Sky_hash(id), j = 0, k; j < sky->count; ++j) {
+sky_get_src(const char id[static 8], Source* out) {
+    for(size_t i = sky_hash(id), j = 0, k; j < sky->count; ++j) {
         k = (i + j) % sky->count;
         if(!sky->entries[k].used) continue;
         if(cat_name_eq(sky->entries[k].source.name, id)) {
@@ -75,15 +75,15 @@ Sky_get_src(const char id[static 8], Source* out) {
 }
 
 bool*
-Sky_get_src_by_idx(const size_t idx, Source* out) {
+sky_get_src_by_idx(const size_t idx, Source* out) {
     if(!(sky->entries[idx].used)) return NULL;
     if(sky->entries[idx].used) *out = sky->entries[idx].source;
     return &(sky->entries[idx].active);
 }
 
 void
-Sky_add_src(const Source src) {
-    for(size_t i = Sky_hash(src.name), j = 0, k; j < sky->count; ++j) {
+sky_add_src(const Source src) {
+    for(size_t i = sky_hash(src.name), j = 0, k; j < sky->count; ++j) {
         k = (i + j) % sky->count;
         if(!sky->entries[k].used || cat_name_eq(sky->entries[k].source.name, src.name)) {
             sky->entries[k].source = src;
@@ -96,7 +96,7 @@ Sky_add_src(const Source src) {
 }
 
 void
-Sky_dump() {
+sky_dump() {
     for(size_t i = 0; i < sky->count; ++i) {
         if(sky->entries[i].used) Source_dump(&(sky->entries[i].source));
     }

@@ -7,13 +7,17 @@
 #include "network.h"
 #include "sky.h"
 
-const GLfloat COLOR_NORMAL_STA[3] = { 1.f, 0.4f, 0.f };
+const GLfloat COLOR_NORMAL_STA[3] = {  1.f, 0.4f,  0.f };
 const GLfloat COLOR_ACTIVE_STA[3] = { 0.2f, 0.8f, 0.2f };
-const GLfloat COLOR_NORMAL_SRC[3] = { 1.f, 1.f, 1.f };
-const GLfloat COLOR_ACTIVE_SRC[3] = { 1.f, 0.8f, 0.0f };
+const GLfloat COLOR_NORMAL_SRC[3] = {  1.f,  1.f,  1.f };
+const GLfloat COLOR_ACTIVE_SRC[3] = {  1.f, 0.8f, 0.0f };
 
 #define FLAGS NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE
-#define METHODS (VisLayerMethods) { .events = vis_layer_skd_events, .render = vis_layer_skd_render, .deinit = vis_layer_skd_deinit }
+#define METHODS (VisLayerMethods) { \
+        .events = vis_layer_skd_events, \
+        .render = vis_layer_skd_render, \
+        .deinit = vis_layer_skd_deinit  \
+    }
 
 static const char* shader_source_stations = \
     "#version 330 core\n"
@@ -60,11 +64,11 @@ vis_layer_skd_deinit(void* const data) {
 void 
 vis_layer_net_layout(void* const data, struct nk_context* ctx, float row_height) {
     struct vis_layer_skd_state* state = data;
-    nk_layout_row_dynamic(ctx, row_height, 1);
+    nk_layout_row_dynamic(ctx, row_height, 2);
     Station sta;
     bool* active;
     for(size_t i = 0, j = 0; i < net->count; ++i) {
-        active = Network_get_sta_by_idx(i, &sta);
+        active = net_get_sta_by_idx(i, &sta);
         if(active == NULL) continue;
         int temp = *active ? nk_false : nk_true;
         if(nk_check_text(ctx, sta.name, (int) cat_name_len(sta.name), temp) != temp) {
@@ -74,9 +78,9 @@ vis_layer_net_layout(void* const data, struct nk_context* ctx, float row_height)
             glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((j * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
+        nk_labelf(ctx, NK_TEXT_CENTERED | NK_TEXT_ALIGN_MIDDLE, "[%c%c]", sta.id[0], sta.id[1]);
         j++;
     }
-    (void) data;
 }
 
 bool
@@ -88,7 +92,7 @@ Vis_layer_net(Vis* const vis) {
     Station sta;
     bool* active;
     for(size_t i = 0; i < net->count; ++i) {
-        active = Network_get_sta_by_idx(i, &sta);
+        active = net_get_sta_by_idx(i, &sta);
         if(active == NULL) continue;
         hh_arrput(vertices, (GLfloat) sta.lon);
         hh_arrput(vertices, (GLfloat) (90.0 - sta.lat));
@@ -130,7 +134,7 @@ vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height)
     Source src;
     bool* active;
     for(size_t i = 0, j = 0; i < net->count; ++i) {
-        active = Sky_get_src_by_idx(i, &src);
+        active = sky_get_src_by_idx(i, &src);
         if(active == NULL) continue;
         int temp = *active ? nk_false : nk_true;
         if(nk_check_text(ctx, src.name, (int) cat_name_len(src.name), temp) != temp) {
@@ -142,7 +146,6 @@ vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height)
         }
         j++;
     }
-    (void) data;
 }
 
 bool
@@ -154,7 +157,7 @@ Vis_layer_sky(Vis* const vis) {
     Source src;
     bool* active;
     for(size_t i = 0; i < sky->count; ++i) {
-        active = Sky_get_src_by_idx(i, &src);
+        active = sky_get_src_by_idx(i, &src);
         if(active == NULL) continue;
         hh_arrput(vertices, (GLfloat) src.raan);
         hh_arrput(vertices, (GLfloat) (90.0 - src.decl));

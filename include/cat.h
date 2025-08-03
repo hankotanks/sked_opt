@@ -36,9 +36,9 @@ struct cat_t {
 #undef X
 }; extern struct cat_t* cat;
 
-void cat_parse(const char* path);
+void cat_init(const char* path);
 
-void cat_clean();
+void cat_free();
 
 //
 // helper functions
