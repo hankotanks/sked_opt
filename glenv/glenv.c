@@ -406,7 +406,7 @@ glenv_Panel_render(glenv_Panel* const panel, void* data) {
 }
 
 nk_bool
-glenv_consumed_mouse() {
+glenv_consumed_mouse(void) {
     // struct nk_rect b = panel->bounds;
     // float x, y;
     // x = (float) glenv_WindowHandler.win->_lastMousePoint.x;

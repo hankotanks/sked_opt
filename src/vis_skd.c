@@ -13,11 +13,6 @@ const GLfloat COLOR_NORMAL_SRC[3] = {  1.f,  1.f,  1.f };
 const GLfloat COLOR_ACTIVE_SRC[3] = {  1.f, 0.8f, 0.0f };
 
 #define FLAGS NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE
-#define METHODS (VisLayerMethods) { \
-        .events = vis_layer_skd_events, \
-        .render = vis_layer_skd_render, \
-        .deinit = vis_layer_skd_deinit  \
-    }
 
 static const char* shader_source_stations = \
     "#version 330 core\n"
@@ -104,8 +99,11 @@ Vis_layer_net(Vis* const vis) {
     if(panel == NULL) return false;
     glenv_Panel_config_left_ratio(panel, 5, 0.2f);
     // allocate data
-    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, METHODS, sizeof(struct vis_layer_skd_state));
-    Vis_attach_panel(vis, panel, NULL);
+    VisLayerDesc desc;
+    VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));
+    VisLayerDesc_configure_pass(&desc, frag, (VisPassMethods) { vis_layer_skd_events, vis_layer_skd_render, vis_layer_skd_deinit });
+    VisLayerDesc_configure_panel(&desc, panel, NULL);
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, desc);
     state->vertex_count = hh_arrlen(vertices) / 4;
     // set uniform locations
     GLint program = 0;
@@ -169,8 +167,11 @@ Vis_layer_sky(Vis* const vis) {
     if(panel == NULL) return false;
     glenv_Panel_config_left_ratio(panel, 5, 0.2f);
     // allocate data
-    struct vis_layer_skd_state* state = Vis_add_layer(vis, frag, METHODS, sizeof(struct vis_layer_skd_state));
-    Vis_attach_panel(vis, panel, "stations");
+    VisLayerDesc desc;
+    VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));
+    VisLayerDesc_configure_pass(&desc, frag, (VisPassMethods) { vis_layer_skd_events, vis_layer_skd_render, vis_layer_skd_deinit });
+    VisLayerDesc_configure_panel(&desc, panel, "stations");
+    struct vis_layer_skd_state* state = Vis_add_layer(vis, desc);
     // set vertex_count
     state->vertex_count = hh_arrlen(vertices) / 4;
     // set uniform locations

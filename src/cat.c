@@ -35,7 +35,7 @@ void cat_init(const char* path) {
     if(line != NULL) free(line);
 }
 
-void cat_free() {
+void cat_free(void) {
 #define X(type_) hh_arrfree(cat->type_##_list);
     CAT_LIST
 #undef X

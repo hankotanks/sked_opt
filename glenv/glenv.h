@@ -64,7 +64,7 @@ glenv_Panel_render(glenv_Panel* const panel, void* data);
 
 // detect if mouse clicks are consumed by nuklear in this frame
 nk_bool
-glenv_consumed_mouse();
+glenv_consumed_mouse(void);
 
 // configure panel behavior,
 // one of these functions MUST be called,

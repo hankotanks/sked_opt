@@ -8,6 +8,7 @@
 #include "network.h"
 #include "vis.h"
 #include "sky.h"
+#include "time_sys.h"
 
 // window configuration options
 #define WINDOW_TITLE "sked_opt"
@@ -24,6 +25,8 @@ int main(void) {
     net_init();
     // initialize sky
     sky_init();
+    // initialize time system
+    time_sys_init();
     // initialize window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));
@@ -35,6 +38,7 @@ int main(void) {
     Vis_layer_globe(&vis, path_globe_image);
     Vis_layer_net(&vis);
     Vis_layer_sky(&vis);
+    Vis_layer_cfg(&vis);
     hh_arrfree(path_globe_image);
     glClearColor(0.f, 0.f, 0.f, 1.f);
 #if 1
@@ -56,9 +60,9 @@ int main(void) {
     RGFW_window_close(window);
     glenv_deinit();
     // clean up
+    Vis_free(&vis);
     net_free();
     sky_free();
-    Vis_free(&vis);
     // finally free catalog
     cat_free();
     hh_arrfree(path_root);

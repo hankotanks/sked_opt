@@ -38,7 +38,7 @@ struct cat_t {
 
 void cat_init(const char* path);
 
-void cat_free();
+void cat_free(void);
 
 //
 // helper functions

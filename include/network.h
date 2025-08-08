@@ -20,10 +20,10 @@ net_get_sta(const char id[static 2], Station* out);
 bool*
 net_get_sta_by_idx(const size_t idx, Station* out);
 void
-net_init();
+net_init(void);
 void
-net_free();
+net_free(void);
 void
-net_dump();
+net_dump(void);
 
 #endif // NETWORK_H__

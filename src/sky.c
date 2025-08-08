@@ -17,7 +17,7 @@ struct SKY_H__SourceEntry {
 static Sky SKY_H__sky; Sky* sky = &SKY_H__sky;
 
 void
-sky_init() {
+sky_init(void) {
     HH_ASSERT(cat->source_list != NULL, "No sources were parsed from raw catalogs.");
     sky->count = hh_arrlen(cat->source_list);
     HH_ASSERT(sky->count > 0, "No sources were parsed from raw catalogs.");
@@ -43,7 +43,7 @@ sky_init() {
 }
 
 void
-sky_free() {
+sky_free(void) {
     free(sky->entries);
 }
 
@@ -96,7 +96,7 @@ sky_add_src(const Source src) {
 }
 
 void
-sky_dump() {
+sky_dump(void) {
     for(size_t i = 0; i < sky->count; ++i) {
         if(sky->entries[i].used) Source_dump(&(sky->entries[i].source));
     }

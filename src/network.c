@@ -54,7 +54,7 @@ net_get_sta_by_idx(const size_t idx, Station* out) {
 }
 
 void
-net_init() {
+net_init(void) {
     HH_ASSERT(cat->station_list != NULL, "No stations were parsed from raw catalogs.");
     net->count = hh_arrlen(cat->station_list);
     HH_ASSERT(net->count > 0, "No stations were parsed from raw catalogs.");
@@ -99,12 +99,12 @@ net_init() {
 }
 
 void
-net_free() {
+net_free(void) {
     free(net->entries);
 }
 
 void
-net_dump() {
+net_dump(void) {
     for(size_t i = 0; i < net->count; ++i) {
         if(net->entries[i].used) Station_dump(&(net->entries[i].station));
     }
