@@ -400,7 +400,7 @@ glenv_Panel_render(glenv_Panel* const panel, void* data) {
         panel->config.right ? (float) glenv_WindowHandler.win->r.w - width : 0.f, y,
         width, glenv_Panel_height(panel));
     nk_bool expanded = nk_begin(&(glenv_WindowHandler.ctx), panel->title, bounds, panel->flags);
-    if(expanded) panel->layout(data, &(glenv_WindowHandler.ctx), glenv_WindowHandler.row_height);
+    if(expanded) panel->layout(data, &(glenv_WindowHandler.ctx), glenv_WindowHandler.row_height + NK_MAGIC);
     panel->bounds = nk_window_get_bounds(&(glenv_WindowHandler.ctx));
     nk_end(&(glenv_WindowHandler.ctx));
 }
