@@ -36,9 +36,9 @@ int main(void) {
     Vis_init(&vis, window);
     char* path_globe_image = hh_path_join(hh_path_join(hh_path(path_root), "assets"), "globe.bmp");
     Vis_layer_globe(&vis, path_globe_image);
+    Vis_layer_cfg(&vis);
     Vis_layer_net(&vis);
     Vis_layer_sky(&vis);
-    Vis_layer_cfg(&vis);
     hh_arrfree(path_globe_image);
     glClearColor(0.f, 0.f, 0.f, 1.f);
 #if 1

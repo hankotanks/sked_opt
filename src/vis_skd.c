@@ -97,7 +97,7 @@ Vis_layer_net(Vis* const vis) {
     // configure layer's corresponding UI element
     glenv_Panel* panel = glenv_Panel_init("stations", FLAGS, vis_layer_net_layout);
     if(panel == NULL) return false;
-    glenv_Panel_config_left_ratio(panel, 5, 0.2f);
+    glenv_Panel_config_right_ratio(panel, 5, 0.25f);
     // allocate data
     VisLayerDesc desc;
     VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));
@@ -165,7 +165,7 @@ Vis_layer_sky(Vis* const vis) {
     // configure layer's corresponding UI element
     glenv_Panel* panel = glenv_Panel_init("sources", FLAGS, vis_layer_sky_layout);
     if(panel == NULL) return false;
-    glenv_Panel_config_left_ratio(panel, 5, 0.2f);
+    glenv_Panel_config_right_ratio(panel, 5, 0.25f);
     // allocate data
     VisLayerDesc desc;
     VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));
