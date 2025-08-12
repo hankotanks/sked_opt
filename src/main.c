@@ -41,22 +41,23 @@ int main(void) {
     Vis_layer_sky(&vis);
     hh_arrfree(path_globe_image);
     glClearColor(0.f, 0.f, 0.f, 1.f);
-#if 1
     // event loop
     glClearColor(0.f, 0.f, 0.f, 1.f);
+    bool resized;
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
+        resized = false;
         while(RGFW_window_checkEvent(window)) {
-            if(window->event.type == RGFW_windowResized) 
+            if(window->event.type == RGFW_windowResized) {
+                resized = true;
                 glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
-            else if(window->event.type == RGFW_quit) break; 
+            } else if(window->event.type == RGFW_quit) break; 
             Vis_handle_events(&vis, window);
         }
         glenv_new_frame();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        Vis_update_and_draw(&vis, 0.f);
+        if(!resized) Vis_update_and_draw(&vis, 0.f);
         glenv_render(NK_ANTI_ALIASING_ON);
     }
-#endif
     RGFW_window_close(window);
     glenv_deinit();
     // clean up

@@ -11,9 +11,6 @@
 #define FLAGS NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE
 #define FLAGS_EDIT NK_EDIT_ALWAYS_INSERT_MODE | NK_EDIT_SELECTABLE | NK_EDIT_AUTO_SELECT
 
-#define ROWS 5
-#define RATIO 0.75
-
 struct vis_layer_cfg_state {
     char buf_yrs[5], buf_day[3], buf_hrs[3], buf_min[3];
     char buf_dur[32];
@@ -48,7 +45,7 @@ vis_layer_cfg_resize(glenv_Panel* const panel, RGFW_rect original, RGFW_rect cur
     unsigned int pixels = (unsigned int) curr.w - (unsigned int) ((float) original.w * VIS_NET_RATIO);
     bool large = curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_NET_RATIO + VIS_SKY_RATIO));
     if(large) pixels -= (unsigned int) ((float) original.w * VIS_SKY_RATIO);
-    glenv_Panel_config_left(panel, ROWS, pixels, 0.f);
+    glenv_Panel_config_left(panel, VIS_CFG_ROWS, pixels, 0.f);
 }
 
 void 
