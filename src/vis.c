@@ -222,6 +222,18 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
     switch(win->event.type) {
     case RGFW_windowResized:
         VisCamera_update_projection(&vis->camera, win);
+        for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
+            switch(vis->layers[i].type) {
+            case BOTH:
+            case PANEL:
+                glenv_Panel_resize(vis->layers[i].panel, vis);
+                break;
+            case PASS:
+                break;
+            case NONE:
+            default: HH_UNREACHABLE;
+            }
+        }
         break;
     case RGFW_mouseButtonPressed:
         if(glenv_consumed_mouse()) break;
@@ -260,6 +272,20 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
     }
 }
 
+glenv_Panel*
+Vis_get_panel(Vis* const vis, const char* title) {
+    if(title == NULL || title[0] == '\0') return NULL;
+    const char* title_curr;
+    for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
+        if(vis->layers[i].panel == NULL) continue;
+        title_curr = glenv_Panel_title(vis->layers[i].panel);
+        if(strcmp(title, title_curr) == 0) {
+            return vis->layers[i].panel;
+        }
+    }
+    return NULL;
+}
+
 void*
 Vis_add_layer(Vis* const vis, VisLayerDesc desc) {
     if(desc.type == NONE) return NULL;
@@ -271,7 +297,7 @@ Vis_add_layer(Vis* const vis, VisLayerDesc desc) {
         hh_arrpop(vis->layers);
         return NULL;
     }
-    const char* title;
+    glenv_Panel* parent;
     switch(hh_arrlast(vis->layers).type) {
     case BOTH:
     case PASS: 
@@ -300,17 +326,11 @@ Vis_add_layer(Vis* const vis, VisLayerDesc desc) {
         glUniform1f(glGetUniformLocation(hh_arrlast(vis->layers).pass.program, "shell_radius"), RADIUS * SCALAR);
         if(desc.type != BOTH) break;
     case PANEL:
-        glenv_Panel_set_parent(desc.panel.panel, NULL);
-        if(desc.panel.parent_title != NULL && desc.panel.parent_title[0] != '\0') {
-            for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
-                if(vis->layers[i].panel == NULL) continue;
-                title = glenv_Panel_title(vis->layers[i].panel);
-                if(strcmp(desc.panel.parent_title, title) == 0) {
-                    glenv_Panel_set_parent(desc.panel.panel, vis->layers[i].panel);
-                    break;
-                }
-            }
-        }
+        parent = Vis_get_panel(vis, desc.panel.parent_title);
+        if(parent != NULL) glenv_Panel_set_parent(desc.panel.panel, parent);
+        else HH_ASSERT(desc.panel.parent_title == NULL, "Unable to set %s's parent panel to %s.", 
+            glenv_Panel_title(desc.panel.panel), desc.panel.parent_title);
+        glenv_Panel_resize(desc.panel.panel, vis);
         hh_arrlast(vis->layers).panel = desc.panel.panel;
         break;
     case NONE:

@@ -1,5 +1,6 @@
 #include "vis.h"
 
+#include <glenv.h>
 #include <stdlib.h>
 
 #include "tinyfiledialogs.h"
@@ -10,6 +11,8 @@
 #define FLAGS NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE
 #define FLAGS_EDIT NK_EDIT_ALWAYS_INSERT_MODE | NK_EDIT_SELECTABLE | NK_EDIT_AUTO_SELECT
 
+#define ROWS 5
+#define RATIO 0.75
 
 struct vis_layer_cfg_state {
     char buf_yrs[5], buf_day[3], buf_hrs[3], buf_min[3];
@@ -29,7 +32,7 @@ select_output_file(struct vis_layer_cfg_state* state) {
     hh_strput(aDefaultPathAndOrFile, ".skd");
     const char* aFilterPatterns[] = { "*.skd" };
     const char* path = tinyfd_saveFileDialog(
-        "temp",
+        "sked_opt",
         aDefaultPathAndOrFile,
         1,
         aFilterPatterns,
@@ -37,6 +40,15 @@ select_output_file(struct vis_layer_cfg_state* state) {
     );
     hh_arrfree(aDefaultPathAndOrFile);
     if(path) strcpy(state->buf_out, path);
+}
+
+void
+vis_layer_cfg_resize(glenv_Panel* const panel, RGFW_rect original, RGFW_rect curr, void* data) {
+    (void) data;
+    unsigned int pixels = (unsigned int) curr.w - (unsigned int) ((float) original.w * VIS_NET_RATIO);
+    bool large = curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_NET_RATIO + VIS_SKY_RATIO));
+    if(large) pixels -= (unsigned int) ((float) original.w * VIS_SKY_RATIO);
+    glenv_Panel_config_left(panel, ROWS, pixels, 0.f);
 }
 
 void 
@@ -115,7 +127,7 @@ bool
 Vis_layer_cfg(Vis* const vis) {
     glenv_Panel* panel = glenv_Panel_init("config", FLAGS, vis_layer_cfg_layout);
     if(panel == NULL) return false;
-    glenv_Panel_config_left_ratio(panel, 5, 0.75);
+    glenv_Panel_set_resize(panel, vis_layer_cfg_resize);
     VisLayerDesc desc;
     VisLayerDesc_init(&desc, sizeof(struct vis_layer_cfg_state));
     VisLayerDesc_configure_panel(&desc, panel, NULL);
@@ -129,7 +141,7 @@ Vis_layer_cfg(Vis* const vis) {
     char* path_out = hh_path(".");
     if(!hh_path_exists(path_out)) {
         if(path_out != NULL) hh_arrfree(path_out);
-        snprintf(state->buf_out, sizeof(state->buf_out), "");
+        state->buf_out[0] = '\0';
         return false;
     } else {
         hh_strput(path_out, "/");

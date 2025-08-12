@@ -14,6 +14,9 @@ const GLfloat COLOR_ACTIVE_SRC[3] = {  1.f, 0.8f, 0.0f };
 
 #define FLAGS NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE
 
+#define ROWS 5
+#define RATIO 0.25f
+
 static const char* shader_source_stations = \
     "#version 330 core\n"
     "flat in uint state;\n"
@@ -54,6 +57,14 @@ vis_layer_skd_deinit(void* const data) {
     struct vis_layer_skd_state* state = data;
     glDeleteVertexArrays(1, &state->VAO);
     glDeleteBuffers(1, &state->VBO);
+}
+
+void
+vis_layer_net_resize(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, void* data) {
+    (void) data;
+    unsigned int pixels = (unsigned int) ((float) original.w * VIS_NET_RATIO);
+    bool large = curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_NET_RATIO + VIS_SKY_RATIO));
+    glenv_Panel_config_right(panel, ROWS, pixels, large ? (unsigned int) ((float) original.w * VIS_SKY_RATIO) : 0);
 }
 
 void 
@@ -97,7 +108,7 @@ Vis_layer_net(Vis* const vis) {
     // configure layer's corresponding UI element
     glenv_Panel* panel = glenv_Panel_init("stations", FLAGS, vis_layer_net_layout);
     if(panel == NULL) return false;
-    glenv_Panel_config_right_ratio(panel, 5, 0.25f);
+    glenv_Panel_set_resize(panel, vis_layer_net_resize);
     // allocate data
     VisLayerDesc desc;
     VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));
@@ -123,6 +134,20 @@ Vis_layer_net(Vis* const vis) {
     glBindVertexArray(0);
     glUseProgram(0);
     return true;
+}
+
+void
+vis_layer_sky_resize(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, void* data) {
+    Vis* vis = data;
+    unsigned int pixels = (unsigned int) ((float) original.w * VIS_SKY_RATIO);
+    glenv_Panel_config_right(panel, ROWS, pixels, 0);
+    if(curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_NET_RATIO + VIS_SKY_RATIO))) {
+        glenv_Panel_set_parent(panel, NULL);
+    } else {
+        glenv_Panel* parent = Vis_get_panel(vis, "stations");
+        HH_ASSERT(parent != NULL, "Unable to find panel 'stations'.");
+        glenv_Panel_set_parent(panel, parent);
+    }
 }
 
 void 
@@ -165,7 +190,7 @@ Vis_layer_sky(Vis* const vis) {
     // configure layer's corresponding UI element
     glenv_Panel* panel = glenv_Panel_init("sources", FLAGS, vis_layer_sky_layout);
     if(panel == NULL) return false;
-    glenv_Panel_config_right_ratio(panel, 5, 0.25f);
+    glenv_Panel_set_resize(panel, vis_layer_sky_resize);
     // allocate data
     VisLayerDesc desc;
     VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));

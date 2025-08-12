@@ -34,6 +34,7 @@ typedef struct {
 
 static struct {
     RGFW_window* win;
+    RGFW_rect original_rect;
     glenv_Device device;
     struct nk_context ctx;
     struct nk_font_atlas atlas;
@@ -69,6 +70,7 @@ NK_API struct nk_context* glenv_init(RGFW_window* win) {
     // begin glenv_init
     glenv_Device* device = &(glenv_WindowHandler.device);
     glenv_WindowHandler.win = win;
+    glenv_WindowHandler.original_rect = win->r;
     { // set event callbacks
         RGFW_setKeyCallback(glenv_key_callback);
         RGFW_setMouseButtonCallback(glenv_mouse_button_callback);
@@ -306,11 +308,13 @@ struct GLENV_H__glenv_Panel {
         nk_bool right;
         nk_bool width_prop;
         union { unsigned int pixels; float ratio; } width;
+        union { unsigned int pixels; float ratio; } offset;
         size_t rows;
     } config;
     struct nk_rect bounds;
     enum nk_panel_flags flags;
-    void (*layout)(void* const data, struct nk_context* ctx, float row_height);
+    glenv_PanelLayout layout;
+    glenv_PanelResize resize;
 };
 
 glenv_Panel*
@@ -321,11 +325,15 @@ glenv_Panel_init(const char* title, enum nk_panel_flags flags, glenv_PanelLayout
     panel->flags = flags;
     // configure layout function
     panel->layout = layout;
+    panel->resize = NULL;
     return panel;
 }
 
 const char*
 glenv_Panel_title(const glenv_Panel* const panel) { return panel->title; }
+
+const glenv_Panel*
+glenv_Panel_parent(const glenv_Panel* const panel) { return panel->parent; }
 
 void
 glenv_Panel_set_parent(glenv_Panel* const panel, const glenv_Panel* const parent) {
@@ -333,30 +341,37 @@ glenv_Panel_set_parent(glenv_Panel* const panel, const glenv_Panel* const parent
 }
 
 void
-glenv_Panel_config_left(glenv_Panel* const panel, size_t rows, unsigned int pixels) {
+glenv_Panel_set_resize(glenv_Panel* const panel, glenv_PanelResize resize) {
+    panel->resize = resize;
+}
+
+void
+glenv_Panel_config_left(glenv_Panel* const panel, size_t rows, unsigned int pixels, unsigned int offset) {
     panel->config.init = nk_true;
     panel->config.right = nk_false;
     panel->config.width_prop = nk_false;
     panel->config.width.pixels = pixels;
+    panel->config.offset.pixels = offset;
     panel->config.rows = rows;
 
 }
 void
-glenv_Panel_config_left_ratio(glenv_Panel* const panel, size_t rows, float ratio) {
+glenv_Panel_config_left_ratio(glenv_Panel* const panel, size_t rows, float ratio, float offset) {
     panel->config.init = nk_true;
     panel->config.right = nk_false;
     panel->config.width_prop = nk_true;
     panel->config.width.ratio = ratio;
+    panel->config.offset.ratio = offset;
     panel->config.rows = rows;
 }
 void
-glenv_Panel_config_right(glenv_Panel* const panel, size_t rows, unsigned int pixels) {
-    glenv_Panel_config_left(panel, rows, pixels);
+glenv_Panel_config_right(glenv_Panel* const panel, size_t rows, unsigned int pixels, unsigned int offset) {
+    glenv_Panel_config_left(panel, rows, pixels, offset);
     panel->config.right = nk_true;
 }
 void
-glenv_Panel_config_right_ratio(glenv_Panel* const panel, size_t rows, float ratio) {
-    glenv_Panel_config_left_ratio(panel, rows, ratio);
+glenv_Panel_config_right_ratio(glenv_Panel* const panel, size_t rows, float ratio, float offset) {
+    glenv_Panel_config_left_ratio(panel, rows, ratio, offset);
     panel->config.right = nk_true;
 }
 
@@ -396,13 +411,22 @@ glenv_Panel_render(glenv_Panel* const panel, void* data) {
     const float width = panel->config.width_prop ? \
         panel->config.width.ratio * (float) glenv_WindowHandler.win->r.w : \
         (float) panel->config.width.pixels;
+    const float offset = panel->config.width_prop ? \
+        panel->config.offset.ratio * (float) glenv_WindowHandler.win->r.w : \
+        (float) panel->config.offset.pixels;
     const struct nk_rect bounds = nk_rect(
-        panel->config.right ? (float) glenv_WindowHandler.win->r.w - width : 0.f, y,
+        panel->config.right ? (float) glenv_WindowHandler.win->r.w - width - offset : offset, y,
         width, glenv_Panel_height(panel));
     nk_bool expanded = nk_begin(&(glenv_WindowHandler.ctx), panel->title, bounds, panel->flags);
     if(expanded) panel->layout(data, &(glenv_WindowHandler.ctx), glenv_WindowHandler.row_height + NK_MAGIC);
     panel->bounds = nk_window_get_bounds(&(glenv_WindowHandler.ctx));
     nk_end(&(glenv_WindowHandler.ctx));
+}
+
+void
+glenv_Panel_resize(glenv_Panel* const panel, void* data) {
+    if(panel->resize == NULL) return;
+    (panel->resize)(panel, glenv_WindowHandler.original_rect, glenv_WindowHandler.win->r, data);
 }
 
 nk_bool
