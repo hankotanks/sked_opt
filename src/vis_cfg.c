@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 
+#include "tinyfiledialogs.h"
 #include "hh.h"
 
 #include "time_sys.h"
@@ -13,8 +14,30 @@
 struct vis_layer_cfg_state {
     char buf_yrs[5], buf_day[3], buf_hrs[3], buf_min[3];
     char buf_dur[32];
-    char buf_out[4096];
+    char buf_out[1024];
 };
+
+void
+select_output_file(struct vis_layer_cfg_state* state) {
+    char* aDefaultPathAndOrFile = NULL;
+    hh_strput(aDefaultPathAndOrFile, state->buf_yrs);
+    hh_strput(aDefaultPathAndOrFile, months[(int) time_sys->start.mon]);
+    hh_strput(aDefaultPathAndOrFile, state->buf_day);
+    hh_strput(aDefaultPathAndOrFile, "_");
+    hh_strput(aDefaultPathAndOrFile, state->buf_hrs);
+    hh_strput(aDefaultPathAndOrFile, state->buf_min);
+    hh_strput(aDefaultPathAndOrFile, ".skd");
+    const char* aFilterPatterns[] = { "*.skd" };
+    const char* path = tinyfd_saveFileDialog(
+        "temp",
+        aDefaultPathAndOrFile,
+        1,
+        aFilterPatterns,
+        "Standard Schedule File Format"
+    );
+    hh_arrfree(aDefaultPathAndOrFile);
+    if(path) strcpy(state->buf_out, path);
+}
 
 void 
 vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height) {
@@ -60,7 +83,7 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
             (mjd < 0.0) ? "invalid" : "%lf", mjd);
         nk_group_end(ctx);
     }
-    nk_layout_row_begin(ctx, NK_DYNAMIC, row_height * 2.4f, 2);
+    nk_layout_row_begin(ctx, NK_DYNAMIC, row_height * 2.5f, 2);
     nk_layout_row_push(ctx, 0.75f); // output directory
     if(nk_group_begin(ctx, "group_out_path", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
@@ -71,9 +94,7 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
             
         }
         nk_layout_row_push(ctx, 0.2f);
-        if(nk_button_label(ctx, "browse")) {
-
-        }
+        if(nk_button_label(ctx, "browse")) select_output_file(state);
         nk_layout_row_end(ctx);
         nk_group_end(ctx);
     }
@@ -108,6 +129,7 @@ Vis_layer_cfg(Vis* const vis) {
     char* path_out = hh_path(".");
     if(!hh_path_exists(path_out)) {
         if(path_out != NULL) hh_arrfree(path_out);
+        snprintf(state->buf_out, sizeof(state->buf_out), "");
         return false;
     } else {
         hh_strput(path_out, "/");

@@ -48,10 +48,5 @@ extern TimeSys* time_sys;
 
 void
 time_sys_init(void);
-DateTime
-time_sys_to_datetime(unsigned int seconds);
-
-// const char*
-// time_sys_start_string(void);
 
 #endif // TIME_SYS_H__
