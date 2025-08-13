@@ -38,6 +38,8 @@ double
 DateTime_to_mjd(DateTime dt);
 DateTime
 DateTime_from_mjd(double mjd);
+double
+DateTime_to_gmst(DateTime dt);
 
 typedef struct {
     DateTime start;

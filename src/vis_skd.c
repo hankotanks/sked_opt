@@ -76,7 +76,7 @@ vis_layer_net_layout(void* const data, struct nk_context* ctx, float row_height)
         int temp = *active ? nk_false : nk_true;
         if(nk_check_text(ctx, sta.name, (int) cat_name_len(sta.name), temp) != temp) {
             *active = !(*active);
-            GLfloat val = (*active) ? 0.f : 1.f;
+            GLfloat val = (*active) ? 1.f : 0.f;
             glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
             glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((j * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -159,7 +159,7 @@ vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height)
         int temp = *active ? nk_false : nk_true;
         if(nk_check_text(ctx, src.name, (int) cat_name_len(src.name), temp) != temp) {
             *active = !(*active);
-            GLfloat val = (*active) ? 0.f : 1.f;
+            GLfloat val = (*active) ? 1.f : 0.f;
             glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
             glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((j * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
             glBindBuffer(GL_ARRAY_BUFFER, 0);

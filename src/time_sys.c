@@ -43,6 +43,22 @@ DateTime_from_mjd(double mjd) {
     return dt;
 }
 
+double
+DateTime_to_gmst(DateTime dt) {
+    double jd = DateTime_to_mjd(dt) + 2400000.5;
+    // Adapted from https://www.mathworks.com/matlabcentral/fileexchange/28176-julian-date-to-greenwich-mean-sidereal-time
+    // by Darin Koblick
+    double jd0, hrs, min, max;
+    min = floor(jd) - 0.5;
+    max = floor(jd) + 0.5;
+    jd0 = (jd > max) ? max : min;
+    hrs = \
+        (6.697374558) + \
+        (0.06570982441908 * (jd0 - 2451545.0)) + \
+        (1.00273790935 * (jd - jd0) * 24.0) + \
+        (0.000026 * pow((jd - 2451545.0) / 36525.0, 2.0));
+    return fmod(hrs, 24.0) * 15.0;
+}
 
 const char* months[12] = {
 #define X(name_, val_) #name_,
