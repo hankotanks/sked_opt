@@ -5,6 +5,7 @@
 #include <glenv.h>
 
 #include "xml.h"
+#include "xml_util.h"
 #include "cat.h"
 #include "network.h"
 #include "vis.h"
@@ -17,22 +18,29 @@
 #define WINDOW_H 600
 
 void
-args(int argc, char* argv[]) {
-    char* path_xml = NULL;
-    if(argc < 2) return;
-    path_xml = hh_path(argv[1]);
-    HH_ASSERT(path_xml != NULL && hh_path_exists(path_xml) && hh_path_is_file(path_xml), 
-        "Unable to locate provided configuration [%s].", argv[1]);
+configure_using_xml(const char* const path) {
+    char* path_xml = hh_path(path);
+    HH_ASSERT(hh_path_exists(path_xml) && hh_path_is_file(path_xml), 
+        "Unable to locate provided configuration [%s].", path);
     HH_MSG("Found configuration at [%s].", path_xml);
-    FILE* file_xml = fopen(path_xml, "r");
-    HH_ASSERT(file_xml != NULL, "Failed to open provided configuration [%s].", path_xml);
-    struct xml_document* doc =  xml_open_document(file_xml);
+    char* contents = hh_read_entire_file(path_xml);
+    HH_ASSERT(contents != NULL, "Failed to read provided configuration [%s].", path_xml);
+    struct xml_document* doc = xml_parse_document_skip_preamble(contents);
     HH_ASSERT(doc != NULL, "Failed to parse provided configuration [%s].", path_xml);
+    hh_arrfree(path_xml);
+    // update state using xml_document
     struct xml_node* root = xml_document_root(doc);
     net_xml_parse(root);
     sky_xml_parse(root);
+    // clean up
     xml_document_free(doc, false);
-    hh_arrfree(path_xml);
+    hh_arrfree(contents);
+}   
+
+void
+args(int argc, char* argv[]) {
+    if(argc == 1) return;
+    configure_using_xml(argv[1]);
 }
 
 int 
@@ -66,23 +74,18 @@ main(int argc, char* argv[]) {
     glClearColor(0.f, 0.f, 0.f, 1.f);
     // event loop
     glClearColor(0.f, 0.f, 0.f, 1.f);
-    bool resized;
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
-        resized = false;
         while(RGFW_window_checkEvent(window)) {
-            if(window->event.type == RGFW_windowResized) {
-                resized = true;
-                glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
-            } else if(window->event.type == RGFW_quit) break; 
+            if(window->event.type == RGFW_quit) break; 
             Vis_handle_events(&vis, window);
         }
         glenv_new_frame();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        if(!resized) Vis_update_and_draw(&vis, 0.f);
+        Vis_update_and_draw(&vis, 0.f);
         glenv_render(NK_ANTI_ALIASING_ON);
     }
-    RGFW_window_close(window);
     glenv_deinit();
+    RGFW_window_close(window);
     // clean up
     Vis_free(&vis);
     net_free();

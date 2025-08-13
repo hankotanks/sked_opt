@@ -108,10 +108,17 @@ void
 sky_xml_parse(struct xml_node* root) {
     struct xml_node* general = xml_node_find(root, "general");
     struct xml_node* onlyUseListedSources = xml_node_find(general, "onlyUseListedSources");
+    Source src; bool* active;
+    if(onlyUseListedSources == NULL) {
+        for(size_t i = 0; i < sky->count; ++i) {
+            active = sky_get_src_by_idx(i, &src);
+            if(active == NULL) continue;
+            *active = true;
+        }
+        return;
+    }
     struct xml_node* child;
     struct xml_string* name;
-    Source src;
-    bool* active;
     for(size_t i = 0; i < xml_node_children(onlyUseListedSources); ++i) {
         child = xml_node_child(onlyUseListedSources, i);
         if(xml_node_name_equals(child, "source")) {

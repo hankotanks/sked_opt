@@ -112,7 +112,7 @@ net_xml_parse(struct xml_node* root) {
                 if(active == NULL) continue;
                 if(cat_name_len(sta.name) != name->length) continue;
                 if(memcmp(name->buffer, sta.name, name->length) == 0) {
-                    HH_MSG("Added station: %.*s.", (int) name->length, name->buffer);
+                    HH_MSG("Added station: %.*s", (int) name->length, name->buffer);
                     *active = true;
                 }
             }

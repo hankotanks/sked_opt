@@ -8,6 +8,9 @@ struct xml_string {
 	size_t length;
 };
 
+struct xml_document* 
+xml_parse_document_skip_preamble(char* const contents);
+
 bool
 xml_node_name_equals(struct xml_node* node, const char* name);
 struct xml_node* 

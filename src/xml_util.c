@@ -1,5 +1,22 @@
 #include "xml_util.h"
 
+#include "hh.h"
+
+struct xml_document* 
+xml_parse_document_skip_preamble(char* const contents) {
+    if(contents == NULL) return NULL;
+    char* offset = contents;
+    char* temp;
+    while(offset[0] != '\0') {
+        if(strncmp(offset, "<?xml", 5) != 0) break;
+        temp = strchr(offset, '\n');
+        if(temp == NULL) return NULL;
+        offset = temp + 1;
+    }
+    size_t contents_size = hh_arrlen(contents) - (size_t) (offset - contents);
+    return xml_parse_document((uint8_t*) offset, contents_size);
+}
+
 bool
 xml_node_name_equals(struct xml_node* node, const char* name) {
     size_t length = strlen(name);

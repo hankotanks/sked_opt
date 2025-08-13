@@ -224,6 +224,7 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
     int x, y, dx, dy;
     switch(win->event.type) {
     case RGFW_windowResized:
+        glViewport(0, 0, (GLsizei) win->r.w, (GLsizei) win->r.h);
         VisCamera_update_projection(&vis->camera, win);
         for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
             switch(vis->layers[i].type) {

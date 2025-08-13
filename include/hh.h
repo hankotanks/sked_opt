@@ -341,6 +341,7 @@ hh_path(const char *raw) {
 
 bool
 hh_path_exists(const char* path) {
+	if(path == NULL) return false;
 #ifdef _WIN32
 	return _access(path, 0) == 0;
 #else
