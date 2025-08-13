@@ -7,10 +7,10 @@
 #include "network.h"
 #include "sky.h"
 
-const GLfloat COLOR_NORMAL_STA[3] = {  1.f, 0.4f,  0.f };
-const GLfloat COLOR_ACTIVE_STA[3] = { 0.2f, 0.8f, 0.2f };
-const GLfloat COLOR_NORMAL_SRC[3] = {  1.f,  1.f,  1.f };
-const GLfloat COLOR_ACTIVE_SRC[3] = {  1.f, 0.8f, 0.0f };
+const GLfloat COLOR_NORMAL_STA[3] = { 0.4f,  0.4f, 0.6f };
+const GLfloat COLOR_ACTIVE_STA[3] = { 0.2f,  0.8f,  1.f };
+const GLfloat COLOR_NORMAL_SRC[3] = {  1.f,   1.f,  1.f };
+const GLfloat COLOR_ACTIVE_SRC[3] = {  1.f,  0.4f, 0.4f };
 
 #define FLAGS NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE
 
@@ -21,7 +21,7 @@ static const char* shader_source_stations = \
     "uniform vec3 color_active;\n"
     "out vec4 color_out;\n"
     "void main() {\n"
-    "    color_out = vec4((state != 0u) ? color_normal : color_active, 1.f);\n"
+    "    color_out = vec4((state != 0u) ? color_active : color_normal, 1.f);\n"
     "}\n";
 
 struct vis_layer_skd_state {
@@ -100,7 +100,7 @@ Vis_layer_net(Vis* const vis) {
         hh_arrput(vertices, (GLfloat) sta.lon);
         hh_arrput(vertices, (GLfloat) (90.0 - sta.lat));
         hh_arrput(vertices, 0.f);
-        hh_arrput(vertices, active ? 1.f : 0.f);
+        hh_arrput(vertices, (*active) ? 1.f : 0.f);
     }
     // configure layer's corresponding UI element
     glenv_Panel* panel = glenv_Panel_init("stations", FLAGS, vis_layer_net_layout);
@@ -182,7 +182,7 @@ Vis_layer_sky(Vis* const vis) {
         hh_arrput(vertices, (GLfloat) src.raan);
         hh_arrput(vertices, (GLfloat) (90.0 - src.decl));
         hh_arrput(vertices, 1.f);
-        hh_arrput(vertices, active ? 1.f : 0.f);
+        hh_arrput(vertices, (*active) ? 1.f : 0.f);
     }
     // configure layer's corresponding UI element
     glenv_Panel* panel = glenv_Panel_init("sources", FLAGS, vis_layer_sky_layout);

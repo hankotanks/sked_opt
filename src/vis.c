@@ -101,8 +101,9 @@ static const char* shader_source_vert = \
     "    float x = sin(phi) * cos(lam) * rad;\n"
     "    float y = cos(phi) * rad;\n"
     "    float z = sin(phi) * sin(lam) * rad;\n"
-    "    gl_Position = proj * view * vec4(x, y, z, 1.f);\n"
     "    state = (abs(lam_phi.w) < 0.5f) ? 0u : 1u;\n"
+    "    gl_Position = proj * view * vec4(x, y, z, 1.f);\n"
+    "    gl_PointSize = (state != 0u) ? 8.0 : 5.0;\n"
     "    pos = vec3(sin(lam), cos(lam), phi);\n"
     "}\n";
 
@@ -201,10 +202,12 @@ Vis_update_and_draw(Vis* const vis, const float gmst) {
         case BOTH:
         case PASS:
             glUseProgram(vis->layers[i].pass.program);
+            glEnable(GL_PROGRAM_POINT_SIZE);
             glUniformMatrix4fv(vis->layers[i].pass.loc_proj, 1, GL_FALSE, vis->camera.proj);
             glUniformMatrix4fv(vis->layers[i].pass.loc_view, 1, GL_FALSE, vis->camera.view);
             glUniform1f(vis->layers[i].pass.loc_gmst, gmst);
             (vis->layers[i].pass.methods.render)(vis->layers[i].data);
+            glDisable(GL_PROGRAM_POINT_SIZE);
             glUseProgram(0);
             if(vis->layers[i].type != BOTH) break;
         case PANEL:

@@ -237,6 +237,14 @@ hh_skip_whitespace(const char* ptr);
 bool
 hh_starts_with(const char* ptr, const char* prefix);
 
+//
+// IO
+//
+
+char* 
+hh_read_entire_file(const char* path);
+
+
 #endif // HH_H__
 
 //
@@ -549,6 +557,34 @@ hh_skip_whitespace(const char* ptr) {
 bool
 hh_starts_with(const char* ptr, const char* prefix) {
 	return strncmp(ptr, prefix, strlen(prefix)) == 0;
+}
+
+char* 
+hh_read_entire_file(const char* path) {
+    FILE* f = fopen(path, "rb");
+	if(f == NULL) {
+		HH_ERR("Failed to open file at path [%s].", path);
+		return NULL;
+	}
+	HH_CHECK_STREAM(f, !fseek(f, 0, SEEK_END), 
+		"Failed to seek to end of file while reading [%s].", path) return NULL;
+    long size_temp = ftell(f);
+	HH_CHECK_STREAM(f, size_temp >= 0, "Failed to read file size [%s].", path) 
+		return NULL;
+	unsigned long size = (unsigned long) size_temp;
+    rewind(f);
+	char* buf = NULL;
+	hh_arradd(buf, size);
+	HH_CHECK_STREAM(f, buf != NULL, "Failed to allocate buffer for file contents [%s].", path) 
+		return NULL;
+    size_t read_size = fread(buf, 1, size, f);
+	HH_CHECK_STREAM(f, read_size == (size_t) size, "Failed to read entire file into buffer [%s].", path) {
+		hh_arrfree(buf);
+		return NULL;
+	}
+	hh_arradd(buf, '\0');
+    fclose(f);
+    return buf;
 }
 
 #endif // HH_IMPL

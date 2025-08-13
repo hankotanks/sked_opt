@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#include "xml.h"
 #include "source.h"
 
 typedef struct SKY_H__SourceEntry SourceEntry;
@@ -26,5 +27,7 @@ void
 sky_add_src(const Source src);
 void
 sky_dump(void);
+void
+sky_xml_parse(struct xml_node* root);
 
 #endif // SKY_H__

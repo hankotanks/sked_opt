@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "xml.h"
 #include "station.h"
 
 typedef struct NETWORK_H__StationEntry StationEntry;
@@ -25,5 +26,7 @@ void
 net_free(void);
 void
 net_dump(void);
+void
+net_xml_parse(struct xml_node* root);
 
 #endif // NETWORK_H__

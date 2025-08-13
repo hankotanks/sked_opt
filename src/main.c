@@ -4,6 +4,7 @@
 
 #include <glenv.h>
 
+#include "xml.h"
 #include "cat.h"
 #include "network.h"
 #include "vis.h"
@@ -15,7 +16,27 @@
 #define WINDOW_W 800
 #define WINDOW_H 600
 
-int main(void) {
+void
+args(int argc, char* argv[]) {
+    char* path_xml = NULL;
+    if(argc < 2) return;
+    path_xml = hh_path(argv[1]);
+    HH_ASSERT(path_xml != NULL && hh_path_exists(path_xml) && hh_path_is_file(path_xml), 
+        "Unable to locate provided configuration [%s].", argv[1]);
+    HH_MSG("Found configuration at [%s].", path_xml);
+    FILE* file_xml = fopen(path_xml, "r");
+    HH_ASSERT(file_xml != NULL, "Failed to open provided configuration [%s].", path_xml);
+    struct xml_document* doc =  xml_open_document(file_xml);
+    HH_ASSERT(doc != NULL, "Failed to parse provided configuration [%s].", path_xml);
+    struct xml_node* root = xml_document_root(doc);
+    net_xml_parse(root);
+    sky_xml_parse(root);
+    xml_document_free(doc, false);
+    hh_arrfree(path_xml);
+}
+
+int 
+main(int argc, char* argv[]) {
     const char* path_root = hh_path(PROJECT_ROOT);
     // parse catalog
     char* path_cat = hh_path_join(hh_path(path_root), "catalogs");
@@ -27,6 +48,8 @@ int main(void) {
     sky_init();
     // initialize time system
     time_sys_init();
+    // CLI arguments
+    args(argc, argv);
     // initialize window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));
