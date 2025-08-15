@@ -6,7 +6,9 @@
 
 #include "hh.h"
 
+#ifndef M_PI_2
 #define M_PI_2 1.57079632679489661923132169163975144209858469968755291048747229615390820314f
+#endif // M_PI_2
 
 #define SENSITIVITY 0.002f
 #define SCALAR 4.f
@@ -230,7 +232,7 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
             switch(vis->layers[i].type) {
             case BOTH:
             case PANEL:
-                glenv_Panel_resize(vis->layers[i].panel, vis);
+                glenv_Panel_update(vis->layers[i].panel, vis);
                 break;
             case PASS:
                 break;
@@ -334,7 +336,7 @@ Vis_add_layer(Vis* const vis, VisLayerDesc desc) {
         if(parent != NULL) glenv_Panel_config(desc.panel.panel, .parent = parent);
         else HH_ASSERT(desc.panel.parent_title == NULL, "Unable to set %s's parent panel to %s.", 
             glenv_Panel_get_title(desc.panel.panel), desc.panel.parent_title);
-        glenv_Panel_resize(desc.panel.panel, vis);
+        glenv_Panel_update(desc.panel.panel, vis);
         hh_arrlast(vis->layers).panel = desc.panel.panel;
         break;
     case NONE:

@@ -13,6 +13,7 @@ const GLfloat COLOR_NORMAL_SRC[3] = {  1.f,   1.f,  1.f };
 const GLfloat COLOR_ACTIVE_SRC[3] = {  1.f,  0.4f, 0.4f };
 
 #define FLAGS NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE
+#define FLAGS_EDIT NK_EDIT_ALWAYS_INSERT_MODE | NK_EDIT_SELECTABLE | NK_EDIT_AUTO_SELECT
 
 static const char* shader_source_stations = \
     "#version 330 core\n"
@@ -27,6 +28,7 @@ static const char* shader_source_stations = \
 struct vis_layer_skd_state {
     GLuint VAO, VBO;
     size_t vertex_count;
+    char buf_filter[9];
 };
 
 // TODO: Implement mouse picking here
@@ -57,24 +59,26 @@ vis_layer_skd_deinit(void* const data) {
 }
 
 void
-vis_layer_net_resize(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, void* data) {
-    (void) data;
-    bool large = curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_SKD_RATIO * 2));
+vis_layer_net_update(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, void* data) {
     unsigned int pixels = (unsigned int) ((float) original.w * VIS_SKD_RATIO);
     glenv_Panel_config(panel, 
         .width = glenv_PanelWidth_fixed(pixels),
-        .offset = large ? (float) original.w * VIS_SKD_RATIO : 0.f);
+        .offset = Vis_expanded(data, original, curr) ? (float) original.w * VIS_SKD_RATIO : 0.f);
 }
 
 void 
 vis_layer_net_layout(void* const data, struct nk_context* ctx, float row_height) {
     struct vis_layer_skd_state* state = data;
+    nk_layout_row_dynamic(ctx, row_height + 1.f, 1);
+    // pinned search bar
+    nk_edit_string_zero_terminated(ctx, FLAGS_EDIT, state->buf_filter, sizeof(state->buf_filter), nk_filter_ascii);
     nk_layout_row_dynamic(ctx, row_height, 2);
     Station sta;
     bool* active;
     for(size_t i = 0, j = 0; i < net->count; ++i) {
         active = net_get_sta_by_idx(i, &sta);
         if(active == NULL) continue;
+        if(state->buf_filter[0] != '\0' && !cat_name_contains(sta.name, state->buf_filter)) continue;
         int temp = *active ? nk_false : nk_true;
         if(nk_check_text(ctx, sta.name, (int) cat_name_len(sta.name), temp) != temp) {
             *active = !(*active);
@@ -110,7 +114,7 @@ Vis_layer_net(Vis* const vis) {
         .rows = VIS_SKD_ROWS, 
         .right = nk_true,
         .layout = vis_layer_net_layout, 
-        .resize = vis_layer_net_resize);
+        .update = vis_layer_net_update);
     if(panel == NULL) return false;
     // allocate data
     VisLayerDesc desc;
@@ -119,6 +123,7 @@ Vis_layer_net(Vis* const vis) {
     VisLayerDesc_configure_panel(&desc, panel, NULL);
     struct vis_layer_skd_state* state = Vis_add_layer(vis, desc);
     state->vertex_count = hh_arrlen(vertices) / 4;
+    state->buf_filter[0] = '\0';
     // set uniform locations
     GLint program = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &program);
@@ -140,11 +145,11 @@ Vis_layer_net(Vis* const vis) {
 }
 
 void
-vis_layer_sky_resize(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, void* data) {
+vis_layer_sky_update(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, void* data) {
     Vis* vis = data;
     unsigned int pixels = (unsigned int) ((float) original.w * VIS_SKD_RATIO);
     glenv_Panel_config(panel, .width = glenv_PanelWidth_fixed(pixels));
-    if(curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_SKD_RATIO * 2))) {
+    if(Vis_expanded(vis, original, curr)) {
         glenv_Panel_config(panel, .parent = NULL);
     } else if(glenv_Panel_get_config(panel).parent == NULL) {
         glenv_Panel* parent = Vis_get_panel(vis, "stations");
@@ -156,12 +161,16 @@ vis_layer_sky_resize(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, voi
 void 
 vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height) {
     struct vis_layer_skd_state* state = data;
+    nk_layout_row_dynamic(ctx, row_height + 1.f, 1);
+    // pinned search bar
+    nk_edit_string_zero_terminated(ctx, FLAGS_EDIT, state->buf_filter, sizeof(state->buf_filter), nk_filter_ascii);
     nk_layout_row_dynamic(ctx, row_height, 1);
     Source src;
     bool* active;
     for(size_t i = 0, j = 0; i < net->count; ++i) {
         active = sky_get_src_by_idx(i, &src);
         if(active == NULL) continue;
+        if(state->buf_filter[0] != '\0' && !cat_name_contains(src.name, state->buf_filter)) continue;
         int temp = *active ? nk_false : nk_true;
         if(nk_check_text(ctx, src.name, (int) cat_name_len(src.name), temp) != temp) {
             *active = !(*active);
@@ -196,7 +205,7 @@ Vis_layer_sky(Vis* const vis) {
         .rows = VIS_SKD_ROWS, 
         .right = nk_true, 
         .layout = vis_layer_sky_layout, 
-        .resize = vis_layer_sky_resize);
+        .update = vis_layer_sky_update);
     if(panel == NULL) return false;
     // allocate data
     VisLayerDesc desc;

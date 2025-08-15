@@ -61,3 +61,19 @@ void
 cat_name_print(const char name[static 8]) {
     printf("%.*s", (int) cat_name_len(name), name);
 }
+
+bool
+cat_name_contains(const char name[8], const char* sub) {
+    size_t len_name = 8;
+    for(size_t i = 0; i < 8; ++i) {
+        if(name[i] == '\0') {
+            len_name = i;
+            break;
+        }
+    }
+    size_t len_sub = strlen(sub);
+    if(len_sub == 0) return true;
+    for(size_t i = 0; i + len_sub <= len_name; ++i) 
+        if(memcmp(name + i, sub, len_sub) == 0) return true;
+    return false;
+}

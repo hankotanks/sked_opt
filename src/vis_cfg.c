@@ -40,11 +40,9 @@ select_output_file(struct vis_layer_cfg_state* state) {
 }
 
 void
-vis_layer_cfg_resize(glenv_Panel* const panel, RGFW_rect original, RGFW_rect curr, void* data) {
-    (void) data;
-    bool large = curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_SKD_RATIO + VIS_SKD_RATIO));
+vis_layer_cfg_update(glenv_Panel* const panel, RGFW_rect original, RGFW_rect curr, void* data) {
     unsigned int pixel_offset = (unsigned int) ((float) original.w * VIS_SKD_RATIO);
-    if(large) pixel_offset *= 2;
+    if(Vis_expanded(data, original, curr)) pixel_offset *= 2;
     glenv_Panel_config(panel, .width = glenv_PanelWidth_dynamic(1.f, pixel_offset));
 }
 
@@ -122,7 +120,11 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
 
 bool
 Vis_layer_cfg(Vis* const vis) {
-    glenv_Panel* panel = glenv_Panel_init("config", .flags = FLAGS, .rows = VIS_CFG_ROWS, .layout = vis_layer_cfg_layout, .resize = vis_layer_cfg_resize);
+    glenv_Panel* panel = glenv_Panel_init("config", 
+        .flags = FLAGS, 
+        .rows = VIS_CFG_ROWS, 
+        .layout = vis_layer_cfg_layout, 
+        .update = vis_layer_cfg_update);
     if(panel == NULL) return false;
     VisLayerDesc desc;
     VisLayerDesc_init(&desc, sizeof(struct vis_layer_cfg_state));

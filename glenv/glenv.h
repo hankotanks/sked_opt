@@ -58,7 +58,7 @@ glenv_consumed_mouse(void);
 
 typedef struct GLENV_H__glenv_Panel glenv_Panel;
 typedef void (*glenv_PanelLayout)(void* const data, struct nk_context* ctx, float row_height);
-typedef void (*glenv_PanelResize)(glenv_Panel* const panel, RGFW_rect original, RGFW_rect curr, void* data);
+typedef void (*glenv_PanelUpdate)(glenv_Panel* const panel, RGFW_rect original, RGFW_rect curr, void* data);
 
 static inline void GLENV_UNUSED 
 glenv_PanelLayout_dummy(void* const data, struct nk_context* ctx, float row_height) {
@@ -75,7 +75,8 @@ typedef struct {
     } width;
 } glenv_PanelWidth;
 
-#define glenv_PanelWidth_dynamic(ratio, pixel_offset) \
+#define \
+glenv_PanelWidth_dynamic(ratio, pixel_offset) \
     ((glenv_PanelWidth) { nk_true, {{ (ratio), (pixel_offset) }}})
 
 static inline glenv_PanelWidth GLENV_UNUSED
@@ -90,7 +91,7 @@ typedef struct {
     const glenv_Panel* parent;
     enum nk_panel_flags flags;
     glenv_PanelLayout layout;
-    glenv_PanelResize resize;
+    glenv_PanelUpdate update;
     nk_bool right;
     glenv_PanelWidth width;
     float offset;
@@ -101,7 +102,7 @@ typedef struct {
     .parent = NULL, \
     .flags  = NK_WINDOW_BORDER | NK_WINDOW_TITLE, \
     .layout = glenv_PanelLayout_dummy, \
-    .resize = NULL, \
+    .update = NULL, \
     .right  = nk_false, \
     .width  = glenv_PanelWidth_dynamic(1.f, 0.f), \
     .offset = 0.f, \
@@ -113,7 +114,7 @@ typedef struct {
     .parent = glenv_Panel_get_config((panel)).parent, \
     .flags  = glenv_Panel_get_config((panel)).flags, \
     .layout = glenv_Panel_get_config((panel)).layout, \
-    .resize = glenv_Panel_get_config((panel)).resize, \
+    .update = glenv_Panel_get_config((panel)).update, \
     .right  = glenv_Panel_get_config((panel)).right, \
     .width  = glenv_Panel_get_config((panel)).width, \
     .offset = glenv_Panel_get_config((panel)).offset, \
@@ -133,9 +134,9 @@ glenv_Panel_get_config(const glenv_Panel* const panel);
 void 
 glenv_Panel_render(glenv_Panel* const panel, void* data);
 void
-glenv_Panel_resize(glenv_Panel* const panel, void* data);
+glenv_Panel_update(glenv_Panel* const panel, void* data);
 
-// INTERNAL
+// glenv_Panel INTERNAL
 glenv_Panel*
 GLENV_H__glenv_Panel_init(const char* title, glenv_PanelConfig config);
 void

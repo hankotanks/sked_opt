@@ -50,6 +50,8 @@ bool
 cat_name_eq(const char fst[static 8], const char snd[static 8]);
 void
 cat_name_print(const char name[static 8]);
+bool
+cat_name_contains(const char name[8], const char* sub);
 
 
 //

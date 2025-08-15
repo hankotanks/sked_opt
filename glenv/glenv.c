@@ -386,7 +386,7 @@ glenv_Panel_render(glenv_Panel* const panel, void* data) {
 }
 
 void
-glenv_Panel_resize(glenv_Panel* const panel, void* data) {
-    if(panel->config.resize == NULL) return;
-    (panel->config.resize)(panel, glenv_WindowHandler.original_rect, glenv_WindowHandler.win->r, data);
+glenv_Panel_update(glenv_Panel* const panel, void* data) {
+    if(panel->config.update == NULL) return;
+    (panel->config.update)(panel, glenv_WindowHandler.original_rect, glenv_WindowHandler.win->r, data);
 }
