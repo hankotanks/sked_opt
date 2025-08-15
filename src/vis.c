@@ -282,7 +282,7 @@ Vis_get_panel(Vis* const vis, const char* title) {
     const char* title_curr;
     for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
         if(vis->layers[i].panel == NULL) continue;
-        title_curr = glenv_Panel_title(vis->layers[i].panel);
+        title_curr = glenv_Panel_get_title(vis->layers[i].panel);
         if(strcmp(title, title_curr) == 0) {
             return vis->layers[i].panel;
         }
@@ -331,9 +331,9 @@ Vis_add_layer(Vis* const vis, VisLayerDesc desc) {
         if(desc.type != BOTH) break;
     case PANEL:
         parent = Vis_get_panel(vis, desc.panel.parent_title);
-        if(parent != NULL) glenv_Panel_set_parent(desc.panel.panel, parent);
+        if(parent != NULL) glenv_Panel_config(desc.panel.panel, .parent = parent);
         else HH_ASSERT(desc.panel.parent_title == NULL, "Unable to set %s's parent panel to %s.", 
-            glenv_Panel_title(desc.panel.panel), desc.panel.parent_title);
+            glenv_Panel_get_title(desc.panel.panel), desc.panel.parent_title);
         glenv_Panel_resize(desc.panel.panel, vis);
         hh_arrlast(vis->layers).panel = desc.panel.panel;
         break;

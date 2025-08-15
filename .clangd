@@ -1,2 +1,2 @@
 CompileFlags:
-  Add: [-Wno-for-loop-analysis]
+  Add: [-Wno-for-loop-analysis, -Wno-initializer-overrides]

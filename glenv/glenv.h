@@ -1,5 +1,5 @@
-#ifndef __GLENV_H__
-#define __GLENV_H__
+#ifndef GLENV_H__
+#define GLENV_H__
 
 // adapted from ColleagueRiley [1] and Nuklear demos [2]
 // [1] https://github.com/ColleagueRiley/nuklear_rgfw/blob/main/rgfw_opengl2/nuklear_rgfw_gl2.h
@@ -15,6 +15,12 @@
 #define NK_INCLUDE_FONT_BAKING
 #define NK_INCLUDE_DEFAULT_FONT
 #include <nuklear.h>
+
+#if defined(__GNUC__) || defined(__clang__)
+#define GLENV_UNUSED __attribute__((unused))
+#else
+#define GLENV_UNUSED
+#endif
 
 #ifndef GLENV_TEXT_BUFFER_SIZE
 #define GLENV_TEXT_BUFFER_SIZE 1024
@@ -42,26 +48,84 @@ glenv_render(enum nk_anti_aliasing AA);
 NK_API void 
 glenv_new_frame(void);
 
+// detect if mouse clicks are consumed by nuklear in this frame
+nk_bool
+glenv_consumed_mouse(void);
+
+//
+// glenv_Panel
+//
+
 typedef struct GLENV_H__glenv_Panel glenv_Panel;
 typedef void (*glenv_PanelLayout)(void* const data, struct nk_context* ctx, float row_height);
 typedef void (*glenv_PanelResize)(glenv_Panel* const panel, RGFW_rect original, RGFW_rect curr, void* data);
 
-// initialize a glenv_Panel
-glenv_Panel*
-glenv_Panel_init(const char* title, enum nk_panel_flags flags, glenv_PanelLayout layout);
-// set its parent panel, this determines rendering position
-void
-glenv_Panel_set_parent(glenv_Panel* const panel, const glenv_Panel* const parent);
-void
-glenv_Panel_set_resize(glenv_Panel* const panel, glenv_PanelResize resize);
+static inline void GLENV_UNUSED 
+glenv_PanelLayout_dummy(void* const data, struct nk_context* ctx, float row_height) {
+    (void) data;
+    nk_layout_row_dynamic(ctx, row_height, 1);
+    nk_label(ctx, "TODO", NK_TEXT_ALIGN_CENTERED);
+}
+
+typedef struct {
+    nk_bool prop;
+    union {
+        struct { float ratio; unsigned int pixel_offset; } dynamic;
+        unsigned int pixels;
+    } width;
+} glenv_PanelWidth;
+
+#define glenv_PanelWidth_dynamic(ratio, pixel_offset) \
+    ((glenv_PanelWidth) { nk_true, {{ (ratio), (pixel_offset) }}})
+
+static inline glenv_PanelWidth GLENV_UNUSED
+glenv_PanelWidth_fixed(unsigned int pixels) {
+    glenv_PanelWidth w;
+    w.prop = nk_false;
+    w.width.pixels = pixels;
+    return w;
+}
+
+typedef struct {
+    const glenv_Panel* parent;
+    enum nk_panel_flags flags;
+    glenv_PanelLayout layout;
+    glenv_PanelResize resize;
+    nk_bool right;
+    glenv_PanelWidth width;
+    float offset;
+    size_t rows;
+} glenv_PanelConfig;
+
+#define glenv_Panel_init(title, ...) GLENV_H__glenv_Panel_init((title), (glenv_PanelConfig) { \
+    .parent = NULL, \
+    .flags  = NK_WINDOW_BORDER | NK_WINDOW_TITLE, \
+    .layout = glenv_PanelLayout_dummy, \
+    .resize = NULL, \
+    .right  = nk_false, \
+    .width  = glenv_PanelWidth_dynamic(1.f, 0.f), \
+    .offset = 0.f, \
+    .rows   = 1, \
+    __VA_ARGS__ \
+})
+
+#define glenv_Panel_config(panel, ...) GLENV_H__glenv_Panel_config((panel), (glenv_PanelConfig) { \
+    .parent = glenv_Panel_get_config((panel)).parent, \
+    .flags  = glenv_Panel_get_config((panel)).flags, \
+    .layout = glenv_Panel_get_config((panel)).layout, \
+    .resize = glenv_Panel_get_config((panel)).resize, \
+    .right  = glenv_Panel_get_config((panel)).right, \
+    .width  = glenv_Panel_get_config((panel)).width, \
+    .offset = glenv_Panel_get_config((panel)).offset, \
+    .rows   = glenv_Panel_get_config((panel)).rows, \
+    __VA_ARGS__ \
+})
 
 // retrieve the panel's title
 const char*
-glenv_Panel_title(const glenv_Panel* const panel);
-
-// retrieve the panel's parent
-const glenv_Panel*
-glenv_Panel_parent(const glenv_Panel* const panel);
+glenv_Panel_get_title(const glenv_Panel* const panel);
+glenv_PanelConfig
+glenv_Panel_get_config(const glenv_Panel* const panel);
 
 // render the panel,
 // provided that it is properly configured
@@ -71,20 +135,10 @@ glenv_Panel_render(glenv_Panel* const panel, void* data);
 void
 glenv_Panel_resize(glenv_Panel* const panel, void* data);
 
-// detect if mouse clicks are consumed by nuklear in this frame
-nk_bool
-glenv_consumed_mouse(void);
+// INTERNAL
+glenv_Panel*
+GLENV_H__glenv_Panel_init(const char* title, glenv_PanelConfig config);
+void
+GLENV_H__glenv_Panel_config(glenv_Panel* const panel, glenv_PanelConfig config);
 
-// configure panel behavior,
-// one of these functions MUST be called,
-// or the panel will not be rendered
-void
-glenv_Panel_config_left(glenv_Panel* const panel, size_t rows, unsigned int pixels, unsigned int offset);
-void
-glenv_Panel_config_left_ratio(glenv_Panel* const panel, size_t rows, float ratio, float offset);
-void
-glenv_Panel_config_right(glenv_Panel* const panel, size_t rows, unsigned int pixels, unsigned int offset);
-void
-glenv_Panel_config_right_ratio(glenv_Panel* const panel, size_t rows, float ratio, float offset);
-
-#endif // __GLENV_H__
+#endif // GLENV_H__

@@ -93,12 +93,11 @@ glenv_Panel*
 Vis_get_panel(Vis* const vis, const char* title);
 
 #define VIS_CFG_ROWS 5
-#define VIS_NET_ROWS 5
-#define VIS_SKY_ROWS 5
+#define VIS_SKD_ROWS 5
 
 #define VIS_CFG_RATIO 0.75f
-#define VIS_NET_RATIO 0.25f
-#define VIS_SKY_RATIO 0.25f
+#define VIS_SKD_RATIO 0.25f
+#define VIS_SKD_RATIO 0.25f
 
 // layer declarations
 bool

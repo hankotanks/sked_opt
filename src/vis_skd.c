@@ -59,9 +59,11 @@ vis_layer_skd_deinit(void* const data) {
 void
 vis_layer_net_resize(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, void* data) {
     (void) data;
-    unsigned int pixels = (unsigned int) ((float) original.w * VIS_NET_RATIO);
-    bool large = curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_NET_RATIO + VIS_SKY_RATIO));
-    glenv_Panel_config_right(panel, VIS_NET_ROWS, pixels, large ? (unsigned int) ((float) original.w * VIS_SKY_RATIO) : 0);
+    bool large = curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_SKD_RATIO * 2));
+    unsigned int pixels = (unsigned int) ((float) original.w * VIS_SKD_RATIO);
+    glenv_Panel_config(panel, 
+        .width = glenv_PanelWidth_fixed(pixels),
+        .offset = large ? (float) original.w * VIS_SKD_RATIO : 0.f);
 }
 
 void 
@@ -103,9 +105,13 @@ Vis_layer_net(Vis* const vis) {
         hh_arrput(vertices, (*active) ? 1.f : 0.f);
     }
     // configure layer's corresponding UI element
-    glenv_Panel* panel = glenv_Panel_init("stations", FLAGS, vis_layer_net_layout);
+    glenv_Panel* panel = glenv_Panel_init("stations", 
+        .flags = FLAGS, 
+        .rows = VIS_SKD_ROWS, 
+        .right = nk_true,
+        .layout = vis_layer_net_layout, 
+        .resize = vis_layer_net_resize);
     if(panel == NULL) return false;
-    glenv_Panel_set_resize(panel, vis_layer_net_resize);
     // allocate data
     VisLayerDesc desc;
     VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));
@@ -136,14 +142,14 @@ Vis_layer_net(Vis* const vis) {
 void
 vis_layer_sky_resize(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, void* data) {
     Vis* vis = data;
-    unsigned int pixels = (unsigned int) ((float) original.w * VIS_SKY_RATIO);
-    glenv_Panel_config_right(panel, VIS_SKY_ROWS, pixels, 0);
-    if(curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_NET_RATIO + VIS_SKY_RATIO))) {
-        glenv_Panel_set_parent(panel, NULL);
-    } else {
+    unsigned int pixels = (unsigned int) ((float) original.w * VIS_SKD_RATIO);
+    glenv_Panel_config(panel, .width = glenv_PanelWidth_fixed(pixels));
+    if(curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_SKD_RATIO * 2))) {
+        glenv_Panel_config(panel, .parent = NULL);
+    } else if(glenv_Panel_get_config(panel).parent == NULL) {
         glenv_Panel* parent = Vis_get_panel(vis, "stations");
         HH_ASSERT(parent != NULL, "Unable to find panel 'stations'.");
-        glenv_Panel_set_parent(panel, parent);
+        glenv_Panel_config(panel, .parent = parent);
     }
 }
 
@@ -185,9 +191,13 @@ Vis_layer_sky(Vis* const vis) {
         hh_arrput(vertices, (*active) ? 1.f : 0.f);
     }
     // configure layer's corresponding UI element
-    glenv_Panel* panel = glenv_Panel_init("sources", FLAGS, vis_layer_sky_layout);
+    glenv_Panel* panel = glenv_Panel_init("sources", 
+        .flags = FLAGS, 
+        .rows = VIS_SKD_ROWS, 
+        .right = nk_true, 
+        .layout = vis_layer_sky_layout, 
+        .resize = vis_layer_sky_resize);
     if(panel == NULL) return false;
-    glenv_Panel_set_resize(panel, vis_layer_sky_resize);
     // allocate data
     VisLayerDesc desc;
     VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));
