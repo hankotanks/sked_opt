@@ -167,7 +167,7 @@ vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height)
     nk_layout_row_dynamic(ctx, row_height, 1);
     Source src;
     bool* active;
-    for(size_t i = 0, j = 0; i < net->count; ++i) {
+    for(size_t i = 0, j = 0; i < sky->count; ++i) {
         active = sky_get_src_by_idx(i, &src);
         if(active == NULL) continue;
         if(state->buf_filter[0] != '\0' && !cat_name_contains(src.name, state->buf_filter)) continue;
@@ -215,6 +215,7 @@ Vis_layer_sky(Vis* const vis) {
     struct vis_layer_skd_state* state = Vis_add_layer(vis, desc);
     // set vertex_count
     state->vertex_count = hh_arrlen(vertices) / 4;
+    state->buf_filter[0] = '\0';
     // set uniform locations
     GLint program = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &program);

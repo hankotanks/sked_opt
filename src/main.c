@@ -32,6 +32,7 @@ configure_using_xml(const char* const path) {
     struct xml_node* root = xml_document_root(doc);
     net_xml_parse(root);
     sky_xml_parse(root);
+    time_sys_xml_parse(root);
     // clean up
     xml_document_free(doc, false);
     hh_arrfree(contents);
@@ -68,6 +69,7 @@ main(int argc, char* argv[]) {
     char* path_globe_image = hh_path_join(hh_path_join(hh_path(path_root), "assets"), "globe.bmp");
     Vis_layer_globe(&vis, path_globe_image);
     Vis_layer_cfg(&vis);
+    Vis_layer_run(&vis);
     Vis_layer_net(&vis);
     Vis_layer_sky(&vis);
     hh_arrfree(path_globe_image);

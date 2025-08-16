@@ -95,6 +95,7 @@ net_dump(void) {
     }
 }
 
+// TODO: parsing must be failable
 void
 net_xml_parse(struct xml_node* root) {
     struct xml_node* general = xml_node_find(root, "general");

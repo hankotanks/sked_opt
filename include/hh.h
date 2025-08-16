@@ -321,14 +321,11 @@ hh_path(const char *raw) {
 		raw_abs = realpath(".", NULL);
 		path = hh_path_impl(raw_abs);
 		hh_strput(path, raw + 1);
-	} else if(raw[0] == '.' && raw[1] == '.' && (raw[2] == '/' || raw[2] == '\\')) {
+	} else if(raw[0] == '.' && raw[1] == '.' && (raw[2] == '/' || raw[2] == '\\' || raw[2] == '\0')) {
 		raw_abs = realpath("..", NULL);
 		path = hh_path_impl(raw_abs);
 		hh_strput(path, raw + 2);
-	} else {
-		raw_abs = realpath(raw, NULL);
-		path = hh_path_impl(raw_abs);
-	}
+	} else path = hh_path_impl(raw);
 #endif
 	if(raw_abs) free(raw_abs);
 	if(path == NULL) return NULL;

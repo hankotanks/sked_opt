@@ -1,7 +1,10 @@
 #ifndef TIME_SYS_H__
 #define TIME_SYS_H__
 
+#include <stddef.h>
 #include <time.h>
+
+#include "xml.h"
 
 #define TIME_SYS_H__MONTHS \
     X(JAN,  1) \
@@ -25,6 +28,9 @@ enum month {
 
 extern const char* months[12];
 
+size_t
+months_count_days(size_t yrs, enum month mon);
+
 typedef struct {
     size_t yrs;
     enum month mon;
@@ -43,12 +49,14 @@ DateTime_to_gmst(DateTime dt);
 
 typedef struct {
     DateTime start;
-    unsigned int duration; // seconds
+    unsigned int duration, scan_length; // seconds
 } TimeSys;
 
 extern TimeSys* time_sys;
 
 void
 time_sys_init(void);
+void
+time_sys_xml_parse(struct xml_node* root);
 
 #endif // TIME_SYS_H__

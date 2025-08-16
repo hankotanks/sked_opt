@@ -100,6 +100,7 @@ Vis_get_panel(Vis* const vis, const char* title);
 
 #define VIS_CFG_ROWS 5
 #define VIS_SKD_ROWS 8
+#define VIS_RUN_ROWS 3
 
 #define VIS_CFG_RATIO 0.75f
 #define VIS_SKD_RATIO 0.25f
@@ -119,5 +120,7 @@ bool
 Vis_layer_globe(Vis* const vis, const char* path_globe_image);
 bool
 Vis_layer_cfg(Vis* const vis);
+bool
+Vis_layer_run(Vis* const vis);
 
 #endif // VIS_H__

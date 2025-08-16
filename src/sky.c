@@ -104,17 +104,21 @@ sky_dump(void) {
     }
 }
 
+// TODO: parsing must be failable
 void
 sky_xml_parse(struct xml_node* root) {
     struct xml_node* general = xml_node_find(root, "general");
     struct xml_node* onlyUseListedSources = xml_node_find(general, "onlyUseListedSources");
     Source src; bool* active;
     if(onlyUseListedSources == NULL) {
+        size_t count = 0;
         for(size_t i = 0; i < sky->count; ++i) {
             active = sky_get_src_by_idx(i, &src);
             if(active == NULL) continue;
             *active = true;
+            ++count;
         }
+        HH_MSG("Added %zu sources from catalog.", count);
         return;
     }
     struct xml_node* child;

@@ -1,6 +1,8 @@
 #include "xml_util.h"
 
 #include "hh.h"
+#include "xml.h"
+#include <stdbool.h>
 
 struct xml_document* 
 xml_parse_document_skip_preamble(char* const contents) {
@@ -18,11 +20,14 @@ xml_parse_document_skip_preamble(char* const contents) {
 }
 
 bool
+xml_string_equals(struct xml_string* str, const char* val) {
+    if(str->length != strlen(val)) return false;
+    return strncmp((char*) str->buffer, val, str->length) == 0;
+}
+
+bool
 xml_node_name_equals(struct xml_node* node, const char* name) {
-    size_t length = strlen(name);
-    struct xml_string* node_name = xml_node_name(node);
-    if(node_name->length != length) return false;
-    return strncmp((char*) node_name->buffer, name, node_name->length) == 0;
+    return xml_string_equals(xml_node_name(node), name);
 }
 
 struct xml_node* 
@@ -34,3 +39,18 @@ xml_node_find(struct xml_node* parent, const char* name) {
     }
     return NULL;
 }
+
+struct xml_node*
+xml_node_find_with_attr(struct xml_node* parent, const char* name, const char* attr, const char* val) {
+    struct xml_node* child = NULL;
+    for(size_t i = 0, j; i < xml_node_children(parent); ++i) {
+        child = xml_node_child(parent, i);
+        if(!xml_node_name_equals(child, name)) continue;
+        for(j = 0; j < xml_node_attributes(child); ++j) {
+            if(xml_string_equals(xml_node_attribute_name(child, j), attr))
+                if(xml_string_equals(xml_node_attribute_content(child, j), val)) return child;
+        }
+    }
+    return NULL;
+}
+
