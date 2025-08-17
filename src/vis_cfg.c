@@ -102,9 +102,7 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
     if(nk_group_begin(ctx, "group_mjd", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
         nk_label(ctx, "mjd", NK_TEXT_LEFT);
-        nk_labelf_colored(ctx, NK_TEXT_LEFT, 
-            (mjd < 0.0) ? nk_rgb(255, 0, 0) : ctx->style.text.color, 
-            (mjd < 0.0) ? "invalid" : "%lf", mjd);
+        nk_labelf(ctx, NK_TEXT_LEFT, "%lf", mjd);
         nk_group_end(ctx);
     }
     nk_spacer(ctx); // TODO
@@ -145,9 +143,9 @@ Vis_layer_cfg(Vis* const vis) {
         .layout = vis_layer_cfg_layout, 
         .update = vis_layer_cfg_update);
     if(panel == NULL) return false;
-    VisLayerDesc desc;
-    VisLayerDesc_init(&desc, sizeof(struct vis_layer_cfg_state));
-    VisLayerDesc_configure_panel(&desc, panel, NULL);
+    VisDesc desc;
+    VisDesc_init(&desc, sizeof(struct vis_layer_cfg_state), NULL);
+    VisDesc_configure_panel(&desc, panel, NULL);
     struct vis_layer_cfg_state* state = Vis_add_layer(vis, desc);
     if(state == NULL) return false;
     snprintf(state->buf_yrs, sizeof(state->buf_yrs), "%zu", time_sys->start.yrs);

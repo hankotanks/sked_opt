@@ -56,7 +56,7 @@ extern TimeSys* time_sys;
 
 void
 time_sys_init(void);
-void
+bool
 time_sys_xml_parse(struct xml_node* root);
 
 #endif // TIME_SYS_H__

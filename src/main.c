@@ -30,9 +30,8 @@ configure_using_xml(const char* const path) {
     hh_arrfree(path_xml);
     // update state using xml_document
     struct xml_node* root = xml_document_root(doc);
-    net_xml_parse(root);
-    sky_xml_parse(root);
-    time_sys_xml_parse(root);
+    if(!(net_xml_parse(root) && sky_xml_parse(root) && time_sys_xml_parse(root)))
+        HH_MSG("Failed to parse provided configuration [%s].", path_xml);
     // clean up
     xml_document_free(doc, false);
     hh_arrfree(contents);

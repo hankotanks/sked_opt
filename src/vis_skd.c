@@ -117,10 +117,10 @@ Vis_layer_net(Vis* const vis) {
         .update = vis_layer_net_update);
     if(panel == NULL) return false;
     // allocate data
-    VisLayerDesc desc;
-    VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));
-    VisLayerDesc_configure_pass(&desc, frag, (VisPassMethods) { vis_layer_skd_events, vis_layer_skd_render, vis_layer_skd_deinit });
-    VisLayerDesc_configure_panel(&desc, panel, NULL);
+    VisDesc desc;
+    VisDesc_init(&desc, sizeof(struct vis_layer_skd_state), vis_layer_skd_deinit);
+    VisDesc_configure_pass(&desc, frag, vis_layer_skd_events, vis_layer_skd_render);
+    VisDesc_configure_panel(&desc, panel, NULL);
     struct vis_layer_skd_state* state = Vis_add_layer(vis, desc);
     state->vertex_count = hh_arrlen(vertices) / 4;
     state->buf_filter[0] = '\0';
@@ -208,10 +208,10 @@ Vis_layer_sky(Vis* const vis) {
         .update = vis_layer_sky_update);
     if(panel == NULL) return false;
     // allocate data
-    VisLayerDesc desc;
-    VisLayerDesc_init(&desc, sizeof(struct vis_layer_skd_state));
-    VisLayerDesc_configure_pass(&desc, frag, (VisPassMethods) { vis_layer_skd_events, vis_layer_skd_render, vis_layer_skd_deinit });
-    VisLayerDesc_configure_panel(&desc, panel, "stations");
+    VisDesc desc;
+    VisDesc_init(&desc, sizeof(struct vis_layer_skd_state), vis_layer_skd_deinit);
+    VisDesc_configure_pass(&desc, frag, vis_layer_skd_events, vis_layer_skd_render);
+    VisDesc_configure_panel(&desc, panel, "stations");
     struct vis_layer_skd_state* state = Vis_add_layer(vis, desc);
     // set vertex_count
     state->vertex_count = hh_arrlen(vertices) / 4;

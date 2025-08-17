@@ -26,7 +26,7 @@ void
 net_free(void);
 void
 net_dump(void);
-void
+bool
 net_xml_parse(struct xml_node* root);
 
 #endif // NETWORK_H__

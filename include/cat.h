@@ -372,8 +372,9 @@ CAT_IMPL(source, "source.cat.geodetic.good") {
     span.len = 0;
     // name_iau
     if(!hh_span_next(&span)) return false;
-    if(span.len != 8) return false;
-    memcpy(entry->name_iau, span.ptr, 8);
+    if(span.len > 8) return false;
+    memcpy(entry->name_iau, span.ptr, span.len);
+    if(span.len < 8) entry->name_iau[span.len] = '\0';
     // name_common
     if(!hh_span_next(&span)) return false;
     if(span.len == 1 && span.ptr[0] == '$') entry->name_common[0] = '\0';

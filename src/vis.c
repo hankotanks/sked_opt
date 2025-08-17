@@ -62,23 +62,25 @@ VisCamera_update_projection(VisCamera* camera, const RGFW_window* const win) {
 }
 
 void
-VisLayerDesc_init(VisLayerDesc* const desc, size_t data_size) {
+VisDesc_init(VisDesc* const desc, size_t data_size, void (*deinit)(void* const data)) {
     desc->type = NONE;
     desc->data_size = data_size;
+    desc->deinit = deinit;
 }
 
 void
-VisLayerDesc_configure_panel(VisLayerDesc* const desc, glenv_Panel* panel, const char* parent_title) {
+VisDesc_configure_panel(VisDesc* const desc, glenv_Panel* panel, const char* parent_title) {
     desc->type = (desc->type == PASS) ? BOTH : PANEL;
     desc->panel.panel = panel;
     desc->panel.parent_title = parent_title;
 }
 
 void
-VisLayerDesc_configure_pass(VisLayerDesc* const desc, GLuint frag, VisPassMethods methods) {
+VisDesc_configure_pass(VisDesc* const desc, GLuint frag, bool (*events)(void* const data, const RGFW_window* const win), void (*render)(const void* const data)) {
     desc->type = (desc->type == PANEL) ? BOTH : PASS;
     desc->pass.frag = frag;
-    desc->pass.methods = methods;
+    desc->pass.events = events;
+    desc->pass.render = render;
 }
 
 // NOTE:
@@ -126,10 +128,11 @@ Vis_init(Vis* const vis, RGFW_window* const win) {
 void
 Vis_free(Vis* const vis) {
     for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
+        if(vis->layers[i].deinit != NULL)
+            (vis->layers[i].deinit)(vis->layers[i].data);
         switch(vis->layers[i].type) {
         case BOTH:
         case PASS:
-            (vis->layers[i].pass.methods.deinit)(vis->layers[i].data);
             glDeleteProgram(vis->layers[i].pass.program);
             if(vis->layers[i].type != BOTH) break;
         case PANEL:
@@ -208,7 +211,7 @@ Vis_update_and_draw(Vis* const vis, const float gmst) {
             glUniformMatrix4fv(vis->layers[i].pass.loc_proj, 1, GL_FALSE, vis->camera.proj);
             glUniformMatrix4fv(vis->layers[i].pass.loc_view, 1, GL_FALSE, vis->camera.view);
             glUniform1f(vis->layers[i].pass.loc_gmst, gmst);
-            (vis->layers[i].pass.methods.render)(vis->layers[i].data);
+            (vis->layers[i].pass.render)(vis->layers[i].data);
             glDisable(GL_PROGRAM_POINT_SIZE);
             glUseProgram(0);
             if(vis->layers[i].type != BOTH) break;
@@ -293,7 +296,7 @@ Vis_get_panel(Vis* const vis, const char* title) {
 }
 
 void*
-Vis_add_layer(Vis* const vis, VisLayerDesc desc) {
+Vis_add_layer(Vis* const vis, VisDesc desc) {
     if(desc.type == NONE) return NULL;
     hh_arradd(vis->layers, 1);
     hh_arrlast(vis->layers).type = desc.type;
@@ -303,11 +306,13 @@ Vis_add_layer(Vis* const vis, VisLayerDesc desc) {
         hh_arrpop(vis->layers);
         return NULL;
     }
+    hh_arrlast(vis->layers).deinit = desc.deinit;
     glenv_Panel* parent;
     switch(hh_arrlast(vis->layers).type) {
     case BOTH:
     case PASS: 
-        hh_arrlast(vis->layers).pass.methods = desc.pass.methods;
+        hh_arrlast(vis->layers).pass.events = desc.pass.events;
+        hh_arrlast(vis->layers).pass.render = desc.pass.render;
         hh_arrlast(vis->layers).pass.program = glCreateProgram();
         glAttachShader(hh_arrlast(vis->layers).pass.program, vis->vert);
         glAttachShader(hh_arrlast(vis->layers).pass.program, desc.pass.frag);

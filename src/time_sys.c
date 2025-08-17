@@ -85,44 +85,60 @@ time_sys_init(void) {
     time_sys->scan_length = 30;
 }
 
-// TODO: parsing must be failable
-void
+bool
 time_sys_xml_parse(struct xml_node* root) {
     struct xml_node* general = xml_node_find(root, "general");
+    if(general == NULL) return false;
     // parse schedule start
     struct xml_node* startTime = xml_node_find(general, "startTime");
+    if(startTime == NULL) return false;
     char* start = malloc(xml_node_content(startTime)->length + 1);
+    if(start == NULL) return false;
     strncpy(start, (const char*) xml_node_content(startTime)->buffer, xml_node_content(startTime)->length);
     start[xml_node_content(startTime)->length] = '\0';
-    sscanf(start, " %04zu.%02d.%02zu %02zu:%02zu:%02lf",
+    int mon;
+    int result = sscanf(start, " %04zu.%02d.%02zu %02zu:%02zu:%02lf",
         &time_sys->start.yrs,
-        &time_sys->start.mon,
+        &mon,
         &time_sys->start.day,
         &time_sys->start.hrs,
         &time_sys->start.min,
         &time_sys->start.sec);
     free(start);
+    if(result != 6) return false;
+    time_sys->start.mon = (enum month) mon;
     // parse schedule end
     struct xml_node* endTime = xml_node_find(general, "endTime");
+    if(endTime == NULL) return false;
     char* end = malloc(xml_node_content(endTime)->length + 1);
+    if(end == NULL) return false;
     strncpy(end, (const char*) xml_node_content(endTime)->buffer, xml_node_content(endTime)->length);
     end[xml_node_content(endTime)->length] = '\0';
     // write to another DateTime
     DateTime final;
-    sscanf(end, " %04zu.%02d.%02zu %02zu:%02zu:%02lf",
-        &final.yrs, &final.mon, &final.day,
+    result = sscanf(end, " %04zu.%02d.%02zu %02zu:%02zu:%02lf",
+        &final.yrs, &mon, &final.day,
         &final.hrs, &final.min, &final.sec);
     free(end);
+    if(result != 6) return false;
+    final.mon = (enum month) mon;
     // calculate duration
     time_sys->duration = (unsigned int) ((DateTime_to_mjd(final) - DateTime_to_mjd(time_sys->start)) * 86400.0);
     // parse scan length
     struct xml_node* station = xml_node_find(root, "station");
+    if(station == NULL) return false;
     struct xml_node* parameters = xml_node_find(station, "parameters");
+    if(parameters == NULL) return false;
     struct xml_node* parameter_default = xml_node_find_with_attr(parameters, "parameter", "name", "default");
+    if(parameter_default == NULL) return false;
     struct xml_node* minScan = xml_node_find(parameter_default, "minScan");
+    if(minScan == NULL) return false;
     char* scan_length = malloc(xml_node_content(minScan)->length + 1);
+    if(scan_length == NULL) return false;
     strncpy(scan_length, (const char*) xml_node_content(minScan)->buffer, xml_node_content(minScan)->length);
     scan_length[xml_node_content(minScan)->length] = '\0';
-    sscanf(scan_length, " %u ", &time_sys->scan_length);
+    result = sscanf(scan_length, " %u ", &time_sys->scan_length);
     free(scan_length);
+    if(result != 1) return false;
+    return true;
 }

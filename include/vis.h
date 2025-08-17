@@ -29,40 +29,39 @@ void
 VisCamera_update_projection(VisCamera* camera, const RGFW_window* const win);
 
 typedef struct {
-    bool (*events)(void* const data, const RGFW_window* const win); // TODO: return of VisLayerMethods.events is not considered in Vis_handle_events
+    bool (*events)(void* const data, const RGFW_window* const win); // TODO: return value not considered in Vis_handle_events
     void (*render)(const void* const data);
-    void (*deinit)(void* const data);
-} VisPassMethods;
-
-typedef struct {
-    VisPassMethods methods;
     GLuint program;
     GLint loc_proj;
     GLint loc_view;
     GLint loc_gmst;
 } VisPass;
 
-typedef enum { NONE = 0, PASS, PANEL, BOTH } VisLayerType;
+typedef enum { NONE = 0, PASS, PANEL, BOTH } VisType;
 
 typedef struct {
-    VisLayerType type;
+    VisType type;
     size_t data_size;
     struct {
         GLuint frag;
-        VisPassMethods methods;
+        bool (*events)(void* const data, const RGFW_window* const win);
+        void (*render)(const void* const data);
     } pass;
     struct {
         glenv_Panel* panel;
         const char* parent_title;
     } panel;
-} VisLayerDesc;
+    void (*deinit)(void* const data);
+} VisDesc;
 
 void
-VisLayerDesc_init(VisLayerDesc* const desc, size_t data_size);
+VisDesc_init(VisDesc* const desc, size_t data_size, void (*deinit)(void* const data));
 void
-VisLayerDesc_configure_panel(VisLayerDesc* const desc, glenv_Panel* panel, const char* parent_title);
+VisDesc_configure_panel(VisDesc* const desc, glenv_Panel* panel, const char* parent_title);
 void
-VisLayerDesc_configure_pass(VisLayerDesc* const desc, GLuint frag, VisPassMethods methods);
+VisDesc_configure_pass(VisDesc* const desc, GLuint frag,
+    bool (*events)(void* const data, const RGFW_window* const win),
+    void (*render)(const void* const data));
 
 typedef struct {
     VisCamera camera;
@@ -74,10 +73,11 @@ typedef struct {
     } cont;
     GLuint vert;
     struct {
-        VisLayerType type;
+        VisType type;
         void* data;
         glenv_Panel* panel;
         VisPass pass;
+        void (*deinit)(void* const data);
     }* layers;
 } Vis;
 
@@ -94,9 +94,13 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win);
 // - the layer's shader program is created within this function,
 //   any configuration requiring the shader to be set must be after its invocation
 void*
-Vis_add_layer(Vis* const vis, VisLayerDesc desc);
+Vis_add_layer(Vis* const vis, VisDesc desc);
 glenv_Panel*
 Vis_get_panel(Vis* const vis, const char* title);
+
+//
+// sked_opt specific declarations
+//
 
 #define VIS_CFG_ROWS 5
 #define VIS_SKD_ROWS 8
@@ -108,7 +112,7 @@ Vis_get_panel(Vis* const vis, const char* title);
 static inline bool VIS_H__UNUSED
 Vis_expanded(const Vis* const vis, RGFW_rect original, RGFW_rect curr) {
     (void) vis;
-    return curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_SKD_RATIO + VIS_SKD_RATIO));
+    return curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_SKD_RATIO * 2));
 }
 
 // layer declarations
@@ -117,10 +121,10 @@ Vis_layer_net(Vis* const vis);
 bool
 Vis_layer_sky(Vis* const vis);
 bool
-Vis_layer_globe(Vis* const vis, const char* path_globe_image);
-bool
 Vis_layer_cfg(Vis* const vis);
 bool
 Vis_layer_run(Vis* const vis);
+bool
+Vis_layer_globe(Vis* const vis, const char* path_globe_image);
 
 #endif // VIS_H__

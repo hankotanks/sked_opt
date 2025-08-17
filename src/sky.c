@@ -104,10 +104,10 @@ sky_dump(void) {
     }
 }
 
-// TODO: parsing must be failable
-void
+bool
 sky_xml_parse(struct xml_node* root) {
     struct xml_node* general = xml_node_find(root, "general");
+    if(general == NULL) return false;
     struct xml_node* onlyUseListedSources = xml_node_find(general, "onlyUseListedSources");
     Source src; bool* active;
     if(onlyUseListedSources == NULL) {
@@ -119,23 +119,22 @@ sky_xml_parse(struct xml_node* root) {
             ++count;
         }
         HH_MSG("Added %zu sources from catalog.", count);
-        return;
+        return true;
     }
     struct xml_node* child;
-    struct xml_string* name;
+    struct xml_string* child_name;
+    char name[8];
     for(size_t i = 0; i < xml_node_children(onlyUseListedSources); ++i) {
         child = xml_node_child(onlyUseListedSources, i);
         if(xml_node_name_equals(child, "source")) {
-            name = xml_node_content(child);
-            for(size_t i = 0; i < sky->count; ++i) {
-                active = sky_get_src_by_idx(i, &src);
-                if(active == NULL) continue;
-                if(cat_name_len(src.name) != name->length) continue;
-                if(memcmp(name->buffer, src.name, name->length) == 0) {
-                    HH_MSG("Added quasar: %.*s.", (int) name->length, name->buffer);
-                    *active = true;
-                }
-            }
+            child_name = xml_node_content(child);
+            strncpy(name, (const char*) child_name->buffer, child_name->length);
+            if(child_name->length < 8) name[child_name->length] = '\0';
+            if((active = sky_get_src(name, &src)) != NULL) {
+                HH_MSG("Added quasar: %.*s", (int) child_name->length, child_name->buffer);
+                *active = true;
+            } else HH_MSG("Failed to add quasar: %.*s", (int) child_name->length, child_name->buffer);
         }
     }
+    return true;
 }

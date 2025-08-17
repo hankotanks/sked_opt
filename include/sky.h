@@ -27,7 +27,7 @@ void
 sky_add_src(const Source src);
 void
 sky_dump(void);
-void
+bool
 sky_xml_parse(struct xml_node* root);
 
 #endif // SKY_H__

@@ -95,11 +95,12 @@ net_dump(void) {
     }
 }
 
-// TODO: parsing must be failable
-void
+bool
 net_xml_parse(struct xml_node* root) {
     struct xml_node* general = xml_node_find(root, "general");
+    if(general == NULL) return false;
     struct xml_node* stations = xml_node_find(general, "stations");
+    if(stations == NULL) return false;
     struct xml_node* child;
     struct xml_string* name;
     Station sta;
@@ -119,5 +120,6 @@ net_xml_parse(struct xml_node* root) {
             }
         }
     }
+    return true;
 }
 

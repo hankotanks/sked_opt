@@ -79,9 +79,9 @@ Vis_layer_run(Vis* const vis) {
         .layout = vis_layer_run_layout, 
         .update = vis_layer_run_update);
     if(panel == NULL) return false;
-    VisLayerDesc desc;
-    VisLayerDesc_init(&desc, sizeof(struct vis_layer_run_state));
-    VisLayerDesc_configure_panel(&desc, panel, "config");
+    VisDesc desc;
+    VisDesc_init(&desc, sizeof(struct vis_layer_run_state), NULL);
+    VisDesc_configure_panel(&desc, panel, "config");
     struct vis_layer_run_state* state = Vis_add_layer(vis, desc);
     char yrs[5], day[3], hrs[3], min[3];
     snprintf(yrs, sizeof(yrs), "%zu", time_sys->start.yrs);
