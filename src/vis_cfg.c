@@ -122,11 +122,8 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
     nk_spacer(ctx); // TODO
     if(nk_group_begin(ctx, "group_final_date", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
-        DateTime dt_end = DateTime_from_mjd(mjd + time_sys->duration / 86400.0);
         nk_label(ctx, "final date", NK_TEXT_LEFT);
-        nk_labelf(ctx, NK_TEXT_LEFT, "%.4zu-%s-%.2zu %.2zu:%.2zu:%02.0lf",
-            dt_end.yrs, months[(size_t) dt_end.mon], dt_end.day, 
-            dt_end.hrs, dt_end.min, dt_end.sec);
+        nk_label(ctx, time_sys_text(time_sys->duration), NK_TEXT_LEFT);
         nk_group_end(ctx);
     }
     if(state->defocus) {

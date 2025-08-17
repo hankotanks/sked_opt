@@ -83,11 +83,8 @@ Vis_layer_run(Vis* const vis) {
     VisDesc_init(&desc, sizeof(struct vis_layer_run_state), NULL);
     VisDesc_configure_panel(&desc, panel, "config");
     struct vis_layer_run_state* state = Vis_add_layer(vis, desc);
-    char yrs[5], day[3], hrs[3], min[3];
-    snprintf(yrs, sizeof(yrs), "%zu", time_sys->start.yrs);
-    snprintf(day, sizeof(day), "%zu", time_sys->start.day);
-    snprintf(hrs, sizeof(hrs), "%zu", time_sys->start.hrs);
-    snprintf(min, sizeof(min), "%zu", time_sys->start.min);
+    // TODO: put more though into path handling
+    // should we really just use the parent dir?
     char* path_out = hh_path("..");
     if(!hh_path_exists(path_out)) {
         if(path_out != NULL) hh_arrfree(path_out);
@@ -95,13 +92,7 @@ Vis_layer_run(Vis* const vis) {
         return false;
     } else {
         hh_strput(path_out, "/");
-        hh_strput(path_out, yrs);
-        hh_strput(path_out, months[(int) time_sys->start.mon]);
-        hh_strput(path_out, day);
-        hh_strput(path_out, "_");
-        hh_strput(path_out, hrs);
-        hh_strput(path_out, min);
-        hh_strput(path_out, ".skd");
+        hh_strput(path_out, time_sys_file());
         snprintf(state->buf_out, sizeof(state->buf_out), "%s", path_out);
     };
     hh_arrfree(path_out);

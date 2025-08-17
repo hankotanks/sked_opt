@@ -85,6 +85,33 @@ time_sys_init(void) {
     time_sys->scan_length = 30;
 }
 
+const char*
+time_sys_text(unsigned int seconds) {
+    DateTime dt = DateTime_from_mjd(DateTime_to_mjd(time_sys->start) + ((double) seconds / 86400.0));
+    static char buf[16];
+    snprintf(buf, 5, "%04zu", dt.yrs);
+    snprintf(buf + 4, 4, "%s", months[dt.mon - 1]);
+    snprintf(buf + 7, 3, "%02zu", dt.day);
+    buf[9] = ' ';
+    snprintf(buf + 10, 3, "%02zu", dt.hrs);
+    buf[12] = ':';
+    snprintf(buf + 13, 3, "%02zu", dt.min);
+    return buf;
+}
+
+const char*
+time_sys_file(void) {
+    static char buf[19];
+    snprintf(buf, 5, "%04zu", time_sys->start.yrs);
+    snprintf(buf + 4, 4, "%s", months[time_sys->start.mon - 1]);
+    snprintf(buf + 7, 3, "%02zu", time_sys->start.day);
+    buf[9] = '_';
+    snprintf(buf + 10, 3, "%02zu", time_sys->start.hrs);
+    snprintf(buf + 12, 3, "%02zu", time_sys->start.min);
+    strcpy(buf + 14, ".skd");
+    return buf;
+}
+
 bool
 time_sys_xml_parse(struct xml_node* root) {
     struct xml_node* general = xml_node_find(root, "general");

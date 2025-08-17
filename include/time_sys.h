@@ -56,6 +56,10 @@ extern TimeSys* time_sys;
 
 void
 time_sys_init(void);
+const char*
+time_sys_text(unsigned int seconds);
+const char*
+time_sys_file(void);
 bool
 time_sys_xml_parse(struct xml_node* root);
 
