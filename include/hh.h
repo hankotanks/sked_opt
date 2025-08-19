@@ -317,7 +317,7 @@ hh_path(const char *raw) {
 	path = hh_path_impl(raw_abs);
 	if(path && path[0] >= 'a' && path[0] <= 'z') path[0] -= ('a' - 'A');
 #else
-	if(raw[0] == '.' && (raw[1] == '/' || raw[1] == '\\')) {
+	if(raw[0] == '.' && (raw[1] == '/' || raw[1] == '\\' || raw[1] == '\0')) {
 		raw_abs = realpath(".", NULL);
 		path = hh_path_impl(raw_abs);
 		hh_strput(path, raw + 1);
@@ -364,7 +364,7 @@ hh_path_join(char* path, const char* sub) {
 	if(hh_arrlast(path) != '/') hh_strput(path, "/");
 	hh_strput(path, sub);
 	hh_arrpop(path);
-	if(hh_arrlast(path) == '/' && hh_arrlen(path) > 2) hh_arrpop(path);
+	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') hh_arrpop(path);
 	hh_arrput(path, '\0');
 	return path;
 }

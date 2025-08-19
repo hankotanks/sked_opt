@@ -85,16 +85,18 @@ Vis_layer_run(Vis* const vis) {
     struct vis_layer_run_state* state = Vis_add_layer(vis, desc);
     // TODO: put more though into path handling
     // should we really just use the parent dir?
-    char* path_out = hh_path("..");
-    if(!hh_path_exists(path_out)) {
-        if(path_out != NULL) hh_arrfree(path_out);
-        state->buf_out[0] = '\0';
+    char* path = hh_path(".");
+    if(!hh_path_exists(path)) {
+        hh_arrfree(path);
         return false;
-    } else {
-        hh_strput(path_out, "/");
-        hh_strput(path_out, time_sys_file());
-        snprintf(state->buf_out, sizeof(state->buf_out), "%s", path_out);
-    };
+    }
+    char* path_out = hh_path_join(hh_path(path), "out");
+    if(!hh_path_exists(path_out)) {
+        hh_arrfree(path_out);
+        path_out = path;
+    } else hh_arrfree(path);
+    path_out = hh_path_join(path_out, time_sys_file());
+    snprintf(state->buf_out, sizeof(state->buf_out), "%s", path_out);
     hh_arrfree(path_out);
     return true;
 }
