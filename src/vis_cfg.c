@@ -44,7 +44,7 @@ vis_layer_cfg_field(struct nk_context* ctx, char* const buf, size_t len, bool* d
 void 
 vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height) {
     struct vis_layer_cfg_state* state = data;
-    nk_layout_row_dynamic(ctx, row_height * 2.5f, 4);
+    nk_layout_row_dynamic(ctx, row_height * 2.5f, 3);
     if(nk_group_begin(ctx, "group_start_date", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
         nk_label(ctx, "start date", NK_TEXT_LEFT);
@@ -98,14 +98,12 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
         }
         nk_group_end(ctx);
     }
-    double mjd = DateTime_to_mjd(time_sys->start);
-    if(nk_group_begin(ctx, "group_mjd", NK_WINDOW_NO_SCROLLBAR)) {
+    if(nk_group_begin(ctx, "group_final_date", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
-        nk_label(ctx, "mjd", NK_TEXT_LEFT);
-        nk_labelf(ctx, NK_TEXT_LEFT, "%lf", mjd);
+        nk_label(ctx, "final date", NK_TEXT_LEFT);
+        nk_label(ctx, time_sys_text(time_sys->duration), NK_TEXT_LEFT);
         nk_group_end(ctx);
     }
-    nk_spacer(ctx); // TODO
     if(nk_group_begin(ctx, "group_scan_length", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
         nk_label(ctx, "scan length [s]", NK_TEXT_LEFT);
@@ -119,11 +117,10 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
         }
         nk_group_end(ctx);
     }
-    nk_spacer(ctx); // TODO
-    if(nk_group_begin(ctx, "group_final_date", NK_WINDOW_NO_SCROLLBAR)) {
+    if(nk_group_begin(ctx, "group_scan_blocks", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
-        nk_label(ctx, "final date", NK_TEXT_LEFT);
-        nk_label(ctx, time_sys_text(time_sys->duration), NK_TEXT_LEFT);
+        nk_label(ctx, "scan blocks", NK_TEXT_LEFT);
+        nk_labelf(ctx, NK_TEXT_LEFT, "%u", time_sys->duration / time_sys->scan_length);
         nk_group_end(ctx);
     }
     if(state->defocus) {
