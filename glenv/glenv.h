@@ -93,6 +93,7 @@ typedef struct {
     glenv_PanelLayout layout;
     glenv_PanelUpdate update;
     nk_bool right;
+    nk_bool bottom;
     glenv_PanelWidth width;
     float offset;
     size_t rows;
@@ -104,6 +105,7 @@ typedef struct {
     .layout = glenv_PanelLayout_dummy, \
     .update = NULL, \
     .right  = nk_false, \
+    .bottom = nk_false, \
     .width  = glenv_PanelWidth_dynamic(1.f, 0.f), \
     .offset = 0.f, \
     .rows   = 1, \
@@ -116,6 +118,7 @@ typedef struct {
     .layout = glenv_Panel_get_config((panel)).layout, \
     .update = glenv_Panel_get_config((panel)).update, \
     .right  = glenv_Panel_get_config((panel)).right, \
+    .bottom = glenv_Panel_get_config((panel)).bottom, \
     .width  = glenv_Panel_get_config((panel)).width, \
     .offset = glenv_Panel_get_config((panel)).offset, \
     .rows   = glenv_Panel_get_config((panel)).rows, \

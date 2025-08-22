@@ -150,6 +150,8 @@ vis_layer_sky_update(glenv_Panel* panel, RGFW_rect original, RGFW_rect curr, voi
     unsigned int pixels = (unsigned int) ((float) original.w * VIS_SKD_RATIO);
     glenv_Panel_config(panel, .width = glenv_PanelWidth_fixed(pixels));
     if(Vis_expanded(vis, original, curr)) {
+        glenv_Panel* parent = Vis_get_panel(vis, "run");
+        HH_ASSERT(parent != NULL, "Unable to find panel 'run'.");
         glenv_Panel_config(panel, .parent = NULL);
     } else if(glenv_Panel_get_config(panel).parent == NULL) {
         glenv_Panel* parent = Vis_get_panel(vis, "stations");

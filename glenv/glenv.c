@@ -370,6 +370,7 @@ glenv_Panel_render(glenv_Panel* const panel, void* data) {
     float y = 0.f;
     for(const glenv_Panel* curr = panel->config.parent; curr != NULL; curr = curr->config.parent)
         y += glenv_Panel_height(curr);
+    if(panel->config.bottom == nk_true) y = (float) glenv_WindowHandler.win->r.h - glenv_Panel_height(panel) - y;
     float width;
     if(panel->config.width.prop) width = panel->config.width.width.dynamic.ratio * \
         (float) glenv_WindowHandler.win->r.w - \

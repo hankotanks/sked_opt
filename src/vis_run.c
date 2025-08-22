@@ -7,7 +7,7 @@
 #include "time_sys.h"
 #include "sched.h"
 
-#define FLAGS NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE
+#define FLAGS NK_WINDOW_BORDER
 #define FLAGS_EDIT NK_EDIT_ALWAYS_INSERT_MODE | NK_EDIT_SELECTABLE | NK_EDIT_AUTO_SELECT
 
 struct vis_layer_run_state {
@@ -76,12 +76,13 @@ Vis_layer_run(Vis* const vis) {
     glenv_Panel* panel = glenv_Panel_init("run", 
         .flags = FLAGS, 
         .rows = VIS_RUN_ROWS, 
-        .layout = vis_layer_run_layout, 
-        .update = vis_layer_run_update);
+        .bottom = nk_true,
+        .layout = vis_layer_run_layout);
     if(panel == NULL) return false;
+    glenv_Panel_config(panel, .width = glenv_PanelWidth_dynamic(1.f, 0));
     VisDesc desc;
     VisDesc_init(&desc, sizeof(struct vis_layer_run_state), NULL);
-    VisDesc_configure_panel(&desc, panel, "config");
+    VisDesc_configure_panel(&desc, panel, NULL);
     struct vis_layer_run_state* state = Vis_add_layer(vis, desc);
     // TODO: put more though into path handling
     // should we really just use the parent dir?
