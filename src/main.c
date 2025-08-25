@@ -11,6 +11,7 @@
 #include "vis.h"
 #include "sky.h"
 #include "time_sys.h"
+#include "sched.h"
 
 // window configuration options
 #define WINDOW_TITLE "sked_opt"
@@ -37,10 +38,15 @@ configure_using_xml(const char* const path) {
     hh_arrfree(contents);
 }   
 
-void
+bool
 args(int argc, char* argv[]) {
-    if(argc == 1) return;
+    if(argc == 1) return false;
     configure_using_xml(argv[1]);
+    if(argc == 3 && ((strcmp(argv[2], "--headless") == 0) || strcmp(argv[2], "-H") == 0)) {
+        sched_start();
+        return true;
+    }
+    return false;
 }
 
 int 
@@ -57,7 +63,7 @@ main(int argc, char* argv[]) {
     // initialize time system
     time_sys_init();
     // CLI arguments
-    args(argc, argv);
+    if(args(argc, argv)) goto main_headless_cleanup;
     // initialize window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));
@@ -89,6 +95,7 @@ main(int argc, char* argv[]) {
     RGFW_window_close(window);
     // clean up
     Vis_free(&vis);
+main_headless_cleanup:
     net_free();
     sky_free();
     // finally free catalog

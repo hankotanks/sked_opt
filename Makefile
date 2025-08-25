@@ -13,14 +13,16 @@ LDLIBS := -lm
 $(OUT): $(patsubst $(DIR_SRC)/%.c, $(DIR_OBJ)/%.o, $(wildcard $(DIR_SRC)/*.c))
 # build dependencies
 	$(MAKE) -s -C glenv
+	$(MAKE) -s -C lp_solve
 # build target executable
-	$(CC) $(CFLAGS) $^ -o $@ $(shell $(MAKE) get_bin_flags -s -C glenv) $(LDLIBS)
+	$(CC) $(CFLAGS) $^ -o $@ $(shell $(MAKE) get_bin_flags -s -C glenv) $(shell $(MAKE) get_bin_flags -s -C lp_solve) $(LDLIBS)
 
 $(DIR_OBJ)/%.o: $(DIR_SRC)/%.c
-	$(CC) $(CFLAGS) -c $< -o $@ $(shell $(MAKE) get_obj_flags -s -C glenv) $(LDLIBS)
+	$(CC) $(CFLAGS) -c $< -o $@ $(shell $(MAKE) get_obj_flags -s -C glenv) $(shell $(MAKE) get_bin_flags -s -C lp_solve) $(LDLIBS)
 
 clean-full: clean
 	$(MAKE) clean -s -C glenv
+	$(MAKE) clean -s -C lp_solve
 
 clean:
 	$(RM) -r $(DIR_OBJ)/*.o

@@ -59,7 +59,7 @@ vis_layer_run_layout(void* const data, struct nk_context* ctx, float row_height)
     }
     nk_layout_row_push(ctx, 0.25f); // run
     double mjd = DateTime_to_mjd(time_sys->start);
-    if(nk_group_begin(ctx, "group_final_date", NK_WINDOW_NO_SCROLLBAR)) {
+    if(nk_group_begin(ctx, "group_sched", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
         nk_label(ctx, "scheduling", NK_TEXT_LEFT);
         nk_layout_row_dynamic(ctx, row_height + 1.f, 1);

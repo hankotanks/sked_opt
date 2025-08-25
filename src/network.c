@@ -7,6 +7,7 @@
 #include "xml.h"
 #include "xml_util.h"
 #include "cat.h"
+#include "station.h"
 
 struct NETWORK_H__StationEntry {
     Station station;

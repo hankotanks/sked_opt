@@ -1,33 +1,51 @@
 #include "sched.h"
 
+#include <lp_lib.h>
+
 #include "hh.h"
 
-#include "time_sys.h"
-#include "network.h"
-#include "sky.h"
+#include "ilp.h"
 
 void
 sched_start(void) {
-    HH_DBG("datetime start: %s", time_sys_text(0));
-    HH_DBG("datetime final: %s", time_sys_text(time_sys->duration));
-    HH_DBG("duration [s]: %u", time_sys->duration);
-    HH_DBG("scan length [s]: %u", time_sys->scan_length);
-    HH_DBG("scan count: %u", time_sys->duration / time_sys->scan_length);
-    size_t count = 0;
-    bool* active;
-    for(size_t i = 0; i < net->count; ++i) {
-        Station sta;
-        active = net_get_sta_by_idx(i, &sta);
-        if(active != NULL && *active) ++count;
-    }
-    HH_DBG("num stations: %zu", count);
-    count = 0;
-    for(size_t i = 0; i < sky->count; ++i) {
-        Source src;
-        active = sky_get_src_by_idx(i, &src);
-        if(active != NULL && *active) ++count;
-    }
-    HH_DBG("num sources: %zu", count);
+    Program ilp;
+    Program_init(&ilp);
+    Program_dump(&ilp);
+    Program_free(&ilp);
 
-    
+#if 0
+    lprec* lp = make_lp(0, 0);
+    HH_ASSERT(lp != NULL, "Failed to construct ILP.");
+
+    set_col_name(lp, 1, "x");
+    set_col_name(lp, 2, "y");
+
+    double row[3], var[2];
+#if 0
+    max: 143 x + 60 y; 
+    120 x + 210 y <= 15000; 
+    110 x + 30 y <= 4000; 
+    x + y <= 75;
+#endif
+    row[1] = 143.0;
+    row[2] = 60.0;
+    set_obj_fn(lp, row);
+    set_maxim(lp);
+    row[1] = 120.0; row[2] = 210.0;
+    add_constraint(lp, row, LE, 15000);
+    row[1] = 110.0; row[2] = 30.0;
+    add_constraint(lp, row, LE, 4000);
+    row[1] = 1.0; row[2] = 1.0;
+    add_constraint(lp, row, LE, 75);
+    if (solve(lp) == OPTIMAL) {
+        get_variables(lp, var);
+        printf("Optimal value: %f\n", get_objective(lp));
+        printf("x = %f\n", var[0]);
+        printf("y = %f\n", var[1]);
+    } else {
+        printf("No optimal solution found.\n");
+    }
+
+    delete_lp(lp);
+#endif
 }

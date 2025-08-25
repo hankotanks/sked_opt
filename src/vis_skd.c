@@ -4,7 +4,9 @@
 
 #include <glenv.h>
 
+#include "station.h"
 #include "network.h"
+#include "source.h"
 #include "sky.h"
 
 const GLfloat COLOR_NORMAL_STA[3] = { 0.4f,  0.4f, 0.6f };

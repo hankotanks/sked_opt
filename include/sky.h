@@ -19,7 +19,7 @@ void
 sky_init(void);
 void
 sky_free(void);
-bool* // Returns NULL if station not found, otherwise, returns pointer to station toggle
+bool* // Returns NULL if source not found, otherwise, returns pointer to source toggle
 sky_get_src(const char id[static 8], Source* out);
 bool*
 sky_get_src_by_idx(const size_t idx, Source* out);
