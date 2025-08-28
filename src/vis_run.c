@@ -64,7 +64,7 @@ vis_layer_run_layout(void* const data, struct nk_context* ctx, float row_height)
         nk_label(ctx, "scheduling", NK_TEXT_LEFT);
         nk_layout_row_dynamic(ctx, row_height + 1.f, 1);
         if(mjd < 0.0) nk_widget_disable_begin(ctx);
-        if(nk_button_label(ctx, "Start")) sched_start();
+        if(nk_button_label(ctx, "Start")) sched_start(SCHED_DEFAULT);
         if(mjd < 0.0) nk_widget_disable_end(ctx);
         nk_group_end(ctx);
     }
@@ -84,8 +84,7 @@ Vis_layer_run(Vis* const vis) {
     VisDesc_init(&desc, sizeof(struct vis_layer_run_state), NULL);
     VisDesc_configure_panel(&desc, panel, NULL);
     struct vis_layer_run_state* state = Vis_add_layer(vis, desc);
-    // TODO: put more though into path handling
-    // should we really just use the parent dir?
+    // TODO: consider reading name field from XML if provided
     char* path = hh_path(".");
     if(!hh_path_exists(path)) {
         hh_arrfree(path);

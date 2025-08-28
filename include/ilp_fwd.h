@@ -13,18 +13,12 @@
 #define VAR_TYPES
 #endif
 
-enum var {
-#define X(var_) var_,
+enum var_type {
+#define X(ty_) ty_,
     VAR_TYPES
 #undef X
     VAR_COUNT
 };
-
-#if defined(__GNUC__) || defined(__clang__)
-#define SCHED_H__UNUSED __attribute__((unused))
-#else
-#define SCHED_H__UNUSED
-#endif
 
 typedef struct {
     size_t count_sta, count_src, count_seg;
@@ -36,14 +30,17 @@ typedef struct {
     char* map_src;
 } ILP;
 
-#define VAR_NUM_IMPL(var_) size_t num_##var_(const ILP* const prog)
-#define VAR_IDX_IMPL(var_) size_t idx_##var_(const ILP* const prog, va_list args)
+#define ILP_VAR_COUNT_DECL(ty_) ILP_FWD_H__count_##ty_
+#define ILP_VAR_COUNT_IMPL(ty_) size_t ILP_VAR_COUNT_DECL(ty_)(const ILP* const prog)
 
-#define X(var_) VAR_NUM_IMPL(var_);
+#define ILP_VAR_INDEX_DECL(ty_) ILP_FWD_H__index_##ty_
+#define ILP_VAR_INDEX_IMPL(ty_) size_t ILP_VAR_INDEX_DECL(ty_)(const ILP* const prog, va_list args)
+
+#define X(ty_) ILP_VAR_COUNT_IMPL(ty_);
     VAR_TYPES
 #undef X
 
-#define X(var_) VAR_IDX_IMPL(var_);
+#define X(ty_) ILP_VAR_INDEX_IMPL(ty_);
     VAR_TYPES
 #undef X
 
