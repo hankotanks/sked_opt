@@ -213,6 +213,10 @@ hh_getdelim(char** buf, size_t* bufsiz, int delimiter, FILE* fp);
 ptrdiff_t
 hh_getline(char** buf, size_t* bufsiz, FILE* fp);
 
+// Other misc functions
+size_t 
+hh_strnlen(const char* str, size_t strsz);
+
 //
 // PARSING
 //
@@ -494,6 +498,13 @@ hh_getdelim(char** buf, size_t* bufsiz, int delimiter, FILE* fp) {
 ptrdiff_t
 hh_getline(char** buf, size_t* bufsiz, FILE* fp) {
 	return hh_getdelim(buf, bufsiz, '\n', fp);
+}
+
+size_t 
+hh_strnlen(const char* str, size_t strsz) {
+    size_t len = 0;
+    while(len < strsz && str[len] != '\0') len++;
+    return len;
 }
 
 bool
