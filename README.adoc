@@ -28,7 +28,7 @@ All dependencies are packaged and built alongside the project!
 The source of the following projects has been included in an unmodified state in accordance with their licenses.
 
 http://iausofa.org/current_C.html[`+SOFA+`] (Issue 2023-10-11):: Distributed by the IAU. Used for GMST correction and Julian date conversion.
-https://sourceforge.net/projects/lpsolve/[`+lp_solve+`]:: Used to solve the scheduling ILP.
+https://sourceforge.net/projects/lpsolve/[`+lp_solve+`] (5.5.2.11):: Used to solve the scheduling ILP.
 https://sourceforge.net/projects/tinyfiledialogs/[`+tinyfiledialogs+`]:: File dialogs for the user interface.
 https://github.com/ooxi/xml.c[`+xml.c+`]:: Allows parsing configuration files from VieSched++. Thanks to ooxi!
 https://github.com/ColleagueRiley/RGFW[`+RGFW+`], https://github.com/Immediate-Mode-UI/Nuklear[`+Nuklear+`]:: These two headers are packaged together as part of https://github.com/hankotanks/glenv.h[`glenv.h`]. Many thanks to ColleagueRiley and Micha Mettke respectively.
