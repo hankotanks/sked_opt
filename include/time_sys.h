@@ -47,12 +47,12 @@ DateTime_from_mjd(double mjd);
 double
 DateTime_to_gmst(DateTime dt);
 
-typedef struct {
+struct TIME_SYS_H__TIME_SYS {
     DateTime start;
     unsigned int duration, scan_length; // seconds
-} TimeSys;
+};
 
-extern TimeSys* TIME_SYS;
+extern struct TIME_SYS_H__TIME_SYS* TIME_SYS;
 
 void
 time_sys_init(void);

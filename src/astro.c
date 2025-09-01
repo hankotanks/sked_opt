@@ -1,0 +1,4 @@
+#include "astro.h"
+
+static struct ASTRO_H__EARTH_PARAMS ASTRO_H__EARTH_PARAMS; 
+struct ASTRO_H__EARTH_PARAMS* EARTH_PARAMS = &ASTRO_H__EARTH_PARAMS;

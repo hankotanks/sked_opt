@@ -76,7 +76,8 @@ const char* MONTH_NAMES[12] = {
 #undef X
 };
 
-static TimeSys TIME_SYS_H__time_sys; TimeSys* TIME_SYS = &TIME_SYS_H__time_sys;
+static struct TIME_SYS_H__TIME_SYS TIME_SYS_H__TIME_SYS; 
+struct TIME_SYS_H__TIME_SYS* TIME_SYS = &TIME_SYS_H__TIME_SYS;
 
 void
 time_sys_init(void) {

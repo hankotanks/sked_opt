@@ -133,6 +133,16 @@ net_dump(void) {
     for(size_t i = 0; i < NET->count; ++i) {
         if(NET->entries[i].used) Station_dump(&(NET->entries[i].station));
     }
+#if 0
+    for(size_t i = 0, j; i < NET->count; ++i) {
+        if(NET->entries[i].used) {
+            printf("%c%c: ", NET->entries[i].station.id[0], NET->entries[i].station.id[1]);
+            for(j = 0; j < BAND_OTHER; ++j)
+                printf("%c ", NET->entries[i].station.band[j] ? BAND_CODES[j] : ' ');
+            printf("\n");
+        }
+    }
+#endif
 }
 
 bool

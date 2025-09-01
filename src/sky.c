@@ -41,6 +41,10 @@ sky_init(void) {
         src.decl *= (CAT->source_list[i].decl_deg >= 0) ? 1.0 : -1.0;
         // epoch
         src.epoch = CAT->source_list[i].epoch;
+        // crs
+        src.crs[0] = cos(src.decl) * cos(src.raan);
+        src.crs[1] = cos(src.decl) * sin(src.raan);
+        src.crs[2] = sin(src.decl);
         // check flux entries
         src_band_count = 0;
         for(j = 0; j < BAND_OTHER; ++j) src.band[j] = false;

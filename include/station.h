@@ -2,6 +2,7 @@
 #define STATION_H__
 
 #include "cat.h"
+#include "source.h"
 
 typedef struct {
     char id[2];
@@ -16,5 +17,10 @@ typedef struct {
 
 void
 Station_dump(const Station* const sta);
+void
+Station_az_el(const Station* const sta, const Source* const src, unsigned int seconds,
+    double* az, double* el);
+void
+Station_geo_to_loc(const Station* const sta, double g2l[static 3][3]);
 
 #endif // STATION_H__

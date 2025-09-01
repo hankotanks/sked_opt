@@ -5,7 +5,7 @@
 
 typedef struct {
     char name[8];
-    double raan, decl, epoch;
+    double raan, decl, epoch, crs[3];
     bool band[BAND_OTHER];
     struct flux_step* flux[BAND_OTHER];
 } Source;

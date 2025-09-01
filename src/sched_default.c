@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 
+#include <sofam.h>
+
 #include "cat.h"
 
 #define VAR_TYPES \
@@ -52,16 +54,33 @@ slew_time(const Station* const sta,
     const Source* const src_fst, size_t seg_fst, 
     const Source* const src_snd, size_t seg_snd
 ) {
-    // TODO: IMPLEMENT
     (void) sta; (void) src_fst; (void) seg_fst; (void) src_snd; (void) seg_snd;
+    unsigned int seconds_fst, seconds_snd;
+    seconds_fst = (unsigned int) seg_fst * TIME_SYS->scan_length;
+    seconds_snd = (unsigned int) seg_snd * TIME_SYS->scan_length;
+    double az_fst, el_fst, az_snd, el_snd;
+    Station_az_el(sta, src_fst, seconds_fst, &az_fst, &el_fst);
+    Station_az_el(sta, src_snd, seconds_snd, &az_snd, &el_snd);
+    // TODO: Continue from SchedulerILP.cpp:248
+    // look at Station::isVisible
     return 0;
+}
+
+double wrap_to_two_pi(double angle) {
+    angle = fmod(angle, D2PI);
+    if(angle < 0) angle += D2PI;
+    return angle;
 }
 
 size_t
 sky_cov_idx(size_t seg, const Source* const src, const Station* const sta) {
-    // TODO: IMPLEMENT
-    (void) seg; (void) src; (void) sta;
-    return 0;
+    double az, el;
+    Station_az_el(sta, src, (unsigned int) seg * TIME_SYS->scan_length, &az, &el);
+    size_t row = (size_t) floor(el / (DPI / 4.0));
+    double n = row ? 4.0 : 9.0;
+    size_t col = (size_t) round(wrap_to_two_pi(az) / (D2PI / n));
+    if((double) col > n - 1) col = 0;
+    return row ? col + 9 : col;
 }
 
 SCHED_IMPL(SCHED_DEFAULT) {
