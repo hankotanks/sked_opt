@@ -4,9 +4,9 @@ static struct cat_t CAT_H__cat = {
 #define X(type_) .type_##_list = NULL,
     CAT_LIST
 #undef X
-}; struct cat_t* cat = &CAT_H__cat;
+}; struct cat_t* CAT = &CAT_H__cat;
 
-void cat_parse(const char* path) {
+void cat_init(const char* path) {
     FILE* file;
     char* path_file;
     char* line = NULL;
@@ -18,14 +18,15 @@ void cat_parse(const char* path) {
         hh_path_join(path_file, CAT_H__##type_##_file); \
         file = fopen(path_file, "r"); \
         HH_ASSERT(file != NULL, "Failed to open catalog [%s].", path_file); \
-        hh_arradd(cat->type_##_list, 1); \
+        hh_arradd(CAT->type_##_list, 1); \
         while(hh_getline(&line, &len, file) != -1) { \
             line_temp = hh_skip_whitespace(line); \
             if(line_temp[0] == '*' || line_temp[0] == '\0') continue; \
-            if(CAT_H__##type_##_parse(line, &hh_arrlast(cat->type_##_list))) hh_arradd(cat->type_##_list, 1); \
+            if(CAT_H__##type_##_parse(line, &hh_arrlast(CAT->type_##_list))) hh_arradd(CAT->type_##_list, 1); \
         } \
+        if(hh_arrlen(CAT->type_##_list) > 0) hh_arrpop(CAT->type_##_list); \
         HH_MSG("Parsed %zu entries from [%s].", \
-            hh_arrlen(cat->type_##_list), path_file); \
+            hh_arrlen(CAT->type_##_list), path_file); \
         fclose(file); \
         hh_arrfree(path_file); \
     } while(0);
@@ -34,8 +35,11 @@ void cat_parse(const char* path) {
     if(line != NULL) free(line);
 }
 
-void cat_clean() {
-#define X(type_) hh_arrfree(cat->type_##_list);
+void cat_free(void) {
+#define X(type_) \
+    for(size_t i = 0, len = hh_arrlen(CAT->type_##_list); i < len; ++i) \
+        CAT_H__##type_##_entry_free(CAT->type_##_list[i]); \
+    hh_arrfree(CAT->type_##_list);
     CAT_LIST
 #undef X
 }
@@ -60,3 +64,26 @@ void
 cat_name_print(const char name[static 8]) {
     printf("%.*s", (int) cat_name_len(name), name);
 }
+
+bool
+cat_name_contains(const char name[8], const char* sub) {
+    size_t len_name = 8;
+    for(size_t i = 0; i < 8; ++i) {
+        if(name[i] == '\0') {
+            len_name = i;
+            break;
+        }
+    }
+    size_t len_sub = strlen(sub);
+    if(len_sub == 0) return true;
+    for(size_t i = 0; i + len_sub <= len_name; ++i) 
+        if(memcmp(name + i, sub, len_sub) == 0) return true;
+    return false;
+}
+
+const char BAND_CODES[BAND_OTHER] = { 
+    [BAND_X] = 'X',
+    [BAND_S] = 'S',
+    [BAND_C] = 'C',
+    [BAND_K] = 'K'
+};

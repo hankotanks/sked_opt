@@ -1,5 +1,7 @@
 opt
 opt.exe
+a.out
+test.c
 compile_commands.json
 valgrind.log
 .cache/*

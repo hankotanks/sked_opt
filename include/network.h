@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "xml.h"
 #include "station.h"
 
 typedef struct NETWORK_H__StationEntry StationEntry;
@@ -11,17 +12,21 @@ typedef struct {
     StationEntry* entries;
 } Network;
 
+extern Network* NET;
+
 void
-Network_add_sta(const Network* const net, const Station sta);
+net_add_sta(const Station sta);
+bool* // Returns NULL if station not found, otherwise, returns pointer to station toggle
+net_get_sta(const char id[static 2], Station* out);
+bool* // TODO: This should be internal, create an iterator macro for the network
+net_get_sta_by_idx(const size_t idx, Station* out);
+void
+net_init(void);
+void
+net_free(void);
+void
+net_dump(void);
 bool
-Network_get_sta(const Network* const net, const char id[static 2], Station** out);
-bool
-Network_get_sta_by_idx(const Network* const net, const size_t idx, Station** out);
-void
-Network_init(Network* const net);
-void
-Network_free(const Network* const net);
-void
-Network_dump(const Network* const net);
+net_xml_parse(struct xml_node* root);
 
 #endif // NETWORK_H__

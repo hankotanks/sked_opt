@@ -4,7 +4,10 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "xml.h"
+#include "xml_util.h"
 #include "cat.h"
+#include "station.h"
 
 struct NETWORK_H__StationEntry {
     Station station;
@@ -12,92 +15,151 @@ struct NETWORK_H__StationEntry {
     bool active;
 };
 
+static Network NETWORK_H__net; Network* NET = &NETWORK_H__net;
+
 static size_t 
-Network_hash(const Network* const net, const char id[static 2]) {
-    return (size_t) ((unsigned char) id[0] << 8 | (unsigned char) id[1]) % net->count;
+net_hash(const char id[static 2]) {
+    return (size_t) ((unsigned char) id[0] << 8 | (unsigned char) id[1]) % NET->count;
 }
 
 void
-Network_add_sta(const Network* const net, const Station sta) {
-    for(size_t i = Network_hash(net, sta.id), j = 0, k; j < net->count; ++j) {
-        k = (i + j) % net->count;
-        if(!net->entries[k].used || (memcmp(net->entries[k].station.id, sta.id, 2) == 0)) {
-            net->entries[k].station = sta;
-            net->entries[k].used = true;
-            net->entries[k].active = false;
+net_add_sta(const Station sta) {
+    for(size_t i = net_hash(sta.id), j = 0, k; j < NET->count; ++j) {
+        k = (i + j) % NET->count;
+        if(!NET->entries[k].used || (memcmp(NET->entries[k].station.id, sta.id, 2) == 0)) {
+            NET->entries[k].station = sta;
+            NET->entries[k].used = true;
+            NET->entries[k].active = false;
             return;
         }
     }
     HH_UNREACHABLE;
 }
 
-bool
-Network_get_sta(const Network* const net, const char id[static 2], Station** out) {
-    for(size_t i = Network_hash(net, id), j = 0, k; j < net->count; ++j) {
-        k = (i + j) % net->count;
-        if(!net->entries[k].used) continue;
-        if(memcmp(net->entries[k].station.id, id, 2) == 0) {
-            *out = &(net->entries[k].station);
-            return net->entries[k].active;
+bool*
+net_get_sta(const char id[static 2], Station* out) {
+    for(size_t i = net_hash(id), j = 0, k; j < NET->count; ++j) {
+        k = (i + j) % NET->count;
+        if(!NET->entries[k].used) continue;
+        if(memcmp(NET->entries[k].station.id, id, 2) == 0) {
+            *out = NET->entries[k].station;
+            return &(NET->entries[k].active);
         }
     }
-    *out = NULL;
-    return false;
+    return NULL;
 }
 
-bool
-Network_get_sta_by_idx(const Network* const net, const size_t idx, Station** out) {
-    *out = net->entries[idx].used ? &(net->entries[idx].station) : NULL;
-    return net->entries[idx].active;
+bool*
+net_get_sta_by_idx(const size_t idx, Station* out) {
+    if(!(NET->entries[idx].used)) return NULL;
+    if(NET->entries[idx].used) *out = NET->entries[idx].station;
+    return &(NET->entries[idx].active);
 }
 
 void
-Network_init(Network* const net) {
-    HH_ASSERT(cat->station_list != NULL, "No stations were parsed from raw catalogs.");
-    net->count = hh_arrlen(cat->station_list);
-    HH_ASSERT(net->count > 0, "No stations were parsed from raw catalogs.");
-    HH_CALLOC(net->entries, sizeof(StationEntry) * net->count);
+net_init(void) {
+    HH_ASSERT(CAT->station_list != NULL, "No stations were parsed from raw catalogs.");
+    NET->count = hh_arrlen(CAT->antenna_list);
+    HH_CALLOC(NET->entries, sizeof(StationEntry) * NET->count);
     Station sta;
-    for(size_t i = 0, j; i < net->count; ++i) {
-        // TODO: There is a single parsed station with `\0\0` id and no data
-        // this should be caught in cat.h in the future
-        if(cat->station_list[i].id[0] == '\0') continue;
-        // stations.cat
-        memcpy(sta.id, cat->station_list[i].id, 2);
-        strncpy(sta.name, cat->station_list[i].name_pos, 8);
-        // position.cat
-        for(j = 0; j < hh_arrlen(cat->position_list); ++j) {
-            if(cat_name_eq(cat->station_list[i].name_pos, cat->position_list[j].name)) {
-                sta.x = cat->position_list[j].x;
-                sta.y = cat->position_list[j].y;
-                sta.z = cat->position_list[j].z;
-                sta.lat = cat->position_list[j].lat;
-                sta.lon = cat->position_list[j].lon;
+    size_t len_sta = hh_arrlen(CAT->station_list);
+    size_t len_pos = hh_arrlen(CAT->position_list);
+    size_t len_eqp = hh_arrlen(CAT->equip_list);
+    bool sta_name_hit;
+    char sta_name_alt[8];
+    size_t sta_sefd_count = 0;
+    size_t sta_band_count;
+    for(size_t i = 0, j, k; i < NET->count; ++i) {
+        strncpy(sta.name, CAT->antenna_list[i].name, 8);
+        sta.axes = CAT->antenna_list[i].axes;
+        sta.axes_limits[0] = CAT->antenna_list[i].axes_limits[0];
+        sta.axes_limits[1] = CAT->antenna_list[i].axes_limits[1];
+        // SEFD
+        sta_band_count = 0;
+        for(j = 0; j < BAND_OTHER; ++j) sta.band[j] = false;
+        for(j = 0; j < len_eqp; ++j) {
+            if(cat_name_eq(sta.name, CAT->equip_list[j].name_ant)) {
+                for(k = 0; k < 2; ++k) {
+                    if(CAT->equip_list[j].bands[k] == BAND_OTHER) continue;
+                    if(sta.band[CAT->equip_list[j].bands[k]]) {
+                        HH_DBG("Encountered duplicate SEFD reading for %.*s's %c band.",
+                            (int) cat_name_len(sta.name), sta.name, BAND_CODES[CAT->equip_list[j].bands[k]]);
+                        // skip the new flux entry if the current one has more steps
+                        if(CAT->equip_list[j].sefd[k] < sta.sefd[CAT->equip_list[j].bands[k]]) continue;
+                    } else sta_band_count++;
+                    sta.band[CAT->equip_list[j].bands[k]] = true;
+                    sta.sefd[CAT->equip_list[j].bands[k]] = CAT->equip_list[j].sefd[k];
+                }
+            }
+        }
+        if(sta_band_count > 0) sta_sefd_count++;
+        // use stations.cat as a fallback
+        for(j = 0; j < len_sta; ++j) {
+            if(cat_name_eq(sta.name, CAT->station_list[j].name_ant)) {
+                memcpy(sta_name_alt, CAT->station_list[j].name_pos, 8);
                 break;
             }
         }
-        // antenna.cat
-        for(j = 0; j < hh_arrlen(cat->antenna_list); ++j) {
-            if(cat_name_eq(cat->station_list[i].name_ant, cat->antenna_list[j].name)) {
-                sta.axes = cat->antenna_list[j].axes;
-                sta.axes_limits[0] = cat->antenna_list[j].axes_limits[0];
-                sta.axes_limits[1] = cat->antenna_list[j].axes_limits[1];
-                break;
+        sta_name_hit = false;
+        for(j = 0; j < len_pos; ++j) {
+            sta_name_hit |= cat_name_eq(CAT->position_list[j].name, sta.name);
+            sta_name_hit |= cat_name_eq(CAT->position_list[j].name, sta_name_alt);
+            if(sta_name_hit) {
+                memcpy(sta.id, CAT->position_list[j].id, 2);
+                sta.x = CAT->position_list[j].x;
+                sta.y = CAT->position_list[j].y;
+                sta.z = CAT->position_list[j].z;
+                sta.lat = CAT->position_list[j].lat;
+                sta.lon = CAT->position_list[j].lon;
+                goto net_init_add_sta;
             }
         }
-        // add the station
-        Network_add_sta(net, sta);
+        HH_ERR("Failed to find position entry for %.*s. Skipping.", (int) cat_name_len(sta.name), sta.name);
+        continue;
+net_init_add_sta:
+        // TODO: Consider handling of stations without SEFD readings (sta_band_count == 0)
+        net_add_sta(sta);
     }
+    HH_MSG("Found SEFD readings for %zu out of %zu antennas.", sta_sefd_count, NET->count);
 }
 
 void
-Network_free(const Network* const net) {
-    free(net->entries);
+net_free(void) {
+    free(NET->entries);
 }
 
 void
-Network_dump(const Network* const net) {
-    for(size_t i = 0; i < net->count; ++i) {
-        if(net->entries[i].used) Station_dump(&(net->entries[i].station));
+net_dump(void) {
+    for(size_t i = 0; i < NET->count; ++i) {
+        if(NET->entries[i].used) Station_dump(&(NET->entries[i].station));
     }
 }
+
+bool
+net_xml_parse(struct xml_node* root) {
+    struct xml_node* general = xml_node_find(root, "general");
+    if(general == NULL) return false;
+    struct xml_node* stations = xml_node_find(general, "stations");
+    if(stations == NULL) return false;
+    struct xml_node* child;
+    struct xml_string* name;
+    Station sta;
+    bool* active;
+    for(size_t i = 0; i < xml_node_children(stations); ++i) {
+        child = xml_node_child(stations, i);
+        if(xml_node_name_equals(child, "station")) {
+            name = xml_node_content(child);
+            for(size_t i = 0; i < NET->count; ++i) {
+                active = net_get_sta_by_idx(i, &sta);
+                if(active == NULL) continue;
+                if(cat_name_len(sta.name) != name->length) continue;
+                if(memcmp(name->buffer, sta.name, name->length) == 0) {
+                    HH_MSG("Added station: %.*s", (int) name->length, name->buffer);
+                    *active = true;
+                }
+            }
+        }
+    }
+    return true;
+}
+

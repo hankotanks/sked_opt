@@ -6,7 +6,9 @@
 
 #include "hh.h"
 
+#ifndef M_PI_2
 #define M_PI_2 1.57079632679489661923132169163975144209858469968755291048747229615390820314f
+#endif // M_PI_2
 
 #define SENSITIVITY 0.002f
 #define SCALAR 4.f
@@ -59,6 +61,32 @@ VisCamera_update_projection(VisCamera* camera, const RGFW_window* const win) {
     camera->proj[14] = (GLfloat) ((2.f * ZFAR * ZNEAR) / (ZFAR - ZNEAR) * -1.f); 
 }
 
+void
+VisDesc_init(VisDesc* const desc, size_t data_size, void (*deinit)(void* const data)) {
+    desc->type = NONE;
+    desc->data_size = data_size;
+    desc->deinit = deinit;
+}
+
+void
+VisDesc_configure_panel(VisDesc* const desc, glenv_Panel* panel, const char* parent_title) {
+    desc->type = (desc->type == PASS) ? BOTH : PANEL;
+    desc->panel.panel = panel;
+    desc->panel.parent_title = parent_title;
+}
+
+void
+VisDesc_configure_pass(VisDesc* const desc, GLuint frag, bool (*events)(void* const data, const RGFW_window* const win), void (*render)(const void* const data)) {
+    desc->type = (desc->type == PANEL) ? BOTH : PASS;
+    desc->pass.frag = frag;
+    desc->pass.events = events;
+    desc->pass.render = render;
+}
+
+// NOTE:
+// vertices are given in the form [lon, lat, rad, active] to the shader
+// where rad == 0.f for points on the globe and rad == 1.f for celestial objects
+// active == 1.f if the vertex is included in the schedule
 static const char* shader_source_vert = \
     "#version 330 core\n"
     "layout(location = 0) in vec4 lam_phi;\n"
@@ -67,7 +95,7 @@ static const char* shader_source_vert = \
     "uniform float globe_radius;\n"
     "uniform float shell_radius;\n"
     "uniform float gmst;\n"
-    "flat out uint is_active;\n"
+    "flat out uint state;\n"
     "out vec3 pos;\n"
     "void main() {\n"
     "    bool shell = (abs(lam_phi.z) != 0.f);\n"
@@ -77,13 +105,14 @@ static const char* shader_source_vert = \
     "    float x = sin(phi) * cos(lam) * rad;\n"
     "    float y = cos(phi) * rad;\n"
     "    float z = sin(phi) * sin(lam) * rad;\n"
+    "    state = (abs(lam_phi.w) < 0.5f) ? 0u : 1u;\n"
     "    gl_Position = proj * view * vec4(x, y, z, 1.f);\n"
-    "    is_active = (abs(lam_phi.w) > 0.5f) ? 0u : 1u;\n"
+    "    gl_PointSize = (state != 0u) ? 8.0 : 5.0;\n"
     "    pos = vec3(sin(lam), cos(lam), phi);\n"
     "}\n";
 
 bool
-Vis_init(Vis* const vis, const RGFW_window* const win) {
+Vis_init(Vis* const vis, RGFW_window* const win) {
     // camera (vis->camera)
     VisCamera_init(&vis->camera, win);
     // controller (vis->cont)
@@ -99,8 +128,19 @@ Vis_init(Vis* const vis, const RGFW_window* const win) {
 void
 Vis_free(Vis* const vis) {
     for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
-        (vis->layers[i].methods.deinit)(vis->layers[i].data);
-        glDeleteProgram(vis->layers[i].program);
+        if(vis->layers[i].deinit != NULL)
+            (vis->layers[i].deinit)(vis->layers[i].data);
+        switch(vis->layers[i].type) {
+        case BOTH:
+        case PASS:
+            glDeleteProgram(vis->layers[i].pass.program);
+            if(vis->layers[i].type != BOTH) break;
+        case PANEL:
+            free(vis->layers[i].panel);
+            break;
+        case NONE:
+        default: HH_UNREACHABLE;
+        }
         free(vis->layers[i].data);
     }
     glDeleteShader(vis->vert);
@@ -147,9 +187,9 @@ look_at(GLfloat view[static 16], const GLfloat eye[static 3], const GLfloat up[s
     view[0] = s[0]; view[1] = u[0]; view[ 2] = -f[0]; view[ 3] = 0.f;
     view[4] = s[1]; view[5] = u[1]; view[ 6] = -f[1]; view[ 7] = 0.f;
     view[8] = s[2]; view[9] = u[2]; view[10] = -f[2]; view[11] = 0.f;
-    view[12] = -dot(s, eye); 
-    view[13] = -dot(u, eye); 
-    view[14] =  dot(f, eye); view[15] = 1.f;
+    view[12] = dot(s, eye) * -1.f; 
+    view[13] = dot(u, eye) * -1.f; 
+    view[14] = dot(f, eye); view[15] = 1.f;
 }
 
 void
@@ -161,30 +201,51 @@ Vis_update_and_draw(Vis* const vis, const float gmst) {
     eye[1] = (GLfloat) (vis->camera.rad * sinf(vis->camera.ele));
     eye[2] = (GLfloat) (vis->camera.rad * cosf(vis->camera.ele) * cosf(vis->camera.azi));
     look_at(vis->camera.view, eye, up);
-    // update layer vertex uniforms
+    // update layer vertex uniforms and render
     for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
-        glUseProgram(vis->layers[i].program);
-        glUniformMatrix4fv(vis->layers[i].loc_proj, 1, GL_FALSE, vis->camera.proj);
-        glUniformMatrix4fv(vis->layers[i].loc_view, 1, GL_FALSE, vis->camera.view);
-        glUniform1f(vis->layers[i].loc_gmst, gmst);
-        glUseProgram(0);
-    }
-    // draw layers
-    for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
-        glUseProgram(vis->layers[i].program);
-        (vis->layers[i].methods.render)(vis->layers[i].data);
-        glUseProgram(0);
+        switch(vis->layers[i].type) {
+        case BOTH:
+        case PASS:
+            glUseProgram(vis->layers[i].pass.program);
+            glEnable(GL_PROGRAM_POINT_SIZE);
+            glUniformMatrix4fv(vis->layers[i].pass.loc_proj, 1, GL_FALSE, vis->camera.proj);
+            glUniformMatrix4fv(vis->layers[i].pass.loc_view, 1, GL_FALSE, vis->camera.view);
+            glUniform1f(vis->layers[i].pass.loc_gmst, gmst);
+            (vis->layers[i].pass.render)(vis->layers[i].data);
+            glDisable(GL_PROGRAM_POINT_SIZE);
+            glUseProgram(0);
+            if(vis->layers[i].type != BOTH) break;
+        case PANEL:
+            glenv_Panel_render(vis->layers[i].panel, vis->layers[i].data);
+            break;
+        case NONE:
+        default: HH_UNREACHABLE;
+        }
     }
 }
 
 void
 Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
-    int32_t x, y, dx, dy;
+    int x, y, dx, dy;
     switch(win->event.type) {
     case RGFW_windowResized:
+        glViewport(0, 0, (GLsizei) win->r.w, (GLsizei) win->r.h);
         VisCamera_update_projection(&vis->camera, win);
+        for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
+            switch(vis->layers[i].type) {
+            case BOTH:
+            case PANEL:
+                glenv_Panel_update(vis->layers[i].panel, vis);
+                break;
+            case PASS:
+                break;
+            case NONE:
+            default: HH_UNREACHABLE;
+            }
+        }
         break;
     case RGFW_mouseButtonPressed:
+        if(glenv_consumed_mouse()) break;
         vis->cont.drag = true;
         float rad_vel = vis->camera.min * sqrtf(SENSITIVITY) * 2.f;
         float rad_min = vis->camera.min + rad_vel;
@@ -220,35 +281,71 @@ Vis_handle_events(Vis* const vis, const RGFW_window* const win) {
     }
 }
 
-void*
-Vis_add_layer(Vis* const vis, GLuint frag, VisLayerMethods methods, size_t data_size) {
-    VisLayer layer;
-    layer.data = malloc(data_size);
-    if(layer.data == NULL) return NULL;
-    layer.methods = methods;
-    layer.program = glCreateProgram();
-    glAttachShader(layer.program, vis->vert);
-    glAttachShader(layer.program, frag);
-    glLinkProgram(layer.program);
-    glDeleteShader(frag);
-    GLint success;
-    glGetProgramiv(layer.program, GL_LINK_STATUS, &success);
-    if(!success) {
-        GLint log_size = 0;
-        glGetProgramiv(layer.program, GL_INFO_LOG_LENGTH, &log_size);
-        char log[log_size];
-        glGetProgramInfoLog(layer.program, log_size, NULL, log);
-        HH_ERR("Failed to link shader program: \n%s", log);
-        glDeleteProgram(layer.program);
-        return false;
+glenv_Panel*
+Vis_get_panel(Vis* const vis, const char* title) {
+    if(title == NULL || title[0] == '\0') return NULL;
+    const char* title_curr;
+    for(size_t i = 0, len = hh_arrlen(vis->layers); i < len; ++i) {
+        if(vis->layers[i].panel == NULL) continue;
+        title_curr = glenv_Panel_get_title(vis->layers[i].panel);
+        if(strcmp(title, title_curr) == 0) {
+            return vis->layers[i].panel;
+        }
     }
-    glUseProgram(layer.program);
-    layer.loc_proj = glGetUniformLocation(layer.program, "proj");
-    layer.loc_view = glGetUniformLocation(layer.program, "view");
-    layer.loc_gmst = glGetUniformLocation(layer.program, "gmst");
-    glUniform1f(glGetUniformLocation(layer.program, "globe_radius"), RADIUS);
-    glUniform1f(glGetUniformLocation(layer.program, "shell_radius"), RADIUS * SCALAR);
-    hh_arrput(vis->layers, layer);
-    return layer.data;
+    return NULL;
 }
 
+void*
+Vis_add_layer(Vis* const vis, VisDesc desc) {
+    if(desc.type == NONE) return NULL;
+    hh_arradd(vis->layers, 1);
+    hh_arrlast(vis->layers).type = desc.type;
+    hh_arrlast(vis->layers).data = NULL;
+    if(desc.data_size) hh_arrlast(vis->layers).data = malloc(desc.data_size);
+    if(desc.data_size && hh_arrlast(vis->layers).data == NULL) {
+        hh_arrpop(vis->layers);
+        return NULL;
+    }
+    hh_arrlast(vis->layers).deinit = desc.deinit;
+    glenv_Panel* parent;
+    switch(hh_arrlast(vis->layers).type) {
+    case BOTH:
+    case PASS: 
+        hh_arrlast(vis->layers).pass.events = desc.pass.events;
+        hh_arrlast(vis->layers).pass.render = desc.pass.render;
+        hh_arrlast(vis->layers).pass.program = glCreateProgram();
+        glAttachShader(hh_arrlast(vis->layers).pass.program, vis->vert);
+        glAttachShader(hh_arrlast(vis->layers).pass.program, desc.pass.frag);
+        glLinkProgram(hh_arrlast(vis->layers).pass.program);
+        glDeleteShader(desc.pass.frag);
+        GLint success;
+        glGetProgramiv(hh_arrlast(vis->layers).pass.program, GL_LINK_STATUS, &success);
+        if(!success) {
+            GLint log_size = 0;
+            glGetProgramiv(hh_arrlast(vis->layers).pass.program, GL_INFO_LOG_LENGTH, &log_size);
+            char log[log_size];
+            glGetProgramInfoLog(hh_arrlast(vis->layers).pass.program, log_size, NULL, log);
+            HH_ERR("Failed to link shader program: \n%s", log);
+            glDeleteProgram(hh_arrlast(vis->layers).pass.program);
+            return false;
+        }
+        glUseProgram(hh_arrlast(vis->layers).pass.program);
+        hh_arrlast(vis->layers).pass.loc_proj = glGetUniformLocation(hh_arrlast(vis->layers).pass.program, "proj");
+        hh_arrlast(vis->layers).pass.loc_view = glGetUniformLocation(hh_arrlast(vis->layers).pass.program, "view");
+        hh_arrlast(vis->layers).pass.loc_gmst = glGetUniformLocation(hh_arrlast(vis->layers).pass.program, "gmst");
+        glUniform1f(glGetUniformLocation(hh_arrlast(vis->layers).pass.program, "globe_radius"), RADIUS);
+        glUniform1f(glGetUniformLocation(hh_arrlast(vis->layers).pass.program, "shell_radius"), RADIUS * SCALAR);
+        if(desc.type != BOTH) break;
+    case PANEL:
+        parent = Vis_get_panel(vis, desc.panel.parent_title);
+        if(parent != NULL) glenv_Panel_config(desc.panel.panel, .parent = parent);
+        else HH_ASSERT(desc.panel.parent_title == NULL, "Unable to set %s's parent panel to %s.", 
+            glenv_Panel_get_title(desc.panel.panel), desc.panel.parent_title);
+        glenv_Panel_update(desc.panel.panel, vis);
+        hh_arrlast(vis->layers).panel = desc.panel.panel;
+        break;
+    case NONE:
+    default: HH_UNREACHABLE;
+    }
+    return hh_arrlast(vis->layers).data;
+}

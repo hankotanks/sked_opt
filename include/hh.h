@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 
 //
@@ -66,6 +67,7 @@ enum {
 // MISC
 //
 
+#define HH_ASSERT_BEFORE(cond) for(; !(cond); assert(cond))
 #define HH_ASSERT(cond, ...) do { for(; !(cond); assert(cond)) HH_ERR(__VA_ARGS__); } while(0)
 
 #define HH_CHECK_STREAM(stream, cond, ...) if(!(cond)) { \
@@ -93,36 +95,41 @@ enum {
 // Adapted from...
 // stb_ds.h - v0.67 - public domain data structures - Sean Barrett 2019
 
-// internal array components
-typedef struct { size_t length, capacity; } hh_arrheader_t;
-void* 
-hh_arrgrow_impl(void*, size_t, size_t, size_t);
+// initial capacity of dynamic array
+#ifndef HH_ARR_CAP_DEFAULT
+#define HH_ARR_CAP_DEFAULT 16
+#endif // not HH_ARR_CAP_DEFAULT
 
-#define hh_arrheader(arr)    ((hh_arrheader_t*) (arr) - 1)
-#define hh_arrgrow(arr, n)   ((arr) = hh_arrgrow_impl((arr), sizeof *(arr), (n), 0))
-#define hh_arrcheck(arr, n)  ((!(arr) || hh_arrheader(arr)->length + (n) > hh_arrheader(arr)->capacity) ? (hh_arrgrow(arr, n), 0) : 0)
-#define hh_arrcap(arr)       ((arr) ? hh_arrheader(arr)->capacity : 0)
-#define hh_arrcapset(arr, n) ((arr) = hh_arrgrow_impl((arr), sizeof *(arr), 0, (n))) 
-#define hh_arrlen(arr)       ((arr) ? hh_arrheader(arr)->length : 0)
-#define hh_arrlenset(arr, n) ((hh_arrcap(arr) < (size_t) (n) ? hh_arrcapset((arr), (size_t) (n)), 0 : 0), (arr) ? hh_arrheader(arr)->length = (size_t) (n) : 0)
-#define hh_arrput(arr, val)  (hh_arrcheck(arr, 1), (arr)[(hh_arrheader(arr)->length)++] = (val))
-#define hh_arrpop(arr)       ((hh_arrheader(arr)->length)--, (arr)[hh_arrheader(arr)->length])
-// add n zero-initialized elements to array and return the index of the first added element
-#define hh_arradd(arr, n)    ((void) (hh_arrcheck(arr, n)), (n) ? (memset((arr) + hh_arrheader(arr)->length, 0, sizeof *(arr) * (n)), hh_arrheader(arr)->length += (n), hh_arrheader(arr)->length - (n)) : hh_arrlen(arr))
-#define hh_arrlast(arr)      ((arr)[hh_arrheader(arr)->length - 1])
-#define hh_arrfree(arr)      ((void) ((arr) ? free(hh_arrheader(arr)) : (void) 0), (arr) = NULL)
+// internal array components
+typedef struct { size_t len, cap, elem_size; } hh_arrheader_t;
+// helper functions
+void*
+hh_arrnew_impl(size_t cap, size_t elem_size);
+void 
+hh_arrgrow_impl(void** arrp, size_t n, size_t elem_size);
+
+#define hh_arrheader(arr)       (((hh_arrheader_t*) arr) - 1)
+#define hh_arrnew(arr)          ((arr) = hh_arrnew_impl(HH_ARR_CAP_DEFAULT, sizeof(*arr)))
+#define hh_arrgrow(arr, n)      (hh_arrgrow_impl((void**) &(arr), (n), sizeof(*(arr))), (arr))
+// PUBLIC API
+#define hh_arrfree(arr)         ((void) ((arr) ? free(hh_arrheader(arr)) : (void) 0), (arr) = NULL)
+#define hh_arrlast(arr)         ((arr)[hh_arrheader(arr)->len - 1])
+#define hh_arrput(arr, val)     ((void) hh_arrgrow(arr, 1), (arr)[(hh_arrheader(arr)->len)++] = (val))
+#define hh_arrpop(arr)          ((arr)[--(hh_arrheader(arr)->len)])
+#define hh_arradd(arr, n)       ((void) hh_arrgrow(arr, n), (n) ? (memset((arr) + hh_arrlen(arr), 0, sizeof *(arr) * (n)), hh_arrheader(arr)->len += (n), hh_arrlen(arr) - (n)) : hh_arrlen(arr))
+#define hh_arrlen(arr)          ((arr == NULL) ? 0 : hh_arrheader(arr)->len)
+#define hh_arrcap(arr)          ((arr == NULL) ? 0 : hh_arrheader(arr)->cap)
 
 //
 // STRINGS
 //
 
-// NOTE: Assumes that the end of the array is currently \0
 #define hh_strput(arr, str) do { \
-    if(hh_arrlen(arr) == 0) hh_arrput(arr, '\0'); \
-    else if(hh_arrlast(arr) != '\0') hh_arrput(arr, '\0'); \
-    size_t _off = hh_arradd(arr, strlen((str))); \
-    strcpy((arr) + _off - 1, (str)); \
-} while(0)
+		if(hh_arrlen(arr) == 0 || (hh_arrlen(arr) != 0 && hh_arrlast(arr) != '\0')) hh_arrput(arr, '\0'); \
+		assert(hh_arrlast(arr) == '\0'); \
+		size_t _tmp = hh_arradd(arr, strlen(str)) - 1; \
+		strcpy((arr) + _tmp, (str)); \
+	} while(0)
 
 // 
 // PATH
@@ -206,6 +213,10 @@ hh_getdelim(char** buf, size_t* bufsiz, int delimiter, FILE* fp);
 ptrdiff_t
 hh_getline(char** buf, size_t* bufsiz, FILE* fp);
 
+// Other misc functions
+size_t 
+hh_strnlen(const char* str, size_t strsz);
+
 //
 // PARSING
 //
@@ -230,6 +241,14 @@ hh_skip_whitespace(const char* ptr);
 bool
 hh_starts_with(const char* ptr, const char* prefix);
 
+//
+// IO
+//
+
+char* 
+hh_read_entire_file(const char* path);
+
+
 #endif // HH_H__
 
 //
@@ -249,20 +268,32 @@ hh_starts_with(const char* ptr, const char* prefix);
 #endif // _WIN32
 
 void*
-hh_arrgrow_impl(void* arr, size_t elemsize, size_t addlen, size_t min_cap) {
-  hh_arrheader_t temp = {0}; 
-  void *b;
-  size_t min_len = hh_arrlen(arr) + addlen;
-  (void) sizeof(temp);
-  if(min_len > min_cap) min_cap = min_len;
-  if(min_cap <= hh_arrcap(arr)) return arr;
-  if(min_cap < 2 * hh_arrcap(arr)) min_cap = 2 * hh_arrcap(arr);
-  else if(min_cap < 4) min_cap = 4;
-  b = realloc((arr) ? hh_arrheader(arr) : 0, elemsize * min_cap + sizeof(hh_arrheader_t));
-  b = (char*) b + sizeof(hh_arrheader_t);
-  if(arr == NULL) hh_arrheader(b)->length = 0;
-  hh_arrheader(b)->capacity = min_cap;
-  return b;
+hh_arrnew_impl(size_t cap, size_t elem_size) {
+    void* arr = (((hh_arrheader_t*) calloc(1, sizeof(hh_arrheader_t) + elem_size * cap)) + 1);
+    hh_arrheader(arr)->len = 0;
+    hh_arrheader(arr)->cap = cap;
+    hh_arrheader(arr)->elem_size = elem_size;
+    return arr;
+}
+
+void 
+hh_arrgrow_impl(void** arrp, size_t n, size_t elem_size) {
+    if(*arrp == NULL) {
+        hh_arrheader_t* hdr = calloc(1, sizeof(hh_arrheader_t) + elem_size * HH_MAX(n, HH_ARR_CAP_DEFAULT));
+        assert(hdr != NULL);
+        hdr->len = 0;
+        hdr->cap = HH_MAX(n, HH_ARR_CAP_DEFAULT);
+        hdr->elem_size = elem_size;
+        *arrp = (void*) (hdr + 1);
+        return;
+    }
+    hh_arrheader_t* hdr = hh_arrheader(*arrp);
+	if(hdr->len + n >= hdr->cap) {
+		while(hdr->len + n >= hdr->cap) hdr->cap *= 2;
+		hdr = realloc(hdr, sizeof(hh_arrheader_t) + hdr->cap * hdr->elem_size);
+        assert(hdr != NULL);
+        *arrp = (void*) (hdr + 1);
+	}
 }
 
 char*
@@ -270,9 +301,7 @@ hh_path_impl(const char* raw) {
 	char* path = NULL;
 	hh_strput(path, raw);
 	if(path == NULL) return NULL;
-	hh_arrpop(path);
 	for(char* curr = path; *curr != '\0'; ++curr) if(*curr == '\\') *curr = '/';
-	hh_arrput(path, '\0');
 	return path;
 }
 
@@ -292,30 +321,28 @@ hh_path(const char *raw) {
 	path = hh_path_impl(raw_abs);
 	if(path && path[0] >= 'a' && path[0] <= 'z') path[0] -= ('a' - 'A');
 #else
-	if(raw[0] == '.' && (raw[1] == '/' || raw[1] == '\\')) {
+	if(raw[0] == '.' && (raw[1] == '/' || raw[1] == '\\' || raw[1] == '\0')) {
 		raw_abs = realpath(".", NULL);
 		path = hh_path_impl(raw_abs);
 		hh_strput(path, raw + 1);
-	} else if(raw[0] == '.' && raw[1] == '.' && (raw[2] == '/' || raw[2] == '\\')) {
+	} else if(raw[0] == '.' && raw[1] == '.' && (raw[2] == '/' || raw[2] == '\\' || raw[2] == '\0')) {
 		raw_abs = realpath("..", NULL);
 		path = hh_path_impl(raw_abs);
 		hh_strput(path, raw + 2);
-	} else {
-		raw_abs = realpath(raw, NULL);
-		path = hh_path_impl(raw_abs);
-	}
+	} else path = hh_path_impl(raw);
 #endif
 	if(raw_abs) free(raw_abs);
 	if(path == NULL) return NULL;
 	for(char* curr = path; *curr != '\0'; ++curr) if(*curr == '\\') *curr = '/';
 	hh_arrpop(path);
-	if(hh_arrlast(path) == '/' && hh_arrlen(path) > 2) hh_arrpop(path);
+	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') hh_arrpop(path);
 	hh_arrput(path, '\0');
 	return path;
 }
 
 bool
 hh_path_exists(const char* path) {
+	if(path == NULL) return false;
 #ifdef _WIN32
 	return _access(path, 0) == 0;
 #else
@@ -341,7 +368,7 @@ hh_path_join(char* path, const char* sub) {
 	if(hh_arrlast(path) != '/') hh_strput(path, "/");
 	hh_strput(path, sub);
 	hh_arrpop(path);
-	if(hh_arrlast(path) == '/' && hh_arrlen(path) > 2) hh_arrpop(path);
+	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') hh_arrpop(path);
 	hh_arrput(path, '\0');
 	return path;
 }
@@ -473,6 +500,13 @@ hh_getline(char** buf, size_t* bufsiz, FILE* fp) {
 	return hh_getdelim(buf, bufsiz, '\n', fp);
 }
 
+size_t 
+hh_strnlen(const char* str, size_t strsz) {
+    size_t len = 0;
+    while(len < strsz && str[len] != '\0') len++;
+    return len;
+}
+
 bool
 hh_span_next(hh_span_t* span) {
 	span->ptr += span->len;
@@ -532,6 +566,34 @@ hh_skip_whitespace(const char* ptr) {
 bool
 hh_starts_with(const char* ptr, const char* prefix) {
 	return strncmp(ptr, prefix, strlen(prefix)) == 0;
+}
+
+char* 
+hh_read_entire_file(const char* path) {
+    FILE* f = fopen(path, "rb");
+	if(f == NULL) {
+		HH_ERR("Failed to open file at path [%s].", path);
+		return NULL;
+	}
+	HH_CHECK_STREAM(f, !fseek(f, 0, SEEK_END), 
+		"Failed to seek to end of file while reading [%s].", path) return NULL;
+    long size_temp = ftell(f);
+	HH_CHECK_STREAM(f, size_temp >= 0, "Failed to read file size [%s].", path) 
+		return NULL;
+	unsigned long size = (unsigned long) size_temp;
+    rewind(f);
+	char* buf = NULL;
+	hh_arradd(buf, size);
+	HH_CHECK_STREAM(f, buf != NULL, "Failed to allocate buffer for file contents [%s].", path) 
+		return NULL;
+    size_t read_size = fread(buf, 1, size, f);
+	HH_CHECK_STREAM(f, read_size == (size_t) size, "Failed to read entire file into buffer [%s].", path) {
+		hh_arrfree(buf);
+		return NULL;
+	}
+	hh_arradd(buf, '\0');
+    fclose(f);
+    return buf;
 }
 
 #endif // HH_IMPL

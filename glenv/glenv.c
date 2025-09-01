@@ -34,11 +34,13 @@ typedef struct {
 
 static struct {
     RGFW_window* win;
+    RGFW_rect original_rect;
     glenv_Device device;
     struct nk_context ctx;
     struct nk_font_atlas atlas;
     unsigned int text[GLENV_TEXT_BUFFER_SIZE], text_len;
     struct nk_vec2 scroll;
+    float row_height;
 } glenv_WindowHandler;
 
 NK_API void glenv_key_callback(RGFW_window* win, unsigned char key, char ch, unsigned char lock_state, RGFW_bool pressed) {
@@ -47,7 +49,7 @@ NK_API void glenv_key_callback(RGFW_window* win, unsigned char key, char ch, uns
     RGFW_UNUSED(win);
     if(pressed == RGFW_FALSE) return;
     unsigned int* text_len = &(glenv_WindowHandler.text_len);
-    if((*text_len) < GLENV_TEXT_BUFFER_SIZE) glenv_WindowHandler.text[(*text_len)++] = ch;
+    if((*text_len) < GLENV_TEXT_BUFFER_SIZE) glenv_WindowHandler.text[(*text_len)++] = (unsigned int) ch;
 }
 
 NK_API void glenv_scroll_callback(RGFW_window* win, double x_off, double y_off) {
@@ -64,8 +66,11 @@ NK_API void glenv_mouse_button_callback(RGFW_window* win, unsigned char button, 
 }
 
 NK_API struct nk_context* glenv_init(RGFW_window* win) {
+    if(glewInit() != GLEW_OK) return NULL;
+    // begin glenv_init
     glenv_Device* device = &(glenv_WindowHandler.device);
     glenv_WindowHandler.win = win;
+    glenv_WindowHandler.original_rect = win->r;
     { // set event callbacks
         RGFW_setKeyCallback(glenv_key_callback);
         RGFW_setMouseButtonCallback(glenv_mouse_button_callback);
@@ -95,6 +100,10 @@ NK_API struct nk_context* glenv_init(RGFW_window* win) {
         const struct nk_user_font* font = &(atlas->default_font->handle);
         nk_style_set_font(&(glenv_WindowHandler.ctx), font);
     }
+    // row height
+    glenv_WindowHandler.row_height = glenv_WindowHandler.ctx.style.font->height + \
+        glenv_WindowHandler.ctx.style.window.padding.y;
+    // return handle to struct nk_context
     return &(glenv_WindowHandler.ctx);
 }
 
@@ -114,6 +123,7 @@ typedef struct {
 } glenv_Vertex;
 
 NK_API void glenv_render(enum nk_anti_aliasing AA) {
+    nk_input_end(&(glenv_WindowHandler.ctx));
     // setup glenv_Device
     glenv_Device* device = &(glenv_WindowHandler.device);
     // shorter binding for RGFW_window
@@ -283,9 +293,101 @@ NK_API void glenv_new_frame(void) {
     nk_input_button(ctx, NK_BUTTON_LEFT, p.x, p.y, RGFW_isMousePressed(win, RGFW_mouseLeft));
     nk_input_button(ctx, NK_BUTTON_MIDDLE, p.x, p.y, RGFW_isMousePressed(win, RGFW_mouseMiddle));
     nk_input_button(ctx, NK_BUTTON_RIGHT, p.x, p.y, RGFW_isMousePressed(win, RGFW_mouseRight));
-    nk_input_scroll(ctx, glenv_WindowHandler.scroll);
-    nk_input_end(&(glenv_WindowHandler.ctx));
+    if(nk_window_is_any_hovered(&(glenv_WindowHandler.ctx)))
+        nk_input_scroll(ctx, glenv_WindowHandler.scroll);
     // reset text buffer and scroll vector
     glenv_WindowHandler.text_len = 0;
     glenv_WindowHandler.scroll = nk_vec2(0,0);
+}
+
+nk_bool
+glenv_consumed_mouse(void) {
+    return nk_window_is_any_hovered(&(glenv_WindowHandler.ctx));
+}
+
+//
+// glenv_Panel
+//
+
+struct GLENV_H__glenv_Panel {
+    const char* title;
+    struct nk_rect bounds;
+    glenv_PanelConfig config;
+};
+
+glenv_Panel*
+GLENV_H__glenv_Panel_init(const char* title, glenv_PanelConfig config) {
+    glenv_Panel* panel = calloc(1, sizeof(*panel));
+    if(panel == NULL) return NULL;
+    panel->title = title;
+    panel->config = config;
+    return panel;
+}
+
+void
+GLENV_H__glenv_Panel_config(glenv_Panel* const panel, glenv_PanelConfig config) {
+    panel->config = config;
+}
+
+const char*
+glenv_Panel_get_title(const glenv_Panel* const panel) { 
+    return panel->title; 
+}
+
+glenv_PanelConfig
+glenv_Panel_get_config(const glenv_Panel* const panel) {
+    return panel->config;
+}
+
+#define NK_MAGIC 1.555555f
+float 
+glenv_Panel_height(const glenv_Panel* panel) {
+    if(panel == NULL) return 0.f;
+    if(panel->config.layout == NULL) return 0.f;
+    const struct nk_style style = glenv_WindowHandler.ctx.style;
+    float height = 0.f;
+    const float font_size = style.font->height;
+    if(panel->config.flags & NK_WINDOW_BORDER) height += style.window.border * 2.f;
+    if(panel->config.flags & NK_WINDOW_TITLE) {
+        height += font_size + \
+            style.window.header.padding.y * 1.f + \
+            style.window.header.label_padding.y * 2.f + \
+            style.window.header.spacing.y;
+    }
+    if(!nk_window_is_collapsed(&(glenv_WindowHandler.ctx), panel->title)) {
+        const float row_height_full = glenv_WindowHandler.row_height + \
+            style.window.padding.y + \
+            style.window.spacing.y;
+        height += row_height_full * (float) panel->config.rows;
+    }
+    return height + NK_MAGIC;
+}
+
+void 
+glenv_Panel_render(glenv_Panel* const panel, void* data) {
+    if(panel == NULL) return;
+    if(panel->config.layout == NULL) return; // return early if no layout specified
+    float y = 0.f;
+    for(const glenv_Panel* curr = panel->config.parent; curr != NULL; curr = curr->config.parent)
+        y += glenv_Panel_height(curr);
+    if(panel->config.bottom == nk_true) y = (float) glenv_WindowHandler.win->r.h - glenv_Panel_height(panel) - y;
+    float width;
+    if(panel->config.width.prop) width = panel->config.width.width.dynamic.ratio * \
+        (float) glenv_WindowHandler.win->r.w - \
+        (float) panel->config.width.width.dynamic.pixel_offset;
+    else width = (float) panel->config.width.width.pixels;
+    float offset = panel->config.offset;
+    const struct nk_rect bounds = nk_rect(
+        panel->config.right ? (float) glenv_WindowHandler.win->r.w - width - offset : offset, y,
+        width, glenv_Panel_height(panel));
+    nk_bool expanded = nk_begin(&(glenv_WindowHandler.ctx), panel->title, bounds, panel->config.flags);
+    if(expanded) panel->config.layout(data, &(glenv_WindowHandler.ctx), glenv_WindowHandler.row_height + NK_MAGIC);
+    panel->bounds = nk_window_get_bounds(&(glenv_WindowHandler.ctx));
+    nk_end(&(glenv_WindowHandler.ctx));
+}
+
+void
+glenv_Panel_update(glenv_Panel* const panel, void* data) {
+    if(panel->config.update == NULL) return;
+    (panel->config.update)(panel, glenv_WindowHandler.original_rect, glenv_WindowHandler.win->r, data);
 }

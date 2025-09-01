@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#include "xml.h"
 #include "source.h"
 
 typedef struct SKY_H__SourceEntry SourceEntry;
@@ -12,17 +13,21 @@ typedef struct {
     SourceEntry* entries;
 } Sky;
 
+extern Sky* SKY;
+
 void
-Sky_init(Sky* const sky);
+sky_init(void);
 void
-Sky_free(const Sky* const sky);
+sky_free(void);
+bool* // Returns NULL if source not found, otherwise, returns pointer to source toggle
+sky_get_src(const char id[static 8], Source* out);
+bool* // TODO: This should be internal, create an iterator macro for sky
+sky_get_src_by_idx(const size_t idx, Source* out);
+void
+sky_add_src(const Source src);
+void
+sky_dump(void);
 bool
-Sky_get_src(const Sky* const sky, const char id[static 8], Source** out);
-bool
-Sky_get_src_by_idx(const Sky* const sky, const size_t idx, Source** out);
-void
-Sky_add_src(const Sky* const sky, const Source src);
-void
-Sky_dump(const Sky* const sky);
+sky_xml_parse(struct xml_node* root);
 
 #endif // SKY_H__

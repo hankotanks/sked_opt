@@ -1,9 +1,13 @@
 #ifndef SOURCE_H__
 #define SOURCE_H__
 
+#include "cat.h"
+
 typedef struct {
     char name[8];
     double raan, decl, epoch;
+    bool band[BAND_OTHER];
+    struct flux_step* flux[BAND_OTHER];
 } Source;
 
 void
