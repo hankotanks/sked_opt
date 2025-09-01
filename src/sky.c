@@ -25,7 +25,9 @@ sky_init(void) {
     HH_ASSERT(sky->count > 0, "No sources were parsed from raw catalogs.");
     HH_CALLOC(sky->entries, sizeof(SourceEntry) * sky->count);
     Source src;
-    for(size_t i = 0; i < sky->count; ++i) {
+    size_t src_flux_count = 0;
+    size_t src_band_count;
+    for(size_t i = 0, j, k = hh_arrlen(cat->flux_list); i < sky->count; ++i) {
         strncpy(src.name, cat->source_list[i].name_iau, 8);
         // raan
         src.raan = (double) cat->source_list[i].raan_hrs + \
@@ -39,9 +41,42 @@ sky_init(void) {
         src.decl *= (cat->source_list[i].decl_deg >= 0) ? 1.0 : -1.0;
         // epoch
         src.epoch = cat->source_list[i].epoch;
-        // add source
-        sky_add_src(src);
+        // check flux entries
+        src_band_count = 0;
+        for(j = 0; j < BAND_OTHER; ++j) src.band[j] = false;
+        for(j = 0; j < k; ++j) {
+            if(cat_name_eq(src.name, cat->flux_list[j].name_iau)) {
+                switch(cat->flux_list[j].type) {
+                case FLUX_B:
+                    if(cat->flux_list[j].band == BAND_OTHER) continue;
+                    if((src.band[cat->flux_list[j].band])) {
+                        HH_MSG("Encountered duplicate flux reading for %.*s's %c band. Keeping highest resolution.",
+                            (int) cat_name_len(src.name), src.name, band_codes[cat->flux_list[j].band]);
+                        // skip the new flux entry if the current one has more steps
+                        if(hh_arrlen(src.flux[cat->flux_list[j].band]) > hh_arrlen(cat->flux_list[j].entry.b.flux)) continue;
+                    } else src_band_count++;
+                    src.band[cat->flux_list[j].band] = true;
+                    src.flux[cat->flux_list[j].band] = cat->flux_list[j].entry.b.flux;
+                case FLUX_M: continue;
+                default: HH_UNREACHABLE;
+                }
+            }
+        }
+        if(src_band_count > 0) {
+            src_flux_count++;
+#if 0
+            HH_DBG("Found flux readings for %.*s across %zu bands.", 
+                (int) cat_name_len(src.name), src.name, src_band_count);
+#endif
+            // add source
+            sky_add_src(src);
+        } else {
+#if 0
+            HH_DBG("No flux readings found for %.*s. Skipping.", (int) cat_name_len(src.name), src.name);
+#endif
+        }
     }
+    HH_MSG("Found flux readings for %zu out of %zu sources.", src_flux_count, sky->count);
 }
 
 void

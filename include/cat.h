@@ -13,9 +13,9 @@
     X(position) \
     X(antenna) \
     X(mask) \
-    X(source)
+    X(source) \
+    X(flux)
 #if 0
-    X(cat_flux) \
     X(cat_equip)
 #endif
 
@@ -29,6 +29,7 @@
 #define CAT_IMPL(type_, file_) \
     static const char* CAT_H__UNUSED CAT_H__##type_##_file = file_; \
     static bool CAT_H__UNUSED CAT_H__##type_##_parse(const char* line, CAT_DECL(type_)* entry)
+#define CAT_IMPL_ENTRY_FREE(type_) static void CAT_H__UNUSED CAT_H__##type_##_entry_free(CAT_DECL(type_) entry)
 
 struct cat_t {
 #define X(type_) CAT_DECL(type_)* type_##_list;
@@ -52,7 +53,6 @@ void
 cat_name_print(const char name[static 8]);
 bool
 cat_name_contains(const char name[8], const char* sub);
-
 
 //
 // station
@@ -128,6 +128,8 @@ CAT_IMPL(station, "stations.cat") {
     return true;
 }
 
+CAT_IMPL_ENTRY_FREE(station) { (void) entry; }
+
 //
 // position
 //
@@ -187,6 +189,8 @@ CAT_IMPL(position, "position.cat") {
     else entry->epoch = EPOCH_OTHER;
     return true;
 }
+
+CAT_IMPL_ENTRY_FREE(position) { (void) entry; }
 
 //
 // antenna
@@ -276,6 +280,8 @@ CAT_IMPL(antenna, "antenna.cat") {
     return true;
 }
 
+CAT_IMPL_ENTRY_FREE(antenna) { (void) entry; }
+
 //
 // mask
 //
@@ -340,6 +346,8 @@ CAT_IMPL(mask, "mask.cat") {
 #undef CAT_H__ENTRIES_LEN
     return !ext;
 }
+
+CAT_IMPL_ENTRY_FREE(mask) { (void) entry; }
 
 //
 // source
@@ -412,6 +420,117 @@ CAT_IMPL(source, "source.cat.geodetic.good") {
     return true;
 }
 
+CAT_IMPL_ENTRY_FREE(source) { (void) entry; }
+
+//
+// flux
+//
+
+enum band {
+    BAND_X,
+    BAND_S,
+    BAND_C,
+    BAND_K,
+    BAND_OTHER,
+};
+
+// NOTE: If adding support for other bands... MUST update band_codes in cat.c
+extern const char band_codes[BAND_OTHER];
+
+enum flux_entry_type {
+    FLUX_B,
+    FLUX_M,
+};
+
+struct flux_step {
+    double baseline_limit;
+    double flux;
+};
+
+CAT_DECL(flux) {
+    char name_iau[8];
+    enum band band;
+    enum flux_entry_type type;
+    union {
+        struct {
+            struct flux_step* flux;
+        } b;
+        struct {
+            double flux;
+            double major_axis;
+            double ratio;
+            double pa;
+            double offsets[2];
+        } m;
+    } entry;
+};
+
+CAT_IMPL(flux, "flux.cat") {
+    hh_span_t span;
+    span.ptr = line;
+    span.len = 0;
+    // name_iau
+    if(!hh_span_next(&span)) return false;
+    if(span.len > 8) return false;
+    memcpy(entry->name_iau, span.ptr, span.len);
+    if(span.len < 8) entry->name_iau[span.len] = '\0';
+    // band
+    if(!hh_span_next(&span)) return false;
+    if(hh_span_equals(span, "X")) entry->band = BAND_X;
+    else if(hh_span_equals(span, "S")) entry->band = BAND_S;
+    else if(hh_span_equals(span, "C")) entry->band = BAND_C;
+    else if(hh_span_equals(span, "K")) entry->band = BAND_K;
+    else entry->band = BAND_OTHER;
+    // type
+    if(!hh_span_next(&span)) return false;
+    if(hh_span_equals(span, "B")) {
+        entry->type = FLUX_B;
+        // flux readings
+        entry->entry.b.flux = NULL;
+        bool first = true, result;
+        struct flux_step step;
+        do {
+            result = false;
+            if(!hh_span_next(&span)) goto parse_flux_result;
+            if(!hh_span_double(span, &(step.baseline_limit))) goto parse_flux_result;
+            if(!hh_span_next(&span)) goto parse_flux_result;
+            if(!hh_span_double(span, &(step.flux))) goto parse_flux_result;
+            result = true;
+parse_flux_result:
+            if(!result) {
+                if(first) return false;
+                else break;
+            } else hh_arrput(entry->entry.b.flux, step);
+            first = false;
+        } while(true);
+        // TODO: consider parsing additional (baseline limit, flux) pairs, not sure if they're needed
+    } else if(hh_span_equals(span, "M")) {
+        entry->type = FLUX_M;
+        // flux
+        if(!hh_span_next(&span)) return false;
+        if(!hh_span_double(span, &(entry->entry.m.flux))) return false;
+        // major_axis
+        if(!hh_span_next(&span)) return false;
+        if(!hh_span_double(span, &(entry->entry.m.major_axis))) return false;
+        // ratio
+        if(!hh_span_next(&span)) return false;
+        if(!hh_span_double(span, &(entry->entry.m.ratio))) return false;
+        // pa
+        if(!hh_span_next(&span)) return false;
+        if(!hh_span_double(span, &(entry->entry.m.pa))) return false;
+        // offsets
+        for(size_t i = 0; i < 2; ++i) {
+            if(!hh_span_next(&span)) return false;
+            if(!hh_span_double(span, &(entry->entry.m.offsets[i]))) return false;
+        }
+    } else return false;
+    return true;
+}
+
+CAT_IMPL_ENTRY_FREE(flux) {
+    if(entry.type == FLUX_B) hh_arrfree(entry.entry.b.flux);
+}
+
 #if 0
 enum EquipHeadStacks {
     HEADS_1X56000,
@@ -440,34 +559,6 @@ CAT_DECL(cat_Equip) {
     size_t s_flux;
     enum EquipBand x, s;
     // TODO: Omitting SEFD param/Equip field
-};
-
-// TODO: flux.cat
-
-enum FluxEntryType {
-    FLUX_B,
-    FLUX_M,
-};
-
-CAT_DECL(cat_Flux) {
-    unsigned char name_iau[8];
-    enum EquipBand band;
-    enum FluxEntryType type;
-    union {
-        struct {
-            double flux_total;
-            double flux_total_limit;
-            double flux_corr;
-            double flux_corr_limit;
-        } b;
-        struct {
-            double flux;
-            double major_axis;
-            double ratio;
-            double pa;
-            double offsets[2];
-        } m;
-    } entry;
 };
 
 // TODO: modes.cat

@@ -9,6 +9,7 @@ typedef struct {
     double x, y, z, lat, lon;
     enum dish_axes axes;
     struct dish_limits axes_limits[2];
+    // TODO: Figure out which bands each station can observe
 } Station;
 
 void

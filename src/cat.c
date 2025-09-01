@@ -36,7 +36,10 @@ void cat_init(const char* path) {
 }
 
 void cat_free(void) {
-#define X(type_) hh_arrfree(cat->type_##_list);
+#define X(type_) \
+    for(size_t i = 0, len = hh_arrlen(cat->type_##_list); i < len; ++i) \
+        CAT_H__##type_##_entry_free(cat->type_##_list[i]); \
+    hh_arrfree(cat->type_##_list);
     CAT_LIST
 #undef X
 }
@@ -77,3 +80,10 @@ cat_name_contains(const char name[8], const char* sub) {
         if(memcmp(name + i, sub, len_sub) == 0) return true;
     return false;
 }
+
+const char band_codes[BAND_OTHER] = { 
+    [BAND_X] = 'X',
+    [BAND_S] = 'S',
+    [BAND_C] = 'C',
+    [BAND_K] = 'K'
+};

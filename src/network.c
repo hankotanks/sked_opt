@@ -62,13 +62,27 @@ net_init(void) {
     net->count = hh_arrlen(cat->antenna_list);
     HH_CALLOC(net->entries, sizeof(StationEntry) * net->count);
     Station sta;
-    for(size_t i = 0, j, k = hh_arrlen(cat->position_list); i < net->count; ++i) {
+    size_t len_sta = hh_arrlen(cat->station_list);
+    size_t len_pos = hh_arrlen(cat->position_list);
+    bool sta_name_hit;
+    char sta_name_alt[8];
+    for(size_t i = 0, j; i < net->count; ++i) {
         strncpy(sta.name, cat->antenna_list[i].name, 8);
         sta.axes = cat->antenna_list[i].axes;
         sta.axes_limits[0] = cat->antenna_list[i].axes_limits[0];
         sta.axes_limits[1] = cat->antenna_list[i].axes_limits[1];
-        for(j = 0; j < k; ++j) {
-            if(cat_name_eq(sta.name, cat->position_list[j].name)) {
+        // use stations.cat as a fallback
+        for(j = 0; j < len_sta; ++j) {
+            if(cat_name_eq(sta.name, cat->station_list[j].name_ant)) {
+                memcpy(sta_name_alt, cat->station_list[j].name_pos, 8);
+                break;
+            }
+        }
+        sta_name_hit = false;
+        for(j = 0; j < len_pos; ++j) {
+            sta_name_hit |= cat_name_eq(cat->position_list[j].name, sta.name);
+            sta_name_hit |= cat_name_eq(cat->position_list[j].name, sta_name_alt);
+            if(sta_name_hit) {
                 memcpy(sta.id, cat->position_list[j].id, 2);
                 sta.x = cat->position_list[j].x;
                 sta.y = cat->position_list[j].y;
@@ -78,6 +92,7 @@ net_init(void) {
                 goto net_init_add_sta;
             }
         }
+        HH_ERR("Failed to find position entry for %.*s. Skipping.", (int) cat_name_len(sta.name), sta.name);
         continue;
 net_init_add_sta:
         net_add_sta(sta);

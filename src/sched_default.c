@@ -45,6 +45,8 @@ ILP_VAR_INDEX_IMPL(OBJ_MINIMA) { (void) prog; (void) args; return 0; } // no par
 
 #include "ilp.h"
 
+// helper function definitions
+
 unsigned int
 slew_time(const Station* const sta, 
     const Source* const src_fst, size_t seg_fst, 
