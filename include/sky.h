@@ -13,7 +13,7 @@ typedef struct {
     SourceEntry* entries;
 } Sky;
 
-extern Sky* sky;
+extern Sky* SKY;
 
 void
 sky_init(void);
@@ -21,7 +21,7 @@ void
 sky_free(void);
 bool* // Returns NULL if source not found, otherwise, returns pointer to source toggle
 sky_get_src(const char id[static 8], Source* out);
-bool*
+bool* // TODO: This should be internal, create an iterator macro for sky
 sky_get_src_by_idx(const size_t idx, Source* out);
 void
 sky_add_src(const Source src);

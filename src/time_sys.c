@@ -70,27 +70,27 @@ DateTime_to_gmst(DateTime dt) {
     return fmod(hrs, 24.0) * 15.0;
 }
 
-const char* months[12] = {
+const char* MONTH_NAMES[12] = {
 #define X(name_, val_) #name_,
     TIME_SYS_H__MONTHS
 #undef X
 };
 
-static TimeSys TIME_SYS_H__time_sys; TimeSys* time_sys = &TIME_SYS_H__time_sys;
+static TimeSys TIME_SYS_H__time_sys; TimeSys* TIME_SYS = &TIME_SYS_H__time_sys;
 
 void
 time_sys_init(void) {
-    time_sys->start = DateTime_from_mjd(((double) time(NULL)) / 86400.0 + 2440587.5  - 2400000.5);
-    time_sys->duration = 86400;
-    time_sys->scan_length = 30;
+    TIME_SYS->start = DateTime_from_mjd(((double) time(NULL)) / 86400.0 + 2440587.5  - 2400000.5);
+    TIME_SYS->duration = 86400;
+    TIME_SYS->scan_length = 30;
 }
 
 const char*
 time_sys_text(unsigned int seconds) {
-    DateTime dt = DateTime_from_mjd(DateTime_to_mjd(time_sys->start) + ((double) seconds / 86400.0));
+    DateTime dt = DateTime_from_mjd(DateTime_to_mjd(TIME_SYS->start) + ((double) seconds / 86400.0));
     static char buf[16];
     snprintf(buf, 5, "%04zu", dt.yrs);
-    snprintf(buf + 4, 4, "%s", months[dt.mon - 1]);
+    snprintf(buf + 4, 4, "%s", MONTH_NAMES[dt.mon - 1]);
     snprintf(buf + 7, 3, "%02zu", dt.day);
     buf[9] = ' ';
     snprintf(buf + 10, 3, "%02zu", dt.hrs);
@@ -102,12 +102,12 @@ time_sys_text(unsigned int seconds) {
 const char*
 time_sys_file(void) {
     static char buf[19];
-    snprintf(buf, 5, "%04zu", time_sys->start.yrs);
-    snprintf(buf + 4, 4, "%s", months[time_sys->start.mon - 1]);
-    snprintf(buf + 7, 3, "%02zu", time_sys->start.day);
+    snprintf(buf, 5, "%04zu", TIME_SYS->start.yrs);
+    snprintf(buf + 4, 4, "%s", MONTH_NAMES[TIME_SYS->start.mon - 1]);
+    snprintf(buf + 7, 3, "%02zu", TIME_SYS->start.day);
     buf[9] = '_';
-    snprintf(buf + 10, 3, "%02zu", time_sys->start.hrs);
-    snprintf(buf + 12, 3, "%02zu", time_sys->start.min);
+    snprintf(buf + 10, 3, "%02zu", TIME_SYS->start.hrs);
+    snprintf(buf + 12, 3, "%02zu", TIME_SYS->start.min);
     strcpy(buf + 14, ".skd");
     return buf;
 }
@@ -125,15 +125,15 @@ time_sys_xml_parse(struct xml_node* root) {
     start[xml_node_content(startTime)->length] = '\0';
     int mon;
     int result = sscanf(start, " %04zu.%02d.%02zu %02zu:%02zu:%02lf",
-        &time_sys->start.yrs,
+        &TIME_SYS->start.yrs,
         &mon,
-        &time_sys->start.day,
-        &time_sys->start.hrs,
-        &time_sys->start.min,
-        &time_sys->start.sec);
+        &TIME_SYS->start.day,
+        &TIME_SYS->start.hrs,
+        &TIME_SYS->start.min,
+        &TIME_SYS->start.sec);
     free(start);
     if(result != 6) return false;
-    time_sys->start.mon = (enum month) mon;
+    TIME_SYS->start.mon = (enum month) mon;
     // parse schedule end
     struct xml_node* endTime = xml_node_find(general, "endTime");
     if(endTime == NULL) return false;
@@ -150,7 +150,7 @@ time_sys_xml_parse(struct xml_node* root) {
     if(result != 6) return false;
     final.mon = (enum month) mon;
     // calculate duration
-    time_sys->duration = (unsigned int) ((DateTime_to_mjd(final) - DateTime_to_mjd(time_sys->start)) * 86400.0);
+    TIME_SYS->duration = (unsigned int) ((DateTime_to_mjd(final) - DateTime_to_mjd(TIME_SYS->start)) * 86400.0);
     // parse scan length
     struct xml_node* station = xml_node_find(root, "station");
     if(station == NULL) return false;
@@ -164,7 +164,7 @@ time_sys_xml_parse(struct xml_node* root) {
     if(scan_length == NULL) return false;
     strncpy(scan_length, (const char*) xml_node_content(minScan)->buffer, xml_node_content(minScan)->length);
     scan_length[xml_node_content(minScan)->length] = '\0';
-    result = sscanf(scan_length, " %u ", &time_sys->scan_length);
+    result = sscanf(scan_length, " %u ", &TIME_SYS->scan_length);
     free(scan_length);
     if(result != 1) return false;
     return true;

@@ -70,12 +70,12 @@ ILP_map_sta_build(ILP* const prog) {
     prog->count_sta = 0;
     Station sta;
     bool* active;
-    for(size_t i = 0; i < net->count; ++i) {
+    for(size_t i = 0; i < NET->count; ++i) {
         active = net_get_sta_by_idx(i, &sta);
         if(active != NULL && *active) (prog->count_sta)++;
     }
     HH_CALLOC(prog->map_sta, prog->count_sta * 2 + 1);
-    for(size_t i = 0, j = 0; i < net->count; ++i) {
+    for(size_t i = 0, j = 0; i < NET->count; ++i) {
         active = net_get_sta_by_idx(i, &sta);
         if(active != NULL && *active) {
             prog->map_sta[j++] = sta.id[0];
@@ -97,12 +97,12 @@ ILP_map_src_build(ILP* const prog) {
     prog->count_src = 0;
     Source src;
     bool* active;
-    for(size_t i = 0; i < sky->count; ++i) {
+    for(size_t i = 0; i < SKY->count; ++i) {
         active = sky_get_src_by_idx(i, &src);
         if(active != NULL && *active) (prog->count_src)++;
     }
     HH_CALLOC(prog->map_src, prog->count_src * 8 + 1);
-    for(size_t i = 0, j = 0, k; i < sky->count; ++i) {
+    for(size_t i = 0, j = 0, k; i < SKY->count; ++i) {
         active = sky_get_src_by_idx(i, &src);
         if(active != NULL && *active) {
             k = hh_strnlen(src.name, 8);
@@ -131,7 +131,7 @@ static void ILP_H__UNUSED
 ILP_init(ILP* const prog) {
     ILP_map_sta_build(prog);
     ILP_map_src_build(prog);
-    prog->count_seg = time_sys->duration / time_sys->scan_length;
+    prog->count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
 #define X(ty_) prog->count_var[(size_t) ty_] = ILP_VAR_COUNT_DECL(ty_)(prog);
     VAR_TYPES
 #undef X
@@ -155,9 +155,9 @@ ILP_free(ILP* prog) {
 static void ILP_H__UNUSED
 ILP_dump(const ILP* const prog) {
     HH_DBG("datetime start: %s", time_sys_text(0));
-    HH_DBG("datetime final: %s", time_sys_text(time_sys->duration));
-    HH_DBG("duration [s]: %u", time_sys->duration);
-    HH_DBG("scan length [s]: %u", time_sys->scan_length);
+    HH_DBG("datetime final: %s", time_sys_text(TIME_SYS->duration));
+    HH_DBG("duration [s]: %u", TIME_SYS->duration);
+    HH_DBG("scan length [s]: %u", TIME_SYS->scan_length);
     HH_DBG("scan count: %zu", prog->count_seg);
     HH_DBG("num stations: %zu", prog->count_sta);
     HH_DBG("num sources: %zu",  prog->count_src);

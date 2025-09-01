@@ -50,19 +50,19 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
         nk_label(ctx, "start date", NK_TEXT_LEFT);
         nk_layout_row_dynamic(ctx, row_height + 1.f, 3);
         if(vis_layer_cfg_field(ctx, state->buf_yrs, sizeof(state->buf_yrs), &state->defocus, nk_filter_decimal_abs)) {
-            DateTime start_temp = time_sys->start;
+            DateTime start_temp = TIME_SYS->start;
             start_temp.yrs = (size_t) atoi(state->buf_yrs);
             if(DateTime_to_mjd(start_temp) < 0.0) 
-                snprintf(state->buf_yrs, sizeof(state->buf_yrs), "%zu", time_sys->start.yrs);
-            else time_sys->start.yrs = start_temp.yrs;
+                snprintf(state->buf_yrs, sizeof(state->buf_yrs), "%zu", TIME_SYS->start.yrs);
+            else TIME_SYS->start.yrs = start_temp.yrs;
         }
-        time_sys->start.mon = (enum month) (nk_combo(ctx, months, sizeof(months) / sizeof(months[0]), 
-            (int) time_sys->start.mon - 1, (int) row_height, nk_vec2(200.f, row_height * 6.f)) + 1);    
+        TIME_SYS->start.mon = (enum month) (nk_combo(ctx, MONTH_NAMES, sizeof(MONTH_NAMES) / sizeof(MONTH_NAMES[0]), 
+            (int) TIME_SYS->start.mon - 1, (int) row_height, nk_vec2(200.f, row_height * 6.f)) + 1);    
         if(vis_layer_cfg_field(ctx, state->buf_day, sizeof(state->buf_day), &state->defocus, nk_filter_decimal_abs)) {
             size_t day = (size_t) atoi(state->buf_day);
-            if(day == 0 || day > months_count_days(time_sys->start.yrs, time_sys->start.mon)) 
-                snprintf(state->buf_day, sizeof(state->buf_day), "%zu", time_sys->start.day);
-            else time_sys->start.day = day;
+            if(day == 0 || day > months_count_days(TIME_SYS->start.yrs, TIME_SYS->start.mon)) 
+                snprintf(state->buf_day, sizeof(state->buf_day), "%zu", TIME_SYS->start.day);
+            else TIME_SYS->start.day = day;
         }
         nk_group_end(ctx);
     }
@@ -73,14 +73,14 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
         if(vis_layer_cfg_field(ctx, state->buf_hrs, sizeof(state->buf_hrs), &state->defocus, nk_filter_decimal_abs)) {
             size_t hrs = (size_t) atoi(state->buf_hrs);
             if((hrs == 0 && strlen(state->buf_hrs) == 0) || hrs > 23) 
-                snprintf(state->buf_hrs, sizeof(state->buf_hrs), "%zu", time_sys->start.hrs);
-            else time_sys->start.hrs = hrs;
+                snprintf(state->buf_hrs, sizeof(state->buf_hrs), "%zu", TIME_SYS->start.hrs);
+            else TIME_SYS->start.hrs = hrs;
         }
         if(vis_layer_cfg_field(ctx, state->buf_min, sizeof(state->buf_min), &state->defocus, nk_filter_decimal_abs)) {
             size_t min = (size_t) atoi(state->buf_min);
             if((min == 0 && strlen(state->buf_min) == 0) || min > 59) 
-                snprintf(state->buf_min, sizeof(state->buf_min), "%zu", time_sys->start.min);
-            else time_sys->start.min = min;
+                snprintf(state->buf_min, sizeof(state->buf_min), "%zu", TIME_SYS->start.min);
+            else TIME_SYS->start.min = min;
         }
         nk_group_end(ctx);
     }
@@ -91,17 +91,17 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
         nk_layout_row_dynamic(ctx, row_height + 1.f, 1);
         if(vis_layer_cfg_field(ctx, state->buf_dur, sizeof(state->buf_dur), &state->defocus, nk_filter_float)) {
             unsigned int duration = (unsigned int) (strtod(state->buf_dur, &temp) * 3600.0);
-            if(duration < time_sys->scan_length) {
-                snprintf(state->buf_dur, sizeof(state->buf_dur), "%u", time_sys->duration);
+            if(duration < TIME_SYS->scan_length) {
+                snprintf(state->buf_dur, sizeof(state->buf_dur), "%u", TIME_SYS->duration);
                 HH_MSG("Schedule duration must be greater than the scan length.");
-            } else time_sys->duration = duration;
+            } else TIME_SYS->duration = duration;
         }
         nk_group_end(ctx);
     }
     if(nk_group_begin(ctx, "group_final_date", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
         nk_label(ctx, "final date", NK_TEXT_LEFT);
-        nk_label(ctx, time_sys_text(time_sys->duration), NK_TEXT_LEFT);
+        nk_label(ctx, time_sys_text(TIME_SYS->duration), NK_TEXT_LEFT);
         nk_group_end(ctx);
     }
     if(nk_group_begin(ctx, "group_scan_length", NK_WINDOW_NO_SCROLLBAR)) {
@@ -110,17 +110,17 @@ vis_layer_cfg_layout(void* const data, struct nk_context* ctx, float row_height)
         nk_layout_row_dynamic(ctx, row_height + 1.f, 1);
         if(vis_layer_cfg_field(ctx, state->buf_len, sizeof(state->buf_len), &state->defocus, nk_filter_decimal_abs)) {
             unsigned int scan_length = (unsigned int) strtoul(state->buf_len, &temp, 10);
-            if(scan_length == 0 || scan_length >= time_sys->duration) {
-                snprintf(state->buf_len, sizeof(state->buf_len), "%u", time_sys->scan_length);
+            if(scan_length == 0 || scan_length >= TIME_SYS->duration) {
+                snprintf(state->buf_len, sizeof(state->buf_len), "%u", TIME_SYS->scan_length);
                 HH_MSG("Scan length must be less than the total schedule duration.");
-            } else time_sys->scan_length = scan_length;
+            } else TIME_SYS->scan_length = scan_length;
         }
         nk_group_end(ctx);
     }
     if(nk_group_begin(ctx, "group_scan_blocks", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
         nk_label(ctx, "scan blocks", NK_TEXT_LEFT);
-        nk_labelf(ctx, NK_TEXT_LEFT, "%u", time_sys->duration / time_sys->scan_length);
+        nk_labelf(ctx, NK_TEXT_LEFT, "%u", TIME_SYS->duration / TIME_SYS->scan_length);
         nk_group_end(ctx);
     }
     if(state->defocus) {
@@ -142,12 +142,12 @@ Vis_layer_cfg(Vis* const vis) {
     VisDesc_configure_panel(&desc, panel, NULL);
     struct vis_layer_cfg_state* state = Vis_add_layer(vis, desc);
     if(state == NULL) return false;
-    snprintf(state->buf_yrs, sizeof(state->buf_yrs), "%zu", time_sys->start.yrs);
-    snprintf(state->buf_day, sizeof(state->buf_day), "%zu", time_sys->start.day);
-    snprintf(state->buf_hrs, sizeof(state->buf_hrs), "%zu", time_sys->start.hrs);
-    snprintf(state->buf_min, sizeof(state->buf_min), "%zu", time_sys->start.min);
-    snprintf(state->buf_dur, sizeof(state->buf_dur), "%lf", (double) time_sys->duration / 3600.0);
+    snprintf(state->buf_yrs, sizeof(state->buf_yrs), "%zu", TIME_SYS->start.yrs);
+    snprintf(state->buf_day, sizeof(state->buf_day), "%zu", TIME_SYS->start.day);
+    snprintf(state->buf_hrs, sizeof(state->buf_hrs), "%zu", TIME_SYS->start.hrs);
+    snprintf(state->buf_min, sizeof(state->buf_min), "%zu", TIME_SYS->start.min);
+    snprintf(state->buf_dur, sizeof(state->buf_dur), "%lf", (double) TIME_SYS->duration / 3600.0);
     // length of scan in seconds
-    snprintf(state->buf_len, sizeof(state->buf_len), "%u", time_sys->scan_length);
+    snprintf(state->buf_len, sizeof(state->buf_len), "%u", TIME_SYS->scan_length);
     return true;
 }

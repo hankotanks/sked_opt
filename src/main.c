@@ -88,7 +88,7 @@ main(int argc, char* argv[]) {
         }
         glenv_new_frame();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        Vis_update_and_draw(&vis, (float) DateTime_to_gmst(time_sys->start));
+        Vis_update_and_draw(&vis, (float) DateTime_to_gmst(TIME_SYS->start));
         glenv_render(NK_ANTI_ALIASING_ON);
     }
     glenv_deinit();

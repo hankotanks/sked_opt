@@ -12,13 +12,13 @@ typedef struct {
     StationEntry* entries;
 } Network;
 
-extern Network* net;
+extern Network* NET;
 
 void
 net_add_sta(const Station sta);
 bool* // Returns NULL if station not found, otherwise, returns pointer to station toggle
 net_get_sta(const char id[static 2], Station* out);
-bool*
+bool* // TODO: This should be internal, create an iterator macro for the network
 net_get_sta_by_idx(const size_t idx, Station* out);
 void
 net_init(void);

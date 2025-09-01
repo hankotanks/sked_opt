@@ -116,7 +116,7 @@ SCHED_IMPL(SCHED_DEFAULT) {
                 for(size_t seg_fst = 0, seg_snd; seg_fst < prog.count_seg - 1; ++seg_fst) {
                     for(seg_snd = seg_fst + 1; seg_snd < prog.count_seg; ++seg_snd) {
                         sec_slew = slew_time(&sta, &src_fst, seg_fst, &src_snd, seg_snd);
-                        if((seg_snd - seg_fst - 1) * time_sys->scan_length >= sec_slew) continue;
+                        if((seg_snd - seg_fst - 1) * TIME_SYS->scan_length >= sec_slew) continue;
                         row_begin(&prog);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_fst, src_fst_idx, sta_idx);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_snd, src_snd_idx, sta_idx);

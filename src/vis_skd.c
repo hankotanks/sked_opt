@@ -77,7 +77,7 @@ vis_layer_net_layout(void* const data, struct nk_context* ctx, float row_height)
     nk_layout_row_dynamic(ctx, row_height, 2);
     Station sta;
     bool* active;
-    for(size_t i = 0, j = 0; i < net->count; ++i) {
+    for(size_t i = 0, j = 0; i < NET->count; ++i) {
         active = net_get_sta_by_idx(i, &sta);
         if(active == NULL) continue;
         if(state->buf_filter[0] != '\0' && !cat_name_contains(sta.name, state->buf_filter)) continue;
@@ -102,7 +102,7 @@ Vis_layer_net(Vis* const vis) {
     GLfloat* vertices = NULL;
     Station sta;
     bool* active;
-    for(size_t i = 0; i < net->count; ++i) {
+    for(size_t i = 0; i < NET->count; ++i) {
         active = net_get_sta_by_idx(i, &sta);
         if(active == NULL) continue;
         hh_arrput(vertices, (GLfloat) sta.lon);
@@ -171,7 +171,7 @@ vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height)
     nk_layout_row_dynamic(ctx, row_height, 1);
     Source src;
     bool* active;
-    for(size_t i = 0, j = 0; i < sky->count; ++i) {
+    for(size_t i = 0, j = 0; i < SKY->count; ++i) {
         active = sky_get_src_by_idx(i, &src);
         if(active == NULL) continue;
         if(state->buf_filter[0] != '\0' && !cat_name_contains(src.name, state->buf_filter)) continue;
@@ -195,7 +195,7 @@ Vis_layer_sky(Vis* const vis) {
     GLfloat* vertices = NULL;
     Source src;
     bool* active;
-    for(size_t i = 0; i < sky->count; ++i) {
+    for(size_t i = 0; i < SKY->count; ++i) {
         active = sky_get_src_by_idx(i, &src);
         if(active == NULL) continue;
         hh_arrput(vertices, (GLfloat) src.raan);

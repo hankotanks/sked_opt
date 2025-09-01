@@ -26,7 +26,7 @@ enum month {
 #undef X
 };
 
-extern const char* months[12];
+extern const char* MONTH_NAMES[12];
 
 size_t
 months_count_days(size_t yrs, enum month mon);
@@ -52,7 +52,7 @@ typedef struct {
     unsigned int duration, scan_length; // seconds
 } TimeSys;
 
-extern TimeSys* time_sys;
+extern TimeSys* TIME_SYS;
 
 void
 time_sys_init(void);

@@ -33,7 +33,7 @@ struct cat_t {
 #define X(type_) CAT_DECL(type_)* type_##_list;
     CAT_LIST
 #undef X
-}; extern struct cat_t* cat;
+}; extern struct cat_t* CAT;
 
 void cat_init(const char* path);
 
@@ -433,7 +433,7 @@ enum band {
 };
 
 // NOTE: If adding support for other bands... MUST update band_codes in cat.c
-extern const char band_codes[BAND_OTHER];
+extern const char BAND_CODES[BAND_OTHER];
 
 enum flux_entry_type {
     FLUX_B,
