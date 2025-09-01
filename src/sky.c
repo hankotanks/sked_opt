@@ -49,8 +49,8 @@ sky_init(void) {
                 switch(cat->flux_list[j].type) {
                 case FLUX_B:
                     if(cat->flux_list[j].band == BAND_OTHER) continue;
-                    if((src.band[cat->flux_list[j].band])) {
-                        HH_MSG("Encountered duplicate flux reading for %.*s's %c band. Keeping highest resolution.",
+                    if(src.band[cat->flux_list[j].band]) {
+                        HH_DBG("Encountered duplicate flux reading for %.*s's %c band. Keeping highest resolution.",
                             (int) cat_name_len(src.name), src.name, band_codes[cat->flux_list[j].band]);
                         // skip the new flux entry if the current one has more steps
                         if(hh_arrlen(src.flux[cat->flux_list[j].band]) > hh_arrlen(cat->flux_list[j].entry.b.flux)) continue;

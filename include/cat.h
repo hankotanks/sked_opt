@@ -14,10 +14,8 @@
     X(antenna) \
     X(mask) \
     X(source) \
-    X(flux)
-#if 0
-    X(cat_equip)
-#endif
+    X(flux) \
+    X(equip)
 
 #if defined(__GNUC__) || defined(__clang__)
 #define CAT_H__UNUSED __attribute__((unused))
@@ -530,6 +528,58 @@ parse_flux_result:
 CAT_IMPL_ENTRY_FREE(flux) {
     if(entry.type == FLUX_B) hh_arrfree(entry.entry.b.flux);
 }
+
+//
+// equip
+//
+
+CAT_DECL(equip) {
+    char name_ant[8];
+    // NOTE: Omitting id
+    char name_dat[8];
+    // NOTE: Omitting head stacks, tape count/speed
+    enum band bands[2];
+    double sefd[2];
+    // NOTE: Omitting SEFD param/Equip field
+};
+
+CAT_IMPL(equip, "equip.cat") {
+    hh_span_t span;
+    span.ptr = line;
+    span.len = 0;
+    // name_ant
+    if(!hh_span_next(&span)) return false;
+    if(span.len > 8) return false;
+    memcpy(entry->name_ant, span.ptr, span.len);
+    if(span.len < 8) entry->name_ant[span.len] = '\0';
+    // skip id
+    if(!hh_span_next(&span)) return false;
+    // name_dat
+    if(!hh_span_next(&span)) return false;
+    if(span.len > 8) return false;
+    memcpy(entry->name_dat, span.ptr, span.len);
+    if(span.len < 8) entry->name_dat[span.len] = '\0';
+    // skip head stacks, tape count/speed
+    if(!hh_span_next(&span)) return false;
+    if(!hh_span_next(&span)) return false;
+    for(size_t i = 0; i < 2; ++i) {
+        // band
+        if(!hh_span_next(&span)) return false;
+        if(hh_span_equals(span, "X")) entry->bands[i] = BAND_X;
+        else if(hh_span_equals(span, "S")) entry->bands[i] = BAND_S;
+        else if(hh_span_equals(span, "C")) entry->bands[i] = BAND_C;
+        else if(hh_span_equals(span, "K")) entry->bands[i] = BAND_K;
+        else entry->bands[i] = BAND_OTHER;
+        // sefd
+        if(!hh_span_next(&span)) return false;
+        if(entry->bands[i] != BAND_OTHER) {
+            if(!hh_span_double(span, &(entry->sefd[i]))) return false;
+        } else continue;
+    }
+    return true;
+}
+
+CAT_IMPL_ENTRY_FREE(equip) { (void) entry; } 
 
 #if 0
 enum EquipHeadStacks {

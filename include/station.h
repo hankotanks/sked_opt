@@ -10,6 +10,8 @@ typedef struct {
     enum dish_axes axes;
     struct dish_limits axes_limits[2];
     // TODO: Figure out which bands each station can observe
+    bool band[BAND_OTHER];
+    double sefd[BAND_OTHER];
 } Station;
 
 void

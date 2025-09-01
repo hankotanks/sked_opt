@@ -64,13 +64,35 @@ net_init(void) {
     Station sta;
     size_t len_sta = hh_arrlen(cat->station_list);
     size_t len_pos = hh_arrlen(cat->position_list);
+    size_t len_eqp = hh_arrlen(cat->equip_list);
     bool sta_name_hit;
     char sta_name_alt[8];
-    for(size_t i = 0, j; i < net->count; ++i) {
+    size_t sta_sefd_count = 0;
+    size_t sta_band_count;
+    for(size_t i = 0, j, k; i < net->count; ++i) {
         strncpy(sta.name, cat->antenna_list[i].name, 8);
         sta.axes = cat->antenna_list[i].axes;
         sta.axes_limits[0] = cat->antenna_list[i].axes_limits[0];
         sta.axes_limits[1] = cat->antenna_list[i].axes_limits[1];
+        // SEFD
+        sta_band_count = 0;
+        for(j = 0; j < BAND_OTHER; ++j) sta.band[j] = false;
+        for(j = 0; j < len_eqp; ++j) {
+            if(cat_name_eq(sta.name, cat->equip_list[j].name_ant)) {
+                for(k = 0; k < 2; ++k) {
+                    if(cat->equip_list[j].bands[k] == BAND_OTHER) continue;
+                    if(sta.band[cat->equip_list[j].bands[k]]) {
+                        HH_DBG("Encountered duplicate SEFD reading for %.*s's %c band. Keeping highest.",
+                            (int) cat_name_len(sta.name), sta.name, band_codes[cat->equip_list[j].bands[k]]);
+                        // skip the new flux entry if the current one has more steps
+                        if(cat->equip_list[j].sefd[k] < sta.sefd[cat->equip_list[j].bands[k]]) continue;
+                    } else sta_band_count++;
+                    sta.band[cat->equip_list[j].bands[k]] = true;
+                    sta.sefd[cat->equip_list[j].bands[k]] = cat->equip_list[j].sefd[k];
+                }
+            }
+        }
+        if(sta_band_count > 0) sta_sefd_count++;
         // use stations.cat as a fallback
         for(j = 0; j < len_sta; ++j) {
             if(cat_name_eq(sta.name, cat->station_list[j].name_ant)) {
@@ -95,8 +117,10 @@ net_init(void) {
         HH_ERR("Failed to find position entry for %.*s. Skipping.", (int) cat_name_len(sta.name), sta.name);
         continue;
 net_init_add_sta:
+        // TODO: Consider handling of stations without SEFD readings (sta_band_count == 0)
         net_add_sta(sta);
     }
+    HH_MSG("Found SEFD readings for %zu out of %zu antennas.", sta_sefd_count, net->count);
 }
 
 void
