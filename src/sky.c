@@ -62,19 +62,13 @@ sky_init(void) {
                 }
             }
         }
-        if(src_band_count > 0) {
-            src_flux_count++;
+        if(src_band_count > 0) src_flux_count++;
+        // TODO: Consider handling of sources without flux readings (src_band_count == 0)
 #if 0
-            HH_DBG("Found flux readings for %.*s across %zu bands.", 
-                (int) cat_name_len(src.name), src.name, src_band_count);
+        if(src_band_count > 0) HH_DBG("Found flux readings for %.*s across %zu bands.", (int) cat_name_len(src.name), src.name, src_band_count);
+        else HH_DBG("No flux readings found for %.*s. Skipping.", (int) cat_name_len(src.name), src.name);
 #endif
-            // add source
-            sky_add_src(src);
-        } else {
-#if 0
-            HH_DBG("No flux readings found for %.*s. Skipping.", (int) cat_name_len(src.name), src.name);
-#endif
-        }
+        sky_add_src(src);
     }
     HH_MSG("Found flux readings for %zu out of %zu sources.", src_flux_count, SKY->count);
 }

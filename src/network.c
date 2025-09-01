@@ -26,7 +26,7 @@ void
 net_add_sta(const Station sta) {
     for(size_t i = net_hash(sta.id), j = 0, k; j < NET->count; ++j) {
         k = (i + j) % NET->count;
-        if(!NET->entries[k].used || (memcmp(NET->entries[k].station.id, sta.id, 2) == 0)) {
+        if(!(NET->entries[k].used)) {
             NET->entries[k].station = sta;
             NET->entries[k].used = true;
             NET->entries[k].active = false;
@@ -66,7 +66,7 @@ net_init(void) {
     size_t len_pos = hh_arrlen(CAT->position_list);
     size_t len_eqp = hh_arrlen(CAT->equip_list);
     bool sta_name_hit;
-    char sta_name_alt[8];
+    char sta_name_pos[8];
     size_t sta_sefd_count = 0;
     size_t sta_band_count;
     for(size_t i = 0, j, k; i < NET->count; ++i) {
@@ -96,14 +96,14 @@ net_init(void) {
         // use stations.cat as a fallback
         for(j = 0; j < len_sta; ++j) {
             if(cat_name_eq(sta.name, CAT->station_list[j].name_ant)) {
-                memcpy(sta_name_alt, CAT->station_list[j].name_pos, 8);
+                memcpy(sta_name_pos, CAT->station_list[j].name_pos, 8);
                 break;
             }
         }
         sta_name_hit = false;
         for(j = 0; j < len_pos; ++j) {
             sta_name_hit |= cat_name_eq(CAT->position_list[j].name, sta.name);
-            sta_name_hit |= cat_name_eq(CAT->position_list[j].name, sta_name_alt);
+            sta_name_hit |= cat_name_eq(CAT->position_list[j].name, sta_name_pos);
             if(sta_name_hit) {
                 memcpy(sta.id, CAT->position_list[j].id, 2);
                 sta.x = CAT->position_list[j].x;
@@ -145,21 +145,23 @@ net_xml_parse(struct xml_node* root) {
     struct xml_string* name;
     Station sta;
     bool* active;
-    for(size_t i = 0; i < xml_node_children(stations); ++i) {
+    for(size_t i = 0, j; i < xml_node_children(stations); ++i) {
         child = xml_node_child(stations, i);
         if(xml_node_name_equals(child, "station")) {
             name = xml_node_content(child);
-            for(size_t i = 0; i < NET->count; ++i) {
-                active = net_get_sta_by_idx(i, &sta);
+            for(j = 0; j < NET->count; ++j) {
+                active = net_get_sta_by_idx(j, &sta);
                 if(active == NULL) continue;
-                if(cat_name_len(sta.name) != name->length) continue;
-                if(memcmp(name->buffer, sta.name, name->length) == 0) {
+                // HH_MSG("%.*s [%zu] %.*s [%zu]", (int) name->length, name->buffer, name->length, (int) cat_name_len(sta.name), sta.name, cat_name_len(sta.name));
+                if(memcmp(sta.name, name->buffer, cat_name_len(sta.name)) == 0) {
                     HH_MSG("Added station: %.*s", (int) name->length, name->buffer);
                     *active = true;
-                }
+                    break;
+                } else active = NULL;
             }
+            if(active == NULL) 
+                HH_MSG("Failed to add station: %.*s", (int) name->length, name->buffer);
         }
     }
     return true;
 }
-
