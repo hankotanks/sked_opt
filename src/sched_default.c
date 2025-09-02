@@ -17,6 +17,8 @@
 #include "ilp_fwd.h"
 
 #define SKY_COV_CELL_COUNT 13
+// TODO: This should be configurable somehow
+#define SEG_MAX_SLEWING 3
 
 ILP_VAR_COUNT_IMPL(STA_ACTIVE) { return prog->count_seg * prog->count_src * prog->count_sta; }
 ILP_VAR_INDEX_IMPL(STA_ACTIVE) { // seg, src, sta
@@ -66,8 +68,8 @@ slew_time(const Station* const sta,
     // TODO: Continue from SchedulerILP.cpp:248
     // look at Station::isVisible
     if(!Station_src_is_vis(sta, src_snd, seconds_snd)) return UINT_MAX;
-    
-    return 0;
+    unsigned int seconds_slew = Station_slew_time(sta, src_fst, src_snd, seconds_fst, seconds_snd);
+    return seconds_slew;
 }
 
 double wrap_to_two_pi(double angle) {
@@ -92,6 +94,7 @@ SCHED_IMPL(SCHED_DEFAULT) {
     ILP prog;
     ILP_init(&prog);
     ILP_dump(&prog);
+    HH_DBG("Initialized ILP.");
     // each station can only observe one source at a time
     // SchedulerILP.cpp:96
     {
@@ -103,6 +106,7 @@ SCHED_IMPL(SCHED_DEFAULT) {
             row_end_as_constr(&prog, LE, 1.0);
         }
     }
+    HH_DBG("Added contraint: Stations can only observe one source at a time.");
     } // SCOPE END
     // a valid scan requires >= 2 participating stations
     // SchedulerILP.cpp:120
@@ -128,17 +132,20 @@ SCHED_IMPL(SCHED_DEFAULT) {
             row_end_as_constr(&prog, GE, 0.0);
         }
     }
+    HH_DBG("Added constraint: A valid scan requires >= 2 participating stations.");
     } // SCOPE END
     // must be sufficient time to slew between two targets
     // SchedulerILP.cpp:110
     {
     unsigned int sec_slew;
+    size_t count = 0, count_max = prog.count_sta * prog.count_src * prog.count_src * prog.count_seg * (SEG_MAX_SLEWING + 1);
     ILP_map_sta_it(&prog, sta) {
         ILP_map_src_it(&prog, src_fst) {
             ILP_map_src_it(&prog, src_snd) {
-                for(size_t seg_fst = 0, seg_snd; seg_fst < prog.count_seg - 1; ++seg_fst) {
-                    for(seg_snd = seg_fst + 1; seg_snd < prog.count_seg; ++seg_snd) {
+                for(size_t seg_fst = 0, seg_snd; seg_fst < prog.count_seg - 1 - SEG_MAX_SLEWING; ++seg_fst) {
+                    for(seg_snd = seg_fst + 1; seg_snd < seg_fst + 1 + SEG_MAX_SLEWING; ++seg_snd) {
                         sec_slew = slew_time(&sta, &src_fst, seg_fst, &src_snd, seg_snd);
+                        HH_DBG("[%zu / %zu]", count++, count_max);
                         if((seg_snd - seg_fst - 1) * TIME_SYS->scan_length >= sec_slew) continue;
                         row_begin(&prog);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_fst, src_fst_idx, sta_idx);
@@ -149,6 +156,7 @@ SCHED_IMPL(SCHED_DEFAULT) {
             }
         }
     }
+    HH_DBG("Added constraint: Must be sufficient time to slew between two sources.");
     } // SCOPE END
     // keep sky coverage cells up to date
     // SchedulerILP.cpp:136
@@ -163,8 +171,9 @@ SCHED_IMPL(SCHED_DEFAULT) {
             row_set(&prog, 1.0, STA_SKY_COV, sta_idx, box_idx);
             row_end_as_constr(&prog, LE, 0.0);
         }
+    } 
+    HH_DBG("Added constraint: Keep sky coverage cells up to date.");
     } // SCOPE END
-    }
     // objective
     // ShedulerILP.cpp:146
     {
@@ -179,8 +188,9 @@ SCHED_IMPL(SCHED_DEFAULT) {
     row_set(&prog, 1.0, OBJ_MINIMA);
     row_end_as_obj(&prog);
     set_maxim(prog.rec);
+    HH_DBG("Added objective.");
     } // SCOPE END
-    HH_DBG("Finished building constraints.");
+    HH_DBG("Finished building constraints and objective function.");
     if(ILP_solve(&prog)) {
         row_begin_load(&prog);
         for(size_t seg = 0, src; seg < prog.count_seg; ++seg) {

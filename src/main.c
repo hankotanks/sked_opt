@@ -1,3 +1,4 @@
+#include "astro.h"
 #define HH_IMPL
 #include "hh.h"
 #undef HH_IMPL
@@ -56,6 +57,8 @@ main(int argc, char* argv[]) {
     char* path_cat = hh_path_join(hh_path(path_root), "catalogs");
     cat_init(path_cat);
     hh_arrfree(path_cat);
+    // initialize earth params
+    earth_params_init();
     // initialize network
     net_init();
     // initialize sky
@@ -96,6 +99,7 @@ main(int argc, char* argv[]) {
     // clean up
     Vis_free(&vis);
 main_headless_cleanup:
+    earth_params_free();
     net_free();
     sky_free();
     // finally free catalog
