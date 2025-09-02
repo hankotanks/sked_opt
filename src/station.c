@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <math.h>
 
 #include <sofa.h>
 #include <sofam.h>
@@ -36,7 +37,7 @@ Station_dump(const Station* const sta) {
     }
     printf("]:\n");
     printf("    max slew rate [deg/min]: %.2lf\n", sta->axes_limits[0].rate);
-    printf("    acc. [deg/min^2]: %zu\n", sta->axes_limits[0].c);
+    printf("    const. overhead: %u\n", sta->axes_limits[0].overhead);
     printf("    min. [deg]: %.2lf\n", sta->axes_limits[0].limits[0]);
     printf("    max. [deg]: %.2lf\n", sta->axes_limits[0].limits[1]);
     printf("  axis limits [");
@@ -57,10 +58,49 @@ Station_dump(const Station* const sta) {
     }
     printf("]:\n");
     printf("    max slew rate [deg/min]: %.2lf\n", sta->axes_limits[1].rate);
-    printf("    acc. [deg/min^2]: %zu\n", sta->axes_limits[1].c);
+    printf("    const. overhead: %u\n", sta->axes_limits[1].overhead);
     printf("    phys. min. [deg]: %.2lf\n", sta->axes_limits[1].limits[0]);
     printf("    phys. max. [deg]: %.2lf\n", sta->axes_limits[1].limits[1]);
 }
+
+#define A 6378136.6
+#define F 1.0 / 298.25642
+#define E2 (2.0 * F - F * F)
+
+void
+Station_lat_lon_alt_from_crs(const Station* const sta, double* lon, double* lat, double* alt) {
+    (*lon) = atan2(sta->x, sta->y);
+    double r = sqrt(sta->x * sta->x + sta->y * sta->y);
+    (*lat) = atan2(sta->z, r);
+    double N;
+    for(size_t i = 0; i < 6; ++i) {
+        N = A / sqrt(1.0 - E2 * sin(*lat) * sin(*lat));
+        (*alt) = r / cos(*lat) - N;
+        (*lat) = atan2(sta->z * (N + (*alt)), r * ((1.0 - E2) * N + (*alt)));
+    }
+}
+
+void
+Station_geo_to_loc(const Station* const sta, double g2l[static 3][3]) {
+    double lon, lat, alt;
+    Station_lat_lon_alt_from_crs(sta, &lon, &lat, &alt);
+
+    double theta = DPI / 2.0 - lat;
+
+    double theta_cos = cos(theta);
+    double theta_sin = sin(theta);
+    double roty[3][3] = {{ theta_cos, 0.0, -theta_sin }, { 0.0, -1.0, 0.0 }, { theta_sin, 0.0, theta_cos }};
+
+    double lon_cos = cos(lon);
+    double lon_sin = sin(lon);
+
+    double rotz[3][3] = {{ lon_cos, lon_sin, 0.0 }, { -lon_sin, lon_cos, 0.0 }, { 0.0, 0.0, 1.0 }};
+    iauRxr( roty, rotz, g2l);
+}
+
+#undef A
+#undef F
+#undef E2
 
 #define OMEGA 7.2921151467069805e-05
 #define MJD_INITIAL 2400000.5
@@ -139,33 +179,153 @@ Station_az_el(const Station* const sta, const Source* const src, unsigned int se
 #undef OMEGA
 #undef MJD_INITIAL
 
-#define A 6378136.6
-#define F 1.0 / 298.25642
-#define E2 (2.0 * F - F * F)
-
 void
-Station_geo_to_loc(const Station* const sta, double g2l[static 3][3]) {
+Station_ha_dc(const Station* const sta, const Source* const src, unsigned int seconds, double* ha, double* dc) {
+    DateTime dt = TIME_SYS->start;
+    dt.sec += (double) seconds;
+    double gmst = DateTime_to_gmst(dt);
+
     double lon, lat, alt;
-    lon = atan2(sta->x, sta->y);
-    double r = sqrt(sta->x * sta->x + sta->y * sta->y);
-    lat = atan2(sta->z, r);
+    Station_lat_lon_alt_from_crs(sta, &lon, &lat, &alt);
 
-    double N;
-    for(size_t i = 0; i < 6; ++i) {
-        N = A / sqrt(1.0 - E2 * sin(lat) * sin(lat));
-        alt = r / cos(lat) - N;
-        lat = atan2(sta->z * (N + alt), r * ((1.0 - E2) * N + alt));
+    (*dc) = src->decl;
+    (*ha) = gmst + lon - src->raan;
+    while((*ha) >  DPI) (*ha) -= D2PI;
+    while((*ha) < -DPI) (*ha) += D2PI;
+}
+
+bool
+Station_axis_inside_cable_wrap(const Station* const sta, double ax_fst, double ax_snd) {
+    // TODO: Check importance of axes offsets
+    // See: AbstractCableWrap.cpp:121
+    struct { double offset[2]; } ax_off_fst = { 0 };
+    struct { double offset[2]; } ax_off_snd = { 0 };
+    struct dish_limits ax_lim_fst, ax_lim_snd;
+    ax_lim_fst = sta->axes_limits[0];
+    ax_lim_snd = sta->axes_limits[1];
+    if(((ax_lim_fst.limits[1] - ax_off_fst.offset[1]) - (ax_lim_fst.limits[0] + ax_off_fst.offset[0])) < D2PI) {
+        double ax_lim_fst_low = fmod(ax_lim_fst.limits[0] + ax_off_fst.offset[0], D2PI);
+        double ax_lim_fst_up = fmod(ax_lim_fst.limits[1] - ax_off_fst.offset[1], D2PI);
+        if(ax_lim_fst_up < ax_lim_fst_low) {
+            // over 0 point
+            if(((ax_fst < ax_lim_fst_low) && (ax_fst > ax_lim_fst_up)) || \
+                (ax_snd < (ax_lim_snd.limits[0] + ax_off_snd.offset[0])) || \
+                (ax_snd > (ax_lim_snd.limits[1] - ax_off_snd.offset[1]))) return false;
+        } else {
+            // not over 0 point
+            if(((ax_fst < ax_lim_fst_low) || (ax_fst > ax_lim_fst_up)) || \
+                (ax_snd < (ax_lim_snd.limits[0] + ax_off_snd.offset[0])) || \
+                (ax_snd > (ax_lim_snd.limits[1] - ax_off_snd.offset[1]))) return false;
+        }
+    } else {
+        if((ax_snd < (ax_lim_snd.limits[0] + ax_off_snd.offset[0])) || \
+            ax_snd > (ax_lim_snd.limits[1] - ax_off_snd.offset[1])) return false;
     }
+    return true;
+}
 
-    double theta = DPI / 2.0 - lat;
+bool
+Station_src_is_vis(const Station* const sta, const Source* const src, unsigned int seconds) {
+    double ax_fst, ax_snd;
+    switch(sta->axes) {
+    case AXES_AZEL:
+        Station_az_el(sta, src, seconds, &ax_fst, &ax_snd);
+        break;
+    case AXES_HADC:
+        Station_ha_dc(sta, src, seconds, &ax_fst, &ax_snd);
+        break;
+    case AXES_XYEW: {
+        double az, el;
+        Station_az_el(sta, src, seconds, &az, &el);
+        ax_fst = atan2(cos(el) * cos(az), sin(el));
+        ax_snd = asin(cos(el) * sin(az));
+    } break;
+    case AXES_XYNS: {
+        double az, el;
+        Station_az_el(sta, src, seconds, &az, &el);
+        ax_fst = atan2(cos(el) * sin(az), sin(el)); // same as XYEW case, just rotated
+        ax_snd = asin(cos(el) * cos(az));
+    } break;
+    default: HH_UNREACHABLE;
+    }
+    return Station_axis_inside_cable_wrap(sta, ax_fst, ax_snd);  
+}
 
-    double theta_cos = cos(theta);
-    double theta_sin = sin(theta);
-    double roty[3][3] = {{ theta_cos, 0.0, -theta_sin }, { 0.0, -1.0, 0.0 }, { theta_sin, 0.0, theta_cos }};
+unsigned int
+Station_slew_time_by_axis(const Station* const sta, double delta, bool snd) {
+    double rate = sta->axes_limits[snd].rate;
+    double acc = rate;
+    unsigned int overhead = sta->axes_limits[snd].overhead;
+    double t_acc = rate / acc; // TODO: This is currently always 1.0
+    double s_acc = 2.0 * (acc * t_acc * t_acc / 2.0); // TODO: Can be simplified?
+    double t;
+    if(delta < s_acc) t = 2.0 * sqrt(delta / acc);
+    else t = 2.0 * t_acc + (delta - s_acc) / rate;
+    if(fmod(t, 1.0) > 0.85) ++t;
+    // TODO: Minor deviation from VieSched++
+    // See: AbstractAntenna.cpp:73
+    if(rate < 0.015) ++t;
+    return (unsigned int) ceil(t) + overhead;
+}
 
-    double lon_cos = cos(lon);
-    double lon_sin = sin(lon);
-
-    double rotz[3][3] = {{ lon_cos, lon_sin, 0.0 }, { -lon_sin, lon_cos, 0.0 }, { 0.0, 0.0, 1.0 }};
-    iauRxr( roty, rotz, g2l);
+unsigned int
+Station_slew_time(const Station* const sta, const Source* const src_fst, const Source* const src_snd, unsigned int seconds_fst, unsigned int seconds_snd){
+    // TODO: There are special cases for a few antennas that I need to handle
+    // See: Initializer.cpp: 437
+    double ax_fst[2], ax_snd[2];
+    switch(sta->axes) {
+    case AXES_AZEL: {
+        Station_az_el(sta, src_fst, seconds_fst, &ax_fst[0], &ax_fst[1]);
+        Station_az_el(sta, src_snd, seconds_snd, &ax_snd[0], &ax_snd[1]);
+    } break;
+    case AXES_HADC:
+        Station_ha_dc(sta, src_fst, seconds_fst, &ax_fst[0], &ax_fst[1]);
+        Station_ha_dc(sta, src_snd, seconds_snd, &ax_snd[0], &ax_snd[1]);
+        break;
+    case AXES_XYEW: {
+        double az_fst, el_fst, az_snd, el_snd;
+        Station_az_el(sta, src_fst, seconds_fst, &az_fst, &el_fst);
+        Station_az_el(sta, src_snd, seconds_snd, &az_snd, &el_snd);
+        // first axis
+        double el_cos, el_sin, az_cos, az_sin;
+        el_cos = cos(el_fst);
+        el_sin = sin(el_fst);
+        az_cos = cos(az_fst);
+        az_sin = sin(az_fst);
+        ax_fst[0] = atan2(el_cos * az_cos, el_sin);
+        ax_fst[1] = asin(el_cos * az_sin);
+        // second axis
+        el_cos = cos(el_snd);
+        el_sin = sin(el_snd);
+        az_cos = cos(az_snd);
+        az_sin = sin(az_snd);
+        ax_snd[0] = atan2(el_cos * az_cos, el_sin);
+        ax_snd[1] = asin(el_cos * az_sin);
+    } break;
+    case AXES_XYNS: {
+        double az_fst, el_fst, az_snd, el_snd;
+        Station_az_el(sta, src_fst, seconds_fst, &az_fst, &el_fst);
+        Station_az_el(sta, src_snd, seconds_snd, &az_snd, &el_snd);
+        // first axis
+        double el_cos, el_sin, az_cos, az_sin;
+        el_cos = cos(el_fst);
+        el_sin = sin(el_fst);
+        az_cos = cos(az_fst);
+        az_sin = sin(az_fst);
+        ax_fst[0] = atan2(el_cos * az_sin, el_sin);
+        ax_fst[1] = asin(el_cos * az_cos);
+        // second axis
+        el_cos = cos(el_snd);
+        el_sin = sin(el_snd);
+        az_cos = cos(az_snd);
+        az_sin = sin(az_snd);
+        ax_snd[0] = atan2(el_cos * az_sin, el_sin);
+        ax_snd[1] = asin(el_cos * az_cos);
+    } break;
+    default: HH_UNREACHABLE;
+    }
+    unsigned int t_fst, t_snd;
+    t_fst = Station_slew_time_by_axis(sta, fabs(ax_fst[0] - ax_snd[0]), true);
+    t_snd = Station_slew_time_by_axis(sta, fabs(ax_fst[1] - ax_snd[1]), false);
+    return t_fst > t_snd ? t_fst : t_snd;
 }

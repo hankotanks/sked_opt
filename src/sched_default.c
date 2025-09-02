@@ -1,10 +1,12 @@
 #include "sched.h"
 
 #include <stdbool.h>
+#include <limits.h>
 
 #include <sofam.h>
 
 #include "cat.h"
+#include "station.h"
 
 #define VAR_TYPES \
     X(STA_ACTIVE) \
@@ -63,6 +65,8 @@ slew_time(const Station* const sta,
     Station_az_el(sta, src_snd, seconds_snd, &az_snd, &el_snd);
     // TODO: Continue from SchedulerILP.cpp:248
     // look at Station::isVisible
+    if(!Station_src_is_vis(sta, src_snd, seconds_snd)) return UINT_MAX;
+    
     return 0;
 }
 

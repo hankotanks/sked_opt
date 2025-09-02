@@ -74,6 +74,27 @@ net_init(void) {
         sta.axes = CAT->antenna_list[i].axes;
         sta.axes_limits[0] = CAT->antenna_list[i].axes_limits[0];
         sta.axes_limits[1] = CAT->antenna_list[i].axes_limits[1];
+#if 0
+        // TODO: implement cable_wrap
+        // Switch across different axes types
+        switch(sta.axes) {
+        case AXES_AZEL: {
+            double az, el;
+            Station_az_el(sta, src, seconds, &az, &el);
+
+        } break;
+        case AXES_HADC: {
+
+        } break;
+        case AXES_XYEW: {
+
+        } break;
+        case AXES_XYNS: {
+
+        } break;
+        default: HH_UNREACHABLE;
+        }
+#endif
         // SEFD
         sta_band_count = 0;
         for(j = 0; j < BAND_OTHER; ++j) sta.band[j] = false;

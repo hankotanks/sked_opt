@@ -1,6 +1,9 @@
 #ifndef STATION_H__
 #define STATION_H__
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "cat.h"
 #include "source.h"
 
@@ -8,6 +11,12 @@ typedef struct {
     char id[2];
     char name[8];
     double x, y, z, lat, lon;
+    struct {
+        double limit_low[2];
+        double limit_low_offset[2];
+        double limit_up[2];
+        double limit_up_offset[2];
+    } cable_wrap;
     enum dish_axes axes;
     struct dish_limits axes_limits[2];
     // TODO: Figure out which bands each station can observe
@@ -18,9 +27,21 @@ typedef struct {
 void
 Station_dump(const Station* const sta);
 void
+Station_lat_lon_alt_from_crs(const Station* const sta, 
+    double* lon, double* lat, double* alt);
+void
+Station_geo_to_loc(const Station* const sta, double g2l[static 3][3]);
+void
 Station_az_el(const Station* const sta, const Source* const src, unsigned int seconds,
     double* az, double* el);
 void
-Station_geo_to_loc(const Station* const sta, double g2l[static 3][3]);
+Station_ha_dc(const Station* const sta, const Source* const src, unsigned int seconds,
+    double* ha, double* dc);
+bool
+Station_axis_inside_cable_wrap(const Station* const sta, double axis_fst, double axis_snd);
+bool
+Station_src_is_vis(const Station* const sta, const Source* const src, unsigned int seconds);
+unsigned int
+Station_slew_time(const Station* const sta, const Source* const src_fst, const Source* const src_snd, unsigned int seconds_fst, unsigned int seconds_snd);
 
 #endif // STATION_H__

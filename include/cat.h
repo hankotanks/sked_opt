@@ -204,7 +204,7 @@ enum dish_axes {
 struct dish_limits {
     double rate;
     double limits[2];
-    size_t c;
+    unsigned int overhead;
 };
 
 CAT_DECL(antenna) {
@@ -241,11 +241,13 @@ CAT_IMPL(antenna, "antenna.cat") {
     if(!hh_span_next(&span)) return false;
     if(!hh_span_double(span, &entry->offset)) return false;
     // axes_limits
+    size_t temp;
     for(size_t i = 0, j; i <= 1; ++i) {
         if(!hh_span_next(&span)) return false;
         if(!hh_span_double(span, &(entry->axes_limits[i].rate))) return false;
         if(!hh_span_next(&span)) return false;
-        if(!hh_span_size_t(span, &(entry->axes_limits[i].c))) return false;
+        if(!hh_span_size_t(span, &temp)) return false;
+        entry->axes_limits[i].overhead = (unsigned int) temp;
         for(j = 0; j <= 1; ++j) {
             if(!hh_span_next(&span)) return false;
             if(!hh_span_double(span, &(entry->axes_limits[i].limits[j]))) return false;
