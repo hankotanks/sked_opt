@@ -14,7 +14,7 @@
 #endif
 
 enum var_type {
-#define X(ty_) ty_,
+#define X(ty_, is_binary_) ty_,
     VAR_TYPES
 #undef X
     VAR_COUNT
@@ -36,11 +36,11 @@ typedef struct {
 #define ILP_VAR_INDEX_DECL(ty_) ILP_FWD_H__index_##ty_
 #define ILP_VAR_INDEX_IMPL(ty_) size_t ILP_VAR_INDEX_DECL(ty_)(const ILP* const prog, va_list args)
 
-#define X(ty_) ILP_VAR_COUNT_IMPL(ty_);
+#define X(ty_, is_binary_) ILP_VAR_COUNT_IMPL(ty_);
     VAR_TYPES
 #undef X
 
-#define X(ty_) ILP_VAR_INDEX_IMPL(ty_);
+#define X(ty_, is_binary_) ILP_VAR_INDEX_IMPL(ty_);
     VAR_TYPES
 #undef X
 

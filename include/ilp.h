@@ -132,13 +132,26 @@ ILP_init(ILP* const prog) {
     ILP_map_sta_build(prog);
     ILP_map_src_build(prog);
     prog->count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
-#define X(ty_) prog->count_var[(size_t) ty_] = ILP_VAR_COUNT_DECL(ty_)(prog);
+#define X(ty_, is_binary_) prog->count_var[(size_t) ty_] = ILP_VAR_COUNT_DECL(ty_)(prog);
     VAR_TYPES
 #undef X
     prog->total_var = 0;
     for(size_t i = 0; i < VAR_COUNT; ++i) prog->total_var += prog->count_var[i];
-    HH_MALLOC(prog->buf, sizeof(*(prog->buf)) * prog->total_var);
+    HH_MALLOC(prog->buf, sizeof(*(prog->buf)) * (prog->total_var + 1));
     prog->rec = make_lp(0, (int) prog->total_var);
+    size_t idx = 0, offset = 1;
+#define X(ty_, is_binary_) \
+        if(is_binary_) { \
+            for(size_t j = 0; j < prog->count_var[idx]; ++j) { \
+                set_binary(prog->rec, (int) (offset + j), TRUE); \
+            } \
+        } \
+        offset += prog->count_var[idx]; \
+        idx++;
+        VAR_TYPES
+#undef X
+    (void) idx;
+    HH_MSG("%zu, %d", offset, get_Ncolumns(prog->rec));
     HH_ASSERT(prog->rec != NULL, "Failed to construct ILP.");
 }
 
@@ -161,7 +174,7 @@ ILP_dump(const ILP* const prog) {
     HH_DBG("scan count: %zu", prog->count_seg);
     HH_DBG("num stations: %zu", prog->count_sta);
     HH_DBG("num sources: %zu",  prog->count_src);
-#define X(ty_) HH_DBG("%s count: %zu", #ty_, prog->count_var[(size_t) ty_]);
+#define X(ty_, is_binary_) HH_DBG("%s count: %zu", #ty_, prog->count_var[(size_t) ty_]);
     VAR_TYPES
 #undef X
     HH_DBG("total variable count: %zu", prog->total_var);
@@ -174,7 +187,7 @@ ILP_solve(const ILP* const prog) {
 
 static void ILP_H__UNUSED
 row_begin(ILP* const prog) {
-    memset(prog->buf, 0, sizeof(*(prog->buf)) * prog->total_var);
+    memset(prog->buf, 0, sizeof(*(prog->buf)) * (prog->total_var + 1));
 }
 
 static void ILP_H__UNUSED
@@ -233,14 +246,14 @@ ILP_H__ILP_map_src_it_helper(const ILP* const prog, size_t* i, Source* src) {
 static size_t
 ILP_H__row_idx(const ILP* const prog, enum var_type ty, va_list args) {
     size_t idx = SIZE_MAX, offset = 1;
-#define X(ty_) \
+#define X(ty_, is_binary_) \
     if(ty_ == ty) goto row_idx_post_offset; \
     offset += ILP_VAR_COUNT_DECL(ty_)(prog);
     VAR_TYPES
 #undef X
 if(false) goto row_idx_post_offset; // avoid unused warning
 row_idx_post_offset:
-#define X(ty_) if(ty_ == ty) idx = ILP_VAR_INDEX_DECL(ty_)(prog, args);
+#define X(ty_, is_binary_) if(ty_ == ty) idx = ILP_VAR_INDEX_DECL(ty_)(prog, args);
     VAR_TYPES
 #undef X
     if(idx == SIZE_MAX) HH_UNREACHABLE;

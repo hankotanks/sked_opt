@@ -3,8 +3,8 @@
 #include <stdbool.h>
 
 #define VAR_TYPES \
-    X(FIRST) \
-    X(SECOND)
+    X(FIRST, false) \
+    X(SECOND, false)
 
 #include "ilp_fwd.h"
 

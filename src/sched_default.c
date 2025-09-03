@@ -8,13 +8,12 @@
 #include "cat.h"
 #include "station.h"
 #include "time_sys.h"
-#include "astro.h"
 
 #define VAR_TYPES \
-    X(STA_ACTIVE) \
-    X(SRC_OBS) \
-    X(STA_SKY_COV) \
-    X(OBJ_MINIMA)
+    X(STA_ACTIVE, true) \
+    X(SRC_OBS, true) \
+    X(STA_SKY_COV, true) \
+    X(OBJ_MINIMA, false)
 
 #include "ilp_fwd.h"
 
@@ -163,14 +162,14 @@ SCHED_IMPL(SCHED_DEFAULT) {
     // SchedulerILP.cpp:110
     {
     unsigned int sec_slew;
-    // size_t count = 0, count_max = prog.count_sta * prog.count_src * prog.count_src * prog.count_seg * (SEG_MAX_SLEWING + 1);
+    size_t count = 0, count_max = prog.count_sta * prog.count_src * prog.count_src * prog.count_seg * (SEG_MAX_SLEWING + 1);
     ILP_map_sta_it(&prog, sta) {
         ILP_map_src_it(&prog, src_fst) {
             ILP_map_src_it(&prog, src_snd) {
                 for(size_t seg_fst = 0, seg_snd; seg_fst < prog.count_seg - 1 - SEG_MAX_SLEWING; ++seg_fst) {
                     for(seg_snd = seg_fst + 1; seg_snd < seg_fst + 1 + SEG_MAX_SLEWING; ++seg_snd) {
                         sec_slew = slew_time(&sta, &src_fst, seg_fst, &src_snd, seg_snd);
-#if 0
+#if 1
                         if(sec_slew != UINT_MAX) HH_DBG("[%zu / %zu] %zu: %u sec for %.*s to slew between %.*s and %.*s", 
                             count++, count_max, 
                             seg_fst,
