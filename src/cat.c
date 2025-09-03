@@ -55,9 +55,11 @@ cat_name_len(const char name[static 8]) {
 
 bool
 cat_name_eq(const char fst[static 8], const char snd[static 8]) {
-    size_t len = cat_name_len(fst);
-    if(len != cat_name_len(snd)) return false;
-    return memcmp(fst, snd, len) == 0;
+    for (size_t i = 0; i < 8; ++i) {
+        if (fst[i] != snd[i]) return false;
+        if (fst[i] == '\0') return snd[i] == '\0';
+    }
+    return true;
 }
 
 void

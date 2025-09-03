@@ -69,7 +69,7 @@ Station_dump(const Station* const sta) {
 
 void
 Station_lat_lon_alt_from_crs(const Station* const sta, double* lon, double* lat, double* alt) {
-    (*lon) = atan2(sta->x, sta->y);
+    (*lon) = atan2(sta->y, sta->x);
     double r = sqrt(sta->x * sta->x + sta->y * sta->y);
     (*lat) = atan2(sta->z, r);
     double N;
@@ -121,12 +121,9 @@ Station_az_el(const Station* const sta, const Source* const src, unsigned int se
     unsigned int seconds_delta = seconds - EARTH_PARAMS->nut.t[nut_idx];
 
     double x, y, s;
-    x = EARTH_PARAMS->nut.x[nut_idx];
-    x = (EARTH_PARAMS->nut.x[nut_idx + 1] - x) / EARTH_PARAMS->nut.dt * seconds_delta;
-    y = EARTH_PARAMS->nut.y[nut_idx];
-    y = (EARTH_PARAMS->nut.y[nut_idx + 1] - y) / EARTH_PARAMS->nut.dt * seconds_delta;
-    s = EARTH_PARAMS->nut.s[nut_idx];
-    s = (EARTH_PARAMS->nut.s[nut_idx + 1] - s) / EARTH_PARAMS->nut.dt * seconds_delta;
+    x = EARTH_PARAMS->nut.x[nut_idx] + (EARTH_PARAMS->nut.x[nut_idx + 1] - EARTH_PARAMS->nut.x[nut_idx]) / EARTH_PARAMS->nut.dt * seconds_delta;
+    y = EARTH_PARAMS->nut.y[nut_idx] + (EARTH_PARAMS->nut.y[nut_idx + 1] - EARTH_PARAMS->nut.y[nut_idx]) / EARTH_PARAMS->nut.dt * seconds_delta;
+    s = EARTH_PARAMS->nut.s[nut_idx] + (EARTH_PARAMS->nut.s[nut_idx + 1] - EARTH_PARAMS->nut.s[nut_idx]) / EARTH_PARAMS->nut.dt * seconds_delta;
 
     iauC2ixys(x, y, s, C);
 
@@ -150,17 +147,17 @@ Station_az_el(const Station* const sta, const Source* const src, unsigned int se
     double rqu[3] = { src->crs[0], src->crs[1], src->crs[2] };
 
     double k1a_t2[3] = { 0.0 };
-    iauSxp( iauPdp( rqu, k1a_t1 ), rqu, k1a_t2 );
+    iauSxp(iauPdp(rqu, k1a_t1), rqu, k1a_t2);
     k1a_t2[0] = -k1a_t2[0];
     k1a_t2[1] = -k1a_t2[1];
     k1a_t2[2] = -k1a_t2[2];
 
     double k1a_temp[3] = { 0.0 };
-    iauPpp( rqu, k1a_t1, k1a_temp );
-    iauPpp( k1a_temp, k1a_t2, k1a );
+    iauPpp(rqu, k1a_t1, k1a_temp);
+    iauPpp(k1a_temp, k1a_t2, k1a);
 
     double rq[3] = { 0.0 };
-    iauRxp( c2t, k1a, rq );
+    iauRxp(c2t, k1a, rq);
 
     double g2l[3][3];
     Station_geo_to_loc(sta, g2l);
@@ -183,13 +180,13 @@ void
 Station_ha_dc(const Station* const sta, const Source* const src, unsigned int seconds, double* ha, double* dc) {
     DateTime dt = TIME_SYS->start;
     dt.sec += (double) seconds;
-    double gmst = DateTime_to_gmst(dt);
+    double gmst = DateTime_to_gmst(dt) * DPI / 180.0; // TODO: It needs to be clear that DateTime_to_gmst returns degrees
 
     double lon, lat, alt;
     Station_lat_lon_alt_from_crs(sta, &lon, &lat, &alt);
 
-    (*dc) = src->decl;
-    (*ha) = gmst + lon - src->raan;
+    (*dc) = src->decl_rad;
+    (*ha) = gmst + lon - src->raan_rad;
     while((*ha) >  DPI) (*ha) -= D2PI;
     while((*ha) < -DPI) (*ha) += D2PI;
 }

@@ -57,8 +57,6 @@ main(int argc, char* argv[]) {
     char* path_cat = hh_path_join(hh_path(path_root), "catalogs");
     cat_init(path_cat);
     hh_arrfree(path_cat);
-    // initialize earth params
-    earth_params_init();
     // initialize network
     net_init();
     // initialize sky
@@ -67,6 +65,8 @@ main(int argc, char* argv[]) {
     time_sys_init();
     // CLI arguments
     if(args(argc, argv)) goto main_headless_cleanup;
+    // initialize earth params
+    earth_params_init();
     // initialize window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));

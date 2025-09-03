@@ -4,6 +4,8 @@
 #include <string.h>
 #include <math.h>
 
+#include <sofam.h>
+
 #include "hh.h"
 
 #include "xml.h"
@@ -34,17 +36,19 @@ sky_init(void) {
             (double) CAT->source_list[i].raan_min / 60.0 + \
             CAT->source_list[i].raan_sec / 3600.0;
         src.raan *= 15.0;
+        src.raan_rad = src.raan * DPI / 180.0;
         // decl
         src.decl = fabs((double) CAT->source_list[i].decl_deg) + \
             (double) CAT->source_list[i].decl_min / 60.0 + \
             CAT->source_list[i].decl_sec / 3600.0;
         src.decl *= (CAT->source_list[i].decl_deg >= 0) ? 1.0 : -1.0;
+        src.decl_rad = src.decl * DPI / 180.0;
         // epoch
         src.epoch = CAT->source_list[i].epoch;
         // crs
-        src.crs[0] = cos(src.decl) * cos(src.raan);
-        src.crs[1] = cos(src.decl) * sin(src.raan);
-        src.crs[2] = sin(src.decl);
+        src.crs[0] = cos(src.decl_rad) * cos(src.raan_rad);
+        src.crs[1] = cos(src.decl_rad) * sin(src.raan_rad);
+        src.crs[2] = sin(src.decl_rad);
         // check flux entries
         src_band_count = 0;
         for(j = 0; j < BAND_OTHER; ++j) src.band[j] = false;

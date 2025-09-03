@@ -65,7 +65,6 @@ net_init(void) {
     size_t len_sta = hh_arrlen(CAT->station_list);
     size_t len_pos = hh_arrlen(CAT->position_list);
     size_t len_eqp = hh_arrlen(CAT->equip_list);
-    bool sta_name_hit;
     char sta_name_pos[8];
     size_t sta_sefd_count = 0;
     size_t sta_band_count;
@@ -74,27 +73,6 @@ net_init(void) {
         sta.axes = CAT->antenna_list[i].axes;
         sta.axes_limits[0] = CAT->antenna_list[i].axes_limits[0];
         sta.axes_limits[1] = CAT->antenna_list[i].axes_limits[1];
-#if 0
-        // TODO: implement cable_wrap
-        // Switch across different axes types
-        switch(sta.axes) {
-        case AXES_AZEL: {
-            double az, el;
-            Station_az_el(sta, src, seconds, &az, &el);
-
-        } break;
-        case AXES_HADC: {
-
-        } break;
-        case AXES_XYEW: {
-
-        } break;
-        case AXES_XYNS: {
-
-        } break;
-        default: HH_UNREACHABLE;
-        }
-#endif
         // SEFD
         sta_band_count = 0;
         for(j = 0; j < BAND_OTHER; ++j) sta.band[j] = false;
@@ -121,11 +99,19 @@ net_init(void) {
                 break;
             }
         }
-        sta_name_hit = false;
         for(j = 0; j < len_pos; ++j) {
-            sta_name_hit |= cat_name_eq(CAT->position_list[j].name, sta.name);
-            sta_name_hit |= cat_name_eq(CAT->position_list[j].name, sta_name_pos);
-            if(sta_name_hit) {
+            if(cat_name_eq(CAT->position_list[j].name, sta.name)) {
+                memcpy(sta.id, CAT->position_list[j].id, 2);
+                sta.x = CAT->position_list[j].x;
+                sta.y = CAT->position_list[j].y;
+                sta.z = CAT->position_list[j].z;
+                sta.lat = CAT->position_list[j].lat;
+                sta.lon = CAT->position_list[j].lon;
+                goto net_init_add_sta;
+            }
+        }
+        for(j = 0; j < len_pos; ++j) {
+            if(cat_name_eq(CAT->position_list[j].name, sta_name_pos)) {
                 memcpy(sta.id, CAT->position_list[j].id, 2);
                 sta.x = CAT->position_list[j].x;
                 sta.y = CAT->position_list[j].y;

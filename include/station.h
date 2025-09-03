@@ -10,13 +10,8 @@
 typedef struct {
     char id[2];
     char name[8];
-    double x, y, z, lat, lon;
-    struct {
-        double limit_low[2];
-        double limit_low_offset[2];
-        double limit_up[2];
-        double limit_up_offset[2];
-    } cable_wrap;
+    double x, y, z;
+    double lon, lat;
     enum dish_axes axes;
     struct dish_limits axes_limits[2];
     // TODO: Figure out which bands each station can observe

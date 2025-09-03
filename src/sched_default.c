@@ -7,6 +7,8 @@
 
 #include "cat.h"
 #include "station.h"
+#include "time_sys.h"
+#include "astro.h"
 
 #define VAR_TYPES \
     X(STA_ACTIVE) \
@@ -94,6 +96,31 @@ SCHED_IMPL(SCHED_DEFAULT) {
     ILP prog;
     ILP_init(&prog);
     ILP_dump(&prog);
+#if 0
+    HH_DBG("nut entries: %zu", hh_arrlen(EARTH_PARAMS->nut.t));
+    HH_DBG("earth vel: [%lf, %lf, %lf]", EARTH_PARAMS->vel[0], EARTH_PARAMS->vel[1], EARTH_PARAMS->vel[2]);
+    for(size_t i = 0; i < hh_arrlen(EARTH_PARAMS->nut.t); ++i) HH_DBG("%lf, %lf, %lf, %u", EARTH_PARAMS->nut.x[i], EARTH_PARAMS->nut.y[i], EARTH_PARAMS->nut.s[i], EARTH_PARAMS->nut.t[i]);
+    HH_DBG("mjd start: %lf", DateTime_to_mjd(TIME_SYS->start));
+    Source src;
+    HH_ASSERT(sky_get_src("0008-264", &src) != NULL, "Failed to locate source");
+    HH_DBG("[%.*s] ra: %lf, dc: %lf", (int) cat_name_len(src.name), src.name, src.raan, src.decl);
+    HH_DBG("[%.*s] crs: [%lf, %lf, %lf]", (int) cat_name_len(src.name), src.name, src.crs[0], src.crs[1], src.crs[2]);
+    double az, el;
+    {
+    ILP_map_sta_it(&prog, sta) {
+        Station_az_el(&sta, &src, 0, &az, &el);
+        HH_DBG("%.*s [%lf, %lf, %lf] at %.*s: %lf, %lf", 
+            (int) cat_name_len(sta.name), sta.name, 
+            sta.x, sta.y, sta.z,
+            (int) cat_name_len(src.name), src.name, az, el);
+    }}
+    Station sta;
+    HH_ASSERT(net_get_sta("Ny", &sta) != NULL, "Failed to locate station");
+    Source src_snd;
+    HH_ASSERT(sky_get_src("0008-264", &src_snd) != NULL, "Failed to locate source");
+    HH_DBG("slew time: %u", slew_time(&sta, &src, 0, &src_snd, 0));
+    exit(0);
+#endif
     HH_DBG("Initialized ILP.");
     // each station can only observe one source at a time
     // SchedulerILP.cpp:96
@@ -138,14 +165,22 @@ SCHED_IMPL(SCHED_DEFAULT) {
     // SchedulerILP.cpp:110
     {
     unsigned int sec_slew;
-    size_t count = 0, count_max = prog.count_sta * prog.count_src * prog.count_src * prog.count_seg * (SEG_MAX_SLEWING + 1);
+    // size_t count = 0, count_max = prog.count_sta * prog.count_src * prog.count_src * prog.count_seg * (SEG_MAX_SLEWING + 1);
     ILP_map_sta_it(&prog, sta) {
         ILP_map_src_it(&prog, src_fst) {
             ILP_map_src_it(&prog, src_snd) {
                 for(size_t seg_fst = 0, seg_snd; seg_fst < prog.count_seg - 1 - SEG_MAX_SLEWING; ++seg_fst) {
                     for(seg_snd = seg_fst + 1; seg_snd < seg_fst + 1 + SEG_MAX_SLEWING; ++seg_snd) {
                         sec_slew = slew_time(&sta, &src_fst, seg_fst, &src_snd, seg_snd);
-                        HH_DBG("[%zu / %zu]", count++, count_max);
+#if 0
+                        if(sec_slew != UINT_MAX) HH_DBG("[%zu / %zu] %zu: %u sec for %.*s to slew between %.*s and %.*s", 
+                            count++, count_max, 
+                            seg_fst,
+                            sec_slew,
+                            (int) cat_name_len(sta.name), sta.name, 
+                            (int) cat_name_len(src_fst.name), src_fst.name,
+                            (int) cat_name_len(src_snd.name), src_snd.name);
+#endif
                         if((seg_snd - seg_fst - 1) * TIME_SYS->scan_length >= sec_slew) continue;
                         row_begin(&prog);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_fst, src_fst_idx, sta_idx);
