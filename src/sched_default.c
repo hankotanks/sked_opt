@@ -74,6 +74,23 @@ slew_time(const Station* const sta,
     return seconds_slew;
 }
 
+#if 1
+void
+slew_time_debug(const ILP* const prog, const Station* const sta, size_t seg_fst, size_t seg_snd) {
+    printf("Slew times for %.*s\n", (int) cat_name_len(sta->name), sta->name);
+    volatile unsigned int seconds_slew;
+    ILP_map_src_it(prog, src_fst) {
+        ILP_map_src_it(prog, src_snd) {
+            seconds_slew = slew_time(sta, &src_fst, seg_fst, &src_snd, seg_snd);
+            if(seconds_slew == UINT_MAX) printf("   ");
+            else printf("%03u ", seconds_slew);
+            (void) seconds_slew;
+        }
+        printf("\n");
+    }
+}
+#endif
+
 double wrap_to_two_pi(double angle) {
     angle = fmod(angle, D2PI);
     if(angle < 0) angle += D2PI;
@@ -97,28 +114,9 @@ SCHED_IMPL(SCHED_DEFAULT) {
     ILP_init(&prog);
     ILP_dump(&prog);
 #if 0
-    HH_DBG("nut entries: %zu", hh_arrlen(EARTH_PARAMS->nut.t));
-    HH_DBG("earth vel: [%lf, %lf, %lf]", EARTH_PARAMS->vel[0], EARTH_PARAMS->vel[1], EARTH_PARAMS->vel[2]);
-    for(size_t i = 0; i < hh_arrlen(EARTH_PARAMS->nut.t); ++i) HH_DBG("%lf, %lf, %lf, %u", EARTH_PARAMS->nut.x[i], EARTH_PARAMS->nut.y[i], EARTH_PARAMS->nut.s[i], EARTH_PARAMS->nut.t[i]);
-    HH_DBG("mjd start: %lf", DateTime_to_mjd(TIME_SYS->start));
-    Source src;
-    HH_ASSERT(sky_get_src("0008-264", &src) != NULL, "Failed to locate source");
-    HH_DBG("[%.*s] ra: %lf, dc: %lf", (int) cat_name_len(src.name), src.name, src.raan, src.decl);
-    HH_DBG("[%.*s] crs: [%lf, %lf, %lf]", (int) cat_name_len(src.name), src.name, src.crs[0], src.crs[1], src.crs[2]);
-    double az, el;
-    {
-    ILP_map_sta_it(&prog, sta) {
-        Station_az_el(&sta, &src, 0, &az, &el);
-        HH_DBG("%.*s [%lf, %lf, %lf] at %.*s: %lf, %lf", 
-            (int) cat_name_len(sta.name), sta.name, 
-            sta.x, sta.y, sta.z,
-            (int) cat_name_len(src.name), src.name, az, el);
-    }}
     Station sta;
-    HH_ASSERT(net_get_sta("Ny", &sta) != NULL, "Failed to locate station");
-    Source src_snd;
-    HH_ASSERT(sky_get_src("0008-264", &src_snd) != NULL, "Failed to locate source");
-    HH_DBG("slew time: %u", slew_time(&sta, &src, 0, &src_snd, 0));
+    HH_ASSERT(net_get_sta("Kv", &sta) != NULL, "DEBUG: Failed to find station");
+    slew_time_debug(&prog, &sta, 5, 10);
     exit(0);
 #endif
     HH_DBG("Initialized ILP.");

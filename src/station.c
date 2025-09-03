@@ -164,6 +164,8 @@ Station_az_el(const Station* const sta, const Source* const src, unsigned int se
 
     double lq[3] = { 0.0 };
     iauRxp(g2l, rq, lq);
+    if(lq[2] >  1.0) lq[2] =  1.0;
+    if(lq[2] < -1.0) lq[2] = -1.0;
 
     double zd = acos(lq[2]);
     (*el) = DPI / 2.0 - zd;
@@ -199,7 +201,11 @@ Station_axis_inside_cable_wrap(const Station* const sta, double ax_fst, double a
     struct { double offset[2]; } ax_off_snd = { 0 };
     struct dish_limits ax_lim_fst, ax_lim_snd;
     ax_lim_fst = sta->axes_limits[0];
+    ax_lim_fst.limits[0] *= (DPI / 180.0);
+    ax_lim_fst.limits[1] *= (DPI / 180.0);
     ax_lim_snd = sta->axes_limits[1];
+    ax_lim_snd.limits[0] *= (DPI / 180.0);
+    ax_lim_snd.limits[1] *= (DPI / 180.0);
     if(((ax_lim_fst.limits[1] - ax_off_fst.offset[1]) - (ax_lim_fst.limits[0] + ax_off_fst.offset[0])) < D2PI) {
         double ax_lim_fst_low = fmod(ax_lim_fst.limits[0] + ax_off_fst.offset[0], D2PI);
         double ax_lim_fst_up = fmod(ax_lim_fst.limits[1] - ax_off_fst.offset[1], D2PI);
@@ -250,7 +256,8 @@ Station_src_is_vis(const Station* const sta, const Source* const src, unsigned i
 
 unsigned int
 Station_slew_time_by_axis(const Station* const sta, double delta, bool snd) {
-    double rate = sta->axes_limits[snd].rate;
+    double rate_deg = sta->axes_limits[snd].rate;
+    double rate = rate_deg * (DPI / 180.0) / 60.0;
     double acc = rate;
     unsigned int overhead = sta->axes_limits[snd].overhead;
     double t_acc = rate / acc; // TODO: This is currently always 1.0
@@ -265,64 +272,61 @@ Station_slew_time_by_axis(const Station* const sta, double delta, bool snd) {
     return (unsigned int) ceil(t) + overhead;
 }
 
+double wrap_symmetric(double delta_fst, double delta_snd) {
+    double delta_fst_wrap, delta_snd_wrap;
+    delta_fst_wrap = fmod(delta_fst, D2PI);
+    if(delta_fst_wrap < 0) delta_fst_wrap += D2PI;
+    delta_snd_wrap = fmod(delta_snd, D2PI);
+    if(delta_snd_wrap < 0) delta_snd_wrap += D2PI;
+    double delta = fabs(delta_fst_wrap - delta_snd_wrap);
+    if(delta > DPI) delta = D2PI - delta;
+    return delta;
+}
+
+void azel_to_xyew(double az_cos, double az_sin, double el, double* ax1, double* ax2) {
+    double el_cos = cos(el);
+    double el_sin = sin(el);
+    // default: EW case
+    *ax1 = atan2(el_cos * az_cos, el_sin);
+    *ax2 = asin(fmax(fmin(el_cos * az_sin, 1.0), -1.0));
+}
+
 unsigned int
 Station_slew_time(const Station* const sta, const Source* const src_fst, const Source* const src_snd, unsigned int seconds_fst, unsigned int seconds_snd){
     // TODO: There are special cases for a few antennas that I need to handle
     // See: Initializer.cpp: 437
     double ax_fst[2], ax_snd[2];
     switch(sta->axes) {
-    case AXES_AZEL: {
+    case AXES_AZEL:
         Station_az_el(sta, src_fst, seconds_fst, &ax_fst[0], &ax_fst[1]);
         Station_az_el(sta, src_snd, seconds_snd, &ax_snd[0], &ax_snd[1]);
-    } break;
+        break;
     case AXES_HADC:
         Station_ha_dc(sta, src_fst, seconds_fst, &ax_fst[0], &ax_fst[1]);
         Station_ha_dc(sta, src_snd, seconds_snd, &ax_snd[0], &ax_snd[1]);
         break;
+    case AXES_XYNS:
     case AXES_XYEW: {
         double az_fst, el_fst, az_snd, el_snd;
         Station_az_el(sta, src_fst, seconds_fst, &az_fst, &el_fst);
         Station_az_el(sta, src_snd, seconds_snd, &az_snd, &el_snd);
-        // first axis
-        double el_cos, el_sin, az_cos, az_sin;
-        el_cos = cos(el_fst);
-        el_sin = sin(el_fst);
-        az_cos = cos(az_fst);
-        az_sin = sin(az_fst);
-        ax_fst[0] = atan2(el_cos * az_cos, el_sin);
-        ax_fst[1] = asin(el_cos * az_sin);
-        // second axis
-        el_cos = cos(el_snd);
-        el_sin = sin(el_snd);
-        az_cos = cos(az_snd);
-        az_sin = sin(az_snd);
-        ax_snd[0] = atan2(el_cos * az_cos, el_sin);
-        ax_snd[1] = asin(el_cos * az_sin);
-    } break;
-    case AXES_XYNS: {
-        double az_fst, el_fst, az_snd, el_snd;
-        Station_az_el(sta, src_fst, seconds_fst, &az_fst, &el_fst);
-        Station_az_el(sta, src_snd, seconds_snd, &az_snd, &el_snd);
-        // first axis
-        double el_cos, el_sin, az_cos, az_sin;
-        el_cos = cos(el_fst);
-        el_sin = sin(el_fst);
-        az_cos = cos(az_fst);
-        az_sin = sin(az_fst);
-        ax_fst[0] = atan2(el_cos * az_sin, el_sin);
-        ax_fst[1] = asin(el_cos * az_cos);
-        // second axis
-        el_cos = cos(el_snd);
-        el_sin = sin(el_snd);
-        az_cos = cos(az_snd);
-        az_sin = sin(az_snd);
-        ax_snd[0] = atan2(el_cos * az_sin, el_sin);
-        ax_snd[1] = asin(el_cos * az_cos);
+        double az_cos_fst, az_sin_fst, az_cos_snd, az_sin_snd;
+        az_cos_fst = cos(az_fst);
+        az_sin_fst = sin(az_fst);
+        az_cos_snd = cos(az_snd);
+        az_sin_snd = sin(az_snd);
+        if(sta->axes == AXES_XYNS) {
+            azel_to_xyew(az_sin_fst, az_cos_fst, el_fst, &ax_fst[0], &ax_fst[1]);
+            azel_to_xyew(az_sin_snd, az_cos_snd, el_snd, &ax_snd[0], &ax_snd[1]);
+        } else {
+            azel_to_xyew(az_cos_fst, az_sin_fst, el_fst, &ax_fst[0], &ax_fst[1]);
+            azel_to_xyew(az_cos_snd, az_sin_snd, el_snd, &ax_snd[0], &ax_snd[1]);
+        }
     } break;
     default: HH_UNREACHABLE;
     }
     unsigned int t_fst, t_snd;
-    t_fst = Station_slew_time_by_axis(sta, fabs(ax_fst[0] - ax_snd[0]), true);
     t_snd = Station_slew_time_by_axis(sta, fabs(ax_fst[1] - ax_snd[1]), false);
+    t_fst = Station_slew_time_by_axis(sta, fabs(ax_fst[0] - ax_snd[0]), true);
     return t_fst > t_snd ? t_fst : t_snd;
 }
