@@ -7,3 +7,4 @@ valgrind.log
 .cache/*
 .vscode/*
 TODO
+dep/*

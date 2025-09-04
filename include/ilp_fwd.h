@@ -7,7 +7,11 @@
 #include <string.h>
 #include <limits.h>
 
-#include <lp_lib.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 #ifndef VAR_TYPES
 #define VAR_TYPES
@@ -20,12 +24,22 @@ enum var_type {
     VAR_COUNT
 };
 
+typedef struct _GRBenv GRBenv;
+typedef struct _GRBmodel GRBmodel;
+
 typedef struct {
     size_t count_sta, count_src, count_seg;
     size_t count_var[VAR_COUNT];
     size_t total_var;
-    lprec* rec;
-    double* buf;
+    GRBenv* env;
+    GRBmodel* model;
+#ifdef _WIN32
+    HMODULE handle;
+#else
+    void* handle;
+#endif
+    int* constr_idx;
+    double* constr_co;
     char* map_sta;
     char* map_src;
 } ILP;

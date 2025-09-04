@@ -112,6 +112,7 @@ hh_arrgrow_impl(void** arrp, size_t n, size_t elem_size);
 #define hh_arrnew(arr)          ((arr) = hh_arrnew_impl(HH_ARR_CAP_DEFAULT, sizeof(*arr)))
 #define hh_arrgrow(arr, n)      (hh_arrgrow_impl((void**) &(arr), (n), sizeof(*(arr))), (arr))
 // PUBLIC API
+#define hh_arrclear(arr)        ((arr == NULL) ? 0 : (hh_arrheader(arr)->len = 0))
 #define hh_arrfree(arr)         ((void) ((arr) ? free(hh_arrheader(arr)) : (void) 0), (arr) = NULL)
 #define hh_arrlast(arr)         ((arr)[hh_arrheader(arr)->len - 1])
 #define hh_arrput(arr, val)     ((void) hh_arrgrow(arr, 1), (arr)[(hh_arrheader(arr)->len)++] = (val))
@@ -123,6 +124,9 @@ hh_arrgrow_impl(void** arrp, size_t n, size_t elem_size);
 //
 // STRINGS
 //
+
+#define HH_STR_HELPER(x) #x
+#define HH_STR(x) HH_STR_HELPER(x)
 
 #define hh_strput(arr, str) do { \
 		if(hh_arrlen(arr) == 0 || (hh_arrlen(arr) != 0 && hh_arrlast(arr) != '\0')) hh_arrput(arr, '\0'); \

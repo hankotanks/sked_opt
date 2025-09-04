@@ -4,7 +4,6 @@
 #include <stdbool.h>
 
 #define SCHED_TYPES \
-    X(SCHED_DEFAULT) \
     X(SCHED_DEMO)
 
 enum sched_type {

@@ -20,4 +20,6 @@ sched_start(enum sched_type ty) {
     } else {
         HH_MSG("Failed to complete schedule.");
     }
+    // TODO: Do something with the schedule
+    // Output should contain the scans
 }
