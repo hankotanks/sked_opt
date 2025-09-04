@@ -241,8 +241,6 @@ SCHED_IMPL(SCHED_DEFAULT) {
         ILP_free(&prog);
         return false;
     }
-    // solve the ILP
-    ILP_solve(&prog);
     HH_DBG("Finished solving ILP.");
     // clean up
     ILP_free(&prog);

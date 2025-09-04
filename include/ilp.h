@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <string.h>
-#include <float.h>
 #include <limits.h>
 
 #ifdef _WIN32
@@ -151,11 +150,12 @@ ILP_init(ILP* const prog) {
     if(is_binary_) for(size_t j = 0; j < prog->count_var[idx]; ++j) { \
         GRBaddvar(prog->model, 0, NULL, NULL, 0.0, 0.0, 1.0, 'B', NULL); \
     } else for(size_t j = 0; j < prog->count_var[idx]; ++j) { \
-        GRBaddvar(prog->model, 0, NULL, NULL, 0.0, 0.0, DBL_MAX, 'C', NULL); \
+        GRBaddvar(prog->model, 0, NULL, NULL, 0.0, 0.0, 1e100, 'C', NULL); \
     } \
     idx++;
     VAR_TYPES
 #undef X
+    GRBupdatemodel(prog->model);
     (void) idx;
 }
 
@@ -176,6 +176,7 @@ ILP_free(ILP* prog) {
 
 static bool ILP_H__UNUSED
 ILP_solve(const ILP* const prog) {
+    GRBupdatemodel(prog->model);
     GRBoptimize(prog->model);
     int status;
     GRBgetintattr(prog->model, "Status", &status);
@@ -191,6 +192,11 @@ row_begin(ILP* const prog) {
 static void ILP_H__UNUSED
 row_end_as_constr(ILP* const prog, char constr_type, double rhs) {
     HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
+#if 0
+    for(size_t i = 0, len = hh_arrlen(prog->constr_idx); i < len; ++i)
+        printf("%d [%lf]", prog->constr_idx[i], prog->constr_co[i]);
+    printf("\n");
+#endif
     GRBaddconstr(prog->model, (int) hh_arrlen(prog->constr_idx), prog->constr_idx, prog->constr_co, constr_type, rhs, "NULL");
 }
 
