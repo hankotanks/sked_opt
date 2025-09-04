@@ -12,7 +12,7 @@
 	<general>
 		<experimentName>R1928</experimentName>
 		<startTime>2020.01.07 17:00:00</startTime>
-		<endTime>2020.01.07 18:00:00</endTime>
+		<endTime>2020.01.07 17:30:00</endTime>
 		<subnetting>true</subnetting>
 		<subnettingMinAngle>150</subnettingMinAngle>
 		<subnettingMinNStaAllBut>1</subnettingMinNStaAllBut>
@@ -24,40 +24,27 @@
 			<station>HART15M</station>
 			<station>MATERA</station>
 			<station>NYALES20</station>
-			<station>ONSALA60</station>
 			<station>SEJONG</station>
 			<station>WETTZ13N</station>
 			<station>YARRA12M</station>
 		</stations>
 		<onlyUseListedSources>
-			<source>0008-264</source>
 			<source>0151+474</source>
-			<source>0354+231</source>
 			<source>0515+208</source>
 			<source>0656+082</source>
-			<source>0805+410</source>
 			<source>0847-120</source>
 			<source>0917+449</source>
 			<source>1057-797</source>
 			<source>1059+282</source>
-			<source>1219+044</source>
 			<source>1244-255</source>
-			<source>1306+360</source>
-			<source>1330+476</source>
 			<source>1357+769</source>
 			<source>1406-267</source>
-			<source>1550-242</source>
 			<source>1608+243</source>
 			<source>1652+398</source>
-			<source>1656-075</source>
 			<source>1751+288</source>
 			<source>1807+698</source>
-			<source>2005-489</source>
-			<source>2013+163</source>
 			<source>2215+020</source>
 			<source>2216+178</source>
-			<source>2356+385</source>
-			<source>2357-318</source>
 		</onlyUseListedSources>
 		<scanAlignment>start</scanAlignment>
 		<logSeverityConsole>info</logSeverityConsole>

@@ -135,25 +135,22 @@ SCHED_IMPL(SCHED_DEFAULT) {
     // a valid scan requires >= 2 participating stations
     // SchedulerILP.cpp:120
     {
-    for(size_t t = 0; t < prog.count_seg; ++t) {
-        for(size_t k = 0; k < prog.count_src; ++k) {
+    for (size_t t = 0; t < prog.count_seg; ++t) {
+        for (size_t k = 0; k < prog.count_src; ++k) {
+            // Lower-bound: at least 2 stations if scan is active
             row_begin(&prog);
-            for(size_t b = 0; b < prog.count_sta; ++b) 
-                row_set(&prog, 1.0, STA_ACTIVE, t, k, b);
-            row_set(&prog, (double) prog.count_sta * -1.0, SRC_OBS, t, k);
-            row_end_as_constr(&prog, LE, 0.0);
-        }
-    }
-    } // SCOPE END
-    // SchedulerILP.cpp:121
-    {
-    for(size_t t = 0; t < prog.count_seg; ++t) {
-        for(size_t k = 0; k < prog.count_src; ++k) {
-            row_begin(&prog);
-            for(size_t b = 0; b < prog.count_sta; ++b) 
+            for (size_t b = 0; b < prog.count_sta; ++b)
                 row_set(&prog, 1.0, STA_ACTIVE, t, k, b);
             row_set(&prog, -2.0, SRC_OBS, t, k);
             row_end_as_constr(&prog, GE, 0.0);
+
+            // Per-station linking: each station assigned only if scan is active
+            for (size_t b = 0; b < prog.count_sta; ++b) {
+                row_begin(&prog);
+                row_set(&prog, 1.0, STA_ACTIVE, t, k, b);
+                row_set(&prog, -1.0, SRC_OBS, t, k);
+                row_end_as_constr(&prog, LE, 0.0);
+            }
         }
     }
     HH_DBG("Added constraint: A valid scan requires >= 2 participating stations.");
@@ -162,12 +159,12 @@ SCHED_IMPL(SCHED_DEFAULT) {
     // SchedulerILP.cpp:110
     {
     unsigned int sec_slew;
-    size_t count = 0, count_max = prog.count_sta * prog.count_src * prog.count_src * prog.count_seg * (SEG_MAX_SLEWING + 1);
+    size_t count = 0, count_max = prog.count_sta * prog.count_src * prog.count_src * prog.count_seg * (prog.count_seg - 1) / 2;
     ILP_map_sta_it(&prog, sta) {
         ILP_map_src_it(&prog, src_fst) {
             ILP_map_src_it(&prog, src_snd) {
-                for(size_t seg_fst = 0, seg_snd; seg_fst < prog.count_seg - 1 - SEG_MAX_SLEWING; ++seg_fst) {
-                    for(seg_snd = seg_fst + 1; seg_snd < seg_fst + 1 + SEG_MAX_SLEWING; ++seg_snd) {
+                for(size_t seg_fst = 0, seg_snd; seg_fst < prog.count_seg - 1; ++seg_fst) {
+                    for(seg_snd = seg_fst + 1; seg_snd < prog.count_seg; ++seg_snd) {
                         sec_slew = slew_time(&sta, &src_fst, seg_fst, &src_snd, seg_snd);
 #if 1
                         if(sec_slew != UINT_MAX) HH_DBG("[%zu / %zu] %zu: %u sec for %.*s to slew between %.*s and %.*s", 
