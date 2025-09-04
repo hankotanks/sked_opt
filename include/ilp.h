@@ -161,6 +161,8 @@ ILP_init(ILP* const prog) {
 
 static void ILP_H__UNUSED
 ILP_free(ILP* prog) {
+    hh_arrfree(prog->constr_idx);
+    hh_arrfree(prog->constr_co);
     free(prog->map_sta);
     free(prog->map_src);
     GRBfreemodel(prog->model);
