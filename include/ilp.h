@@ -172,7 +172,7 @@ ILP_free(ILP* prog) {
 #endif
 }
 
-static bool
+static bool ILP_H__UNUSED
 ILP_solve(const ILP* const prog) {
     GRBoptimize(prog->model);
     int status;
@@ -211,7 +211,7 @@ row_set(ILP* const prog, double co, enum var_type ty, ...) {
     hh_arrput(prog->constr_co, co);
 }
 
-static double
+static double ILP_H__UNUSED
 row_get(const ILP* const prog, enum var_type ty, ...) {
     va_list args;
     va_start(args, ty);
@@ -261,12 +261,12 @@ row_idx_post_offset:
 
 #ifdef _WIN32
 #define GUROBI_IMPL(handle_, name_) do { \
-        name_ = GetProcAddress(handle_, #name_); \
+        name_ = (name_##_t) GetProcAddress(handle_, #name_); \
         HH_ASSERT(name_ != NULL, "Failed to load Gurobi."); \
     } while(0);
 #else
 #define GUROBI_IMPL(handle_, name_) do { \
-        name_ = dlsym(handle_, #name_); \
+        name_ = (name_##_t) dlsym(handle_, #name_); \
         HH_ASSERT(name_ != NULL, "Failed to load Gurobi."); \
     } while(0);
 #endif
