@@ -40,8 +40,8 @@ SCHED_IMPL(SCHED_DEMO) {
     row_end_as_obj(&prog, true);
 
     if(ILP_solve(&prog)) {
-        HH_MSG("x: %lf", row_get(&prog, FIRST));
-        HH_MSG("y: %lf", row_get(&prog, SECOND));
+        HH_MSG("x: %lf", ILP_get_sol(&prog, FIRST));
+        HH_MSG("y: %lf", ILP_get_sol(&prog, SECOND));
     } else {
         HH_MSG("Optimal solution not found :(");
     }

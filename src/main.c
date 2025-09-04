@@ -44,7 +44,7 @@ args(int argc, char* argv[]) {
     if(argc == 1) return false;
     configure_using_xml(argv[1]);
     if(argc == 3 && ((strcmp(argv[2], "--headless") == 0) || strcmp(argv[2], "-H") == 0)) {
-        sched_start(SCHED_DEMO);
+        sched_start(SCHED_DEFAULT);
         return true;
     }
     return false;

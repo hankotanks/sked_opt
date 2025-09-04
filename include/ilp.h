@@ -54,7 +54,7 @@ row_end_as_obj(ILP* const prog, bool maximize);
 static void
 row_set(ILP* const prog, double co, enum var_type ty, ...);
 static double
-row_get(const ILP* const prog, enum var_type ty, ...);
+ILP_get_sol(const ILP* const prog, enum var_type ty, ...);
 
 //
 // Implementations
@@ -212,7 +212,7 @@ row_set(ILP* const prog, double co, enum var_type ty, ...) {
 }
 
 static double ILP_H__UNUSED
-row_get(const ILP* const prog, enum var_type ty, ...) {
+ILP_get_sol(const ILP* const prog, enum var_type ty, ...) {
     va_list args;
     va_start(args, ty);
     double val;
