@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <math.h>
+#include <limits.h>
 
 #include <sofa.h>
 #include <sofam.h>
@@ -68,7 +69,7 @@ Station_dump(const Station* const sta) {
 #define E2 (2.0 * F - F * F)
 
 void
-Station_lat_lon_alt_from_crs(const Station* const sta, double* lon, double* lat, double* alt) {
+Station_lat_lon_alt(const Station* const sta, double* lon, double* lat, double* alt) {
     (*lon) = atan2(sta->y, sta->x);
     double r = sqrt(sta->x * sta->x + sta->y * sta->y);
     (*lat) = atan2(sta->z, r);
@@ -83,7 +84,7 @@ Station_lat_lon_alt_from_crs(const Station* const sta, double* lon, double* lat,
 void
 Station_geo_to_loc(const Station* const sta, double g2l[static 3][3]) {
     double lon, lat, alt;
-    Station_lat_lon_alt_from_crs(sta, &lon, &lat, &alt);
+    Station_lat_lon_alt(sta, &lon, &lat, &alt);
 
     double theta = DPI / 2.0 - lat;
 
@@ -106,7 +107,7 @@ Station_geo_to_loc(const Station* const sta, double g2l[static 3][3]) {
 #define MJD_INITIAL 2400000.5
 
 void
-Station_az_el(const Station* const sta, const Source* const src, unsigned int seconds, double* az, double* el) {
+Station_src_az_el(const Station* const sta, const Source* const src, unsigned int seconds, double* az, double* el) {
     DateTime dt = TIME_SYS->start;
     dt.sec += (double) seconds;
     double mjd = DateTime_to_mjd(dt);
@@ -179,13 +180,13 @@ Station_az_el(const Station* const sta, const Source* const src, unsigned int se
 #undef MJD_INITIAL
 
 void
-Station_ha_dc(const Station* const sta, const Source* const src, unsigned int seconds, double* ha, double* dc) {
+Station_src_ha_dc(const Station* const sta, const Source* const src, unsigned int seconds, double* ha, double* dc) {
     DateTime dt = TIME_SYS->start;
     dt.sec += (double) seconds;
     double gmst = DateTime_to_gmst(dt) * DPI / 180.0; // TODO: It needs to be clear that DateTime_to_gmst returns degrees
 
     double lon, lat, alt;
-    Station_lat_lon_alt_from_crs(sta, &lon, &lat, &alt);
+    Station_lat_lon_alt(sta, &lon, &lat, &alt);
 
     (*dc) = src->decl_rad;
     (*ha) = gmst + lon - src->raan_rad;
@@ -228,24 +229,24 @@ Station_axis_inside_cable_wrap(const Station* const sta, double ax_fst, double a
 }
 
 bool
-Station_src_is_vis(const Station* const sta, const Source* const src, unsigned int seconds) {
+Station_src_visible(const Station* const sta, const Source* const src, unsigned int seconds) {
     double ax_fst, ax_snd;
     switch(sta->axes) {
     case AXES_AZEL:
-        Station_az_el(sta, src, seconds, &ax_fst, &ax_snd);
+        Station_src_az_el(sta, src, seconds, &ax_fst, &ax_snd);
         break;
     case AXES_HADC:
-        Station_ha_dc(sta, src, seconds, &ax_fst, &ax_snd);
+        Station_src_ha_dc(sta, src, seconds, &ax_fst, &ax_snd);
         break;
     case AXES_XYEW: {
         double az, el;
-        Station_az_el(sta, src, seconds, &az, &el);
+        Station_src_az_el(sta, src, seconds, &az, &el);
         ax_fst = atan2(cos(el) * cos(az), sin(el));
         ax_snd = asin(cos(el) * sin(az));
     } break;
     case AXES_XYNS: {
         double az, el;
-        Station_az_el(sta, src, seconds, &az, &el);
+        Station_src_az_el(sta, src, seconds, &az, &el);
         ax_fst = atan2(cos(el) * sin(az), sin(el)); // same as XYEW case, just rotated
         ax_snd = asin(cos(el) * cos(az));
     } break;
@@ -272,17 +273,6 @@ Station_slew_time_by_axis(const Station* const sta, double delta, bool snd) {
     return (unsigned int) ceil(t) + overhead;
 }
 
-double wrap_symmetric(double delta_fst, double delta_snd) {
-    double delta_fst_wrap, delta_snd_wrap;
-    delta_fst_wrap = fmod(delta_fst, D2PI);
-    if(delta_fst_wrap < 0) delta_fst_wrap += D2PI;
-    delta_snd_wrap = fmod(delta_snd, D2PI);
-    if(delta_snd_wrap < 0) delta_snd_wrap += D2PI;
-    double delta = fabs(delta_fst_wrap - delta_snd_wrap);
-    if(delta > DPI) delta = D2PI - delta;
-    return delta;
-}
-
 void azel_to_xyew(double az_cos, double az_sin, double el, double* ax1, double* ax2) {
     double el_cos = cos(el);
     double el_sin = sin(el);
@@ -292,24 +282,24 @@ void azel_to_xyew(double az_cos, double az_sin, double el, double* ax1, double* 
 }
 
 unsigned int
-Station_slew_time(const Station* const sta, const Source* const src_fst, const Source* const src_snd, unsigned int seconds_fst, unsigned int seconds_snd){
+Station_slew_time_raw(const Station* const sta, const Source* const src[2], unsigned int seconds[2]){
     // TODO: There are special cases for a few antennas that I need to handle
     // See: Initializer.cpp: 437
     double ax_fst[2], ax_snd[2];
     switch(sta->axes) {
     case AXES_AZEL:
-        Station_az_el(sta, src_fst, seconds_fst, &ax_fst[0], &ax_fst[1]);
-        Station_az_el(sta, src_snd, seconds_snd, &ax_snd[0], &ax_snd[1]);
+        Station_src_az_el(sta, src[0], seconds[0], &ax_fst[0], &ax_fst[1]);
+        Station_src_az_el(sta, src[1], seconds[1], &ax_snd[0], &ax_snd[1]);
         break;
     case AXES_HADC:
-        Station_ha_dc(sta, src_fst, seconds_fst, &ax_fst[0], &ax_fst[1]);
-        Station_ha_dc(sta, src_snd, seconds_snd, &ax_snd[0], &ax_snd[1]);
+        Station_src_ha_dc(sta, src[0], seconds[0], &ax_fst[0], &ax_fst[1]);
+        Station_src_ha_dc(sta, src[1], seconds[1], &ax_snd[0], &ax_snd[1]);
         break;
     case AXES_XYNS:
     case AXES_XYEW: {
         double az_fst, el_fst, az_snd, el_snd;
-        Station_az_el(sta, src_fst, seconds_fst, &az_fst, &el_fst);
-        Station_az_el(sta, src_snd, seconds_snd, &az_snd, &el_snd);
+        Station_src_az_el(sta, src[0], seconds[0], &az_fst, &el_fst);
+        Station_src_az_el(sta, src[1], seconds[1], &az_snd, &el_snd);
         double az_cos_fst, az_sin_fst, az_cos_snd, az_sin_snd;
         az_cos_fst = cos(az_fst);
         az_sin_fst = sin(az_fst);
@@ -329,4 +319,28 @@ Station_slew_time(const Station* const sta, const Source* const src_fst, const S
     t_snd = Station_slew_time_by_axis(sta, fabs(ax_fst[1] - ax_snd[1]), false);
     t_fst = Station_slew_time_by_axis(sta, fabs(ax_fst[0] - ax_snd[0]), true);
     return t_fst > t_snd ? t_fst : t_snd;
+}
+
+unsigned int
+Station_slew_time(const Station* const sta, const Source* const src[2], unsigned int seconds[2]) {
+    if(!Station_src_visible(sta, src[1], seconds[1])) return UINT_MAX;
+    return Station_slew_time_raw(sta, src, seconds);
+}
+
+inline double 
+wrap_to_two_pi(double angle) {
+    angle = fmod(angle, D2PI);
+    if(angle < 0) angle += D2PI;
+    return angle;
+}
+
+size_t
+Station_src_sky_cov_idx(const Station* const sta, const Source* const src, unsigned int seconds) {
+    double az, el;
+    Station_src_az_el(sta, src, seconds, &az, &el);
+    size_t row = (size_t) floor(el / (DPI / 4.0));
+    double n = row ? 4.0 : 9.0;
+    size_t col = (size_t) round(wrap_to_two_pi(az) / (D2PI / n));
+    if((double) col > n - 1) col = 0;
+    return row ? col + 9 : col;
 }

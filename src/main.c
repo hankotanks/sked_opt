@@ -65,6 +65,16 @@ main(int argc, char* argv[]) {
     time_sys_init();
     // CLI arguments
     if(args(argc, argv)) goto main_headless_cleanup;
+#if 0
+    const Source* src_it;
+    sky_it(src_it) {
+        HH_MSG("%.*s: %c", (int) cat_name_len(src_it->name), src_it->name, *sky_src_active(src_it->name) ? 'A' : ' ');
+    }
+    const Station* sta_it;
+    net_it(sta_it) {
+        HH_MSG("%.*s [%c%c]: %c", (int) cat_name_len(sta_it->name), sta_it->name, sta_it->id[0], sta_it->id[1], *net_sta_active(sta_it->id) ? 'A' : ' ');
+    }
+#endif
     // initialize earth params
     earth_params_init();
     // initialize window

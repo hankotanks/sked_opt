@@ -75,22 +75,22 @@ vis_layer_net_layout(void* const data, struct nk_context* ctx, float row_height)
     // pinned search bar
     nk_edit_string_zero_terminated(ctx, FLAGS_EDIT, state->buf_filter, sizeof(state->buf_filter), nk_filter_ascii);
     nk_layout_row_dynamic(ctx, row_height, 2);
-    Station sta;
+    const Station* sta;
     bool* active;
-    for(size_t i = 0, j = 0; i < NET->count; ++i) {
-        active = net_get_sta_by_idx(i, &sta);
-        if(active == NULL) continue;
-        if(state->buf_filter[0] != '\0' && !cat_name_contains(sta.name, state->buf_filter)) continue;
+    size_t i = 0;
+    net_it(sta) {
+        active = net_sta_active(sta->id);
+        if(state->buf_filter[0] != '\0' && !cat_name_contains(sta->name, state->buf_filter)) continue;
         int temp = *active ? nk_false : nk_true;
-        if(nk_check_text(ctx, sta.name, (int) cat_name_len(sta.name), temp) != temp) {
+        if(nk_check_text(ctx, sta->name, (int) cat_name_len(sta->name), temp) != temp) {
             *active = !(*active);
             GLfloat val = (*active) ? 1.f : 0.f;
             glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
-            glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((j * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
+            glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((i * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
-        nk_labelf(ctx, NK_TEXT_CENTERED | NK_TEXT_ALIGN_MIDDLE, "[%c%c]", sta.id[0], sta.id[1]);
-        j++;
+        nk_labelf(ctx, NK_TEXT_CENTERED | NK_TEXT_ALIGN_MIDDLE, "[%c%c]", sta->id[0], sta->id[1]);
+        i++;
     }
 }
 
@@ -100,15 +100,12 @@ Vis_layer_net(Vis* const vis) {
     if(!frag) return false;
     // build station vertices
     GLfloat* vertices = NULL;
-    Station sta;
-    bool* active;
-    for(size_t i = 0; i < NET->count; ++i) {
-        active = net_get_sta_by_idx(i, &sta);
-        if(active == NULL) continue;
-        hh_arrput(vertices, (GLfloat) sta.lon);
-        hh_arrput(vertices, (GLfloat) (90.0 - sta.lat));
+    const Station* sta;
+    net_it(sta) {
+        hh_arrput(vertices, (GLfloat) sta->lon);
+        hh_arrput(vertices, (GLfloat) (90.0 - sta->lat));
         hh_arrput(vertices, 0.f);
-        hh_arrput(vertices, (*active) ? 1.f : 0.f);
+        hh_arrput(vertices, *net_sta_active(sta->id) ? 1.f : 0.f);
     }
     // configure layer's corresponding UI element
     glenv_Panel* panel = glenv_Panel_init("stations", 
@@ -169,21 +166,21 @@ vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height)
     // pinned search bar
     nk_edit_string_zero_terminated(ctx, FLAGS_EDIT, state->buf_filter, sizeof(state->buf_filter), nk_filter_ascii);
     nk_layout_row_dynamic(ctx, row_height, 1);
-    Source src;
+    const Source* src;
     bool* active;
-    for(size_t i = 0, j = 0; i < SKY->count; ++i) {
-        active = sky_get_src_by_idx(i, &src);
-        if(active == NULL) continue;
-        if(state->buf_filter[0] != '\0' && !cat_name_contains(src.name, state->buf_filter)) continue;
+    size_t i = 0;
+    sky_it(src) {
+        active = sky_src_active(src->name);
+        if(state->buf_filter[0] != '\0' && !cat_name_contains(src->name, state->buf_filter)) continue;
         int temp = *active ? nk_false : nk_true;
-        if(nk_check_text(ctx, src.name, (int) cat_name_len(src.name), temp) != temp) {
+        if(nk_check_text(ctx, src->name, (int) cat_name_len(src->name), temp) != temp) {
             *active = !(*active);
             GLfloat val = (*active) ? 1.f : 0.f;
             glBindBuffer(GL_ARRAY_BUFFER, state->VBO);
-            glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((j * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
+            glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((i * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
-        j++;
+        i++;
     }
 }
 
@@ -193,15 +190,12 @@ Vis_layer_sky(Vis* const vis) {
     if(!frag) return false;
     // build station vertices
     GLfloat* vertices = NULL;
-    Source src;
-    bool* active;
-    for(size_t i = 0; i < SKY->count; ++i) {
-        active = sky_get_src_by_idx(i, &src);
-        if(active == NULL) continue;
-        hh_arrput(vertices, (GLfloat) src.raan);
-        hh_arrput(vertices, (GLfloat) (90.0 - src.decl));
+    const Source* src;
+    sky_it(src) {
+        hh_arrput(vertices, (GLfloat) src->raan);
+        hh_arrput(vertices, (GLfloat) (90.0 - src->decl));
         hh_arrput(vertices, 1.f);
-        hh_arrput(vertices, (*active) ? 1.f : 0.f);
+        hh_arrput(vertices, *sky_src_active(src->name) ? 1.f : 0.f);
     }
     // configure layer's corresponding UI element
     glenv_Panel* panel = glenv_Panel_init("sources", 

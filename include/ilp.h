@@ -23,16 +23,12 @@
 
 #include "ilp_fwd.h"
 
-#define ILP_map_src_it(prog_, it_) \
-    Source it_; \
-    size_t it_##_idx = 0; \
-    ILP_H__ILP_map_src_it_helper(prog_, &it_##_idx, &it_); \
-    for(bool it_##_term = true; it_##_term; it_##_term = ILP_H__ILP_map_src_it_helper(prog_, &it_##_idx, &it_))
+#define ILP_src_it(prog_, it_) \
+    for(size_t it_##_idx = ILP_H__ILP_src_it_helper(prog_, 0, &it_); it_##_idx != SIZE_MAX; it_##_idx = ILP_H__ILP_src_it_helper(prog_, it_##_idx, &it_))
 
-#define ILP_map_sta_it(prog_, it_) \
-    Station it_; \
-    net_get_sta((prog_)->map_sta, &it_); \
-    for(size_t it_##_idx = 0; it_##_idx < (prog_)->count_sta; net_get_sta(&((prog_)->map_sta[(++it_##_idx) * 2]), &it_))
+#define ILP_sta_it(prog_, it_) \
+    it_ = net_sta((prog_)->map_sta); \
+    for(size_t it_##_idx = 0; it_##_idx < (prog_)->count_sta; it_ = net_sta(&((prog_)->map_sta[(++it_##_idx) * 2])))
 
 static void
 ILP_H__ILP_map_sta(ILP* const prog);
@@ -69,40 +65,28 @@ ILP_get_sol(const ILP* const prog, enum var_type ty, ...);
 static void
 ILP_H__ILP_map_sta(ILP* const prog) {
     prog->count_sta = 0;
-    Station sta;
-    bool* active;
-    for(size_t i = 0; i < NET->count; ++i) {
-        active = net_get_sta_by_idx(i, &sta);
-        if(active != NULL && *active) (prog->count_sta)++;
-    }
+    const Station* sta;
+    net_it_active(sta) ++(prog->count_sta);
     HH_CALLOC(prog->map_sta, prog->count_sta * 2 + 1);
-    for(size_t i = 0, j = 0; i < NET->count; ++i) {
-        active = net_get_sta_by_idx(i, &sta);
-        if(active != NULL && *active) {
-            prog->map_sta[j++] = sta.id[0];
-            prog->map_sta[j++] = sta.id[1];
-        }
+    size_t i = 0;
+    net_it_active(sta) {
+        prog->map_sta[i++] = sta->id[0];
+        prog->map_sta[i++] = sta->id[1];
     }
 }
 
 static void
 ILP_H__ILP_map_src(ILP* const prog) {
     prog->count_src = 0;
-    Source src;
-    bool* active;
-    for(size_t i = 0; i < SKY->count; ++i) {
-        active = sky_get_src_by_idx(i, &src);
-        if(active != NULL && *active) (prog->count_src)++;
-    }
+    const Source* src;
+    sky_it_active(src) (prog->count_src)++;
     HH_CALLOC(prog->map_src, prog->count_src * 8 + 1);
-    for(size_t i = 0, j = 0, k; i < SKY->count; ++i) {
-        active = sky_get_src_by_idx(i, &src);
-        if(active != NULL && *active) {
-            k = hh_strnlen(src.name, 8);
-            memcpy(prog->map_src + j * 8, src.name, k);
-            for(; k < 8; ++k) prog->map_src[j * 8 + k] = ' ';
-            j++;
-        }
+    size_t j = 0, k;
+    sky_it_active(src) {
+        k = hh_strnlen(src->name, 8);
+        memcpy(prog->map_src + j * 8, src->name, k);
+        for(; k < 8; ++k) prog->map_src[j * 8 + k] = ' ';
+        j++;
     }
 }
 
@@ -254,18 +238,16 @@ ILP_get_sol(const ILP* const prog, enum var_type ty, ...) {
 // Internal helper functions
 //
 
-static bool ILP_H__UNUSED
-ILP_H__ILP_map_src_it_helper(const ILP* const prog, size_t* i, Source* src) {
+static size_t ILP_H__UNUSED
+ILP_H__ILP_src_it_helper(const ILP* const prog, size_t i, const Source** src) {
     char buf[8];
-    memcpy(buf, &(prog->map_src[8 * (*i)++]), 8);
+    memcpy(buf, &(prog->map_src[8 * i++]), 8);
     for(size_t j = 8; j-- > 0;) {
         if(buf[j] == ' ') buf[j] = '\0';
         else break;
     }
-    Source temp;
-    if(sky_get_src(buf, &temp) == NULL) return false;
-    (*src) = temp;
-    return true;
+    if(((*src) = sky_src(buf)) == NULL) return SIZE_MAX;
+    return i;
 }
 
 static size_t
@@ -288,6 +270,7 @@ row_idx_post_offset:
     return idx + offset;
 }
 
+// TODO: We can avoid the conversion warning with an anonymous union
 #ifdef _WIN32
 #define GUROBI_IMPL(handle_, name_) do { \
         name_ = (name_##_t) GetProcAddress(handle_, #name_); \

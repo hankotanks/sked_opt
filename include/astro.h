@@ -13,8 +13,6 @@ struct ASTRO_H__EARTH_PARAMS {
 
 extern struct ASTRO_H__EARTH_PARAMS* EARTH_PARAMS;
 
-// TODO: Implement these functions
-// See Initializer.cpp:2244 for details
 void
 earth_params_init(void);
 void

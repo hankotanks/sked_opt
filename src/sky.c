@@ -13,19 +13,51 @@
 #include "cat.h"
 #include "source.h"
 
-struct SKY_H__SourceEntry {
-    Source source;
-    bool used, active;
+struct SKY_H__SKY {
+    size_t count;
+    struct {
+        Source source;
+        bool used, active;
+    }* entries;
 };
 
-static Sky SKY_H__sky; Sky* SKY = &SKY_H__sky;
+static struct SKY_H__SKY SKY_H__SKY; 
+struct SKY_H__SKY* SKY = &SKY_H__SKY;
+
+static size_t 
+sky_hash(const char id[static 8]) {
+    unsigned long hash = 14695981039346656037UL;
+    unsigned char curr;
+    bool term = false;
+    for(size_t i = 0; i < 8; ++i) {
+        curr = term ? '\0' : (unsigned char) id[i];
+        term |= id[i] == '\0';
+        hash ^= curr;
+        hash *= 1099511628211UL;
+    }
+    return hash % SKY->count;
+}
+
+void
+sky_add(const Source src) {
+    for(size_t i = sky_hash(src.name), j = 0, k; j < SKY->count; ++j) {
+        k = (i + j) % SKY->count;
+        if(!SKY->entries[k].used || cat_name_eq(SKY->entries[k].source.name, src.name)) {
+            SKY->entries[k].source = src;
+            SKY->entries[k].used = true;
+            SKY->entries[k].active = false;
+            return;
+        }
+    }
+    HH_UNREACHABLE;
+}
 
 void
 sky_init(void) {
     HH_ASSERT(CAT->source_list != NULL, "No sources were parsed from raw catalogs.");
     SKY->count = hh_arrlen(CAT->source_list);
     HH_ASSERT(SKY->count > 0, "No sources were parsed from raw catalogs.");
-    HH_CALLOC(SKY->entries, sizeof(SourceEntry) * SKY->count);
+    HH_CALLOC(SKY->entries, sizeof(*(SKY->entries)) * SKY->count);
     Source src;
     size_t src_flux_count = 0;
     size_t src_band_count;
@@ -76,7 +108,7 @@ sky_init(void) {
         if(src_band_count > 0) HH_DBG("Found flux readings for %.*s across %zu bands.", (int) cat_name_len(src.name), src.name, src_band_count);
         else HH_DBG("No flux readings found for %.*s. Skipping.", (int) cat_name_len(src.name), src.name);
 #endif
-        sky_add_src(src);
+        sky_add(src);
     }
     HH_MSG("Found flux readings for %zu out of %zu sources.", src_flux_count, SKY->count);
 }
@@ -86,52 +118,24 @@ sky_free(void) {
     free(SKY->entries);
 }
 
-static size_t 
-sky_hash(const char id[static 8]) {
-    unsigned long hash = 14695981039346656037UL;
-    unsigned char curr;
-    bool term = false;
-    for(size_t i = 0; i < 8; ++i) {
-        curr = term ? '\0' : (unsigned char) id[i];
-        term |= id[i] == '\0';
-        hash ^= curr;
-        hash *= 1099511628211UL;
-    }
-    return hash % SKY->count;
-}
-
-bool*
-sky_get_src(const char id[static 8], Source* out) {
+const Source*
+sky_src(const char id[static 8]) {
     for(size_t i = sky_hash(id), j = 0, k; j < SKY->count; ++j) {
         k = (i + j) % SKY->count;
         if(!SKY->entries[k].used) continue;
-        if(cat_name_eq(SKY->entries[k].source.name, id)) {
-            *out = SKY->entries[k].source;
-            return &(SKY->entries[k].active);
-        }
+        if(cat_name_eq(SKY->entries[k].source.name, id)) return &(SKY->entries[k].source);
     }
     return NULL;
 }
 
 bool*
-sky_get_src_by_idx(const size_t idx, Source* out) {
-    if(!(SKY->entries[idx].used)) return NULL;
-    if(SKY->entries[idx].used) *out = SKY->entries[idx].source;
-    return &(SKY->entries[idx].active);
-}
-
-void
-sky_add_src(const Source src) {
-    for(size_t i = sky_hash(src.name), j = 0, k; j < SKY->count; ++j) {
+sky_src_active(const char id[static 8]) {
+    for(size_t i = sky_hash(id), j = 0, k; j < SKY->count; ++j) {
         k = (i + j) % SKY->count;
-        if(!SKY->entries[k].used || cat_name_eq(SKY->entries[k].source.name, src.name)) {
-            SKY->entries[k].source = src;
-            SKY->entries[k].used = true;
-            SKY->entries[k].active = false;
-            return;
-        }
+        if(!SKY->entries[k].used) continue;
+        if(cat_name_eq(SKY->entries[k].source.name, id)) return &(SKY->entries[k].active);
     }
-    HH_UNREACHABLE;
+    return NULL;
 }
 
 void
@@ -146,13 +150,11 @@ sky_xml_parse(struct xml_node* root) {
     struct xml_node* general = xml_node_find(root, "general");
     if(general == NULL) return false;
     struct xml_node* onlyUseListedSources = xml_node_find(general, "onlyUseListedSources");
-    Source src; bool* active;
     if(onlyUseListedSources == NULL) {
         size_t count = 0;
-        for(size_t i = 0; i < SKY->count; ++i) {
-            active = sky_get_src_by_idx(i, &src);
-            if(active == NULL) continue;
-            *active = true;
+        const Source* src;
+        sky_it(src) {
+            *(sky_src_active(src->name)) = true;
             ++count;
         }
         HH_MSG("Added %zu sources from catalog.", count);
@@ -167,11 +169,27 @@ sky_xml_parse(struct xml_node* root) {
             child_name = xml_node_content(child);
             strncpy(name, (const char*) child_name->buffer, child_name->length);
             if(child_name->length < 8) name[child_name->length] = '\0';
-            if((active = sky_get_src(name, &src)) != NULL) {
+            if(sky_src_active(name) != NULL) {
                 HH_MSG("Added quasar: %.*s", (int) child_name->length, child_name->buffer);
-                *active = true;
+                *(sky_src_active(name)) = true;
             } else HH_MSG("Failed to add quasar: %.*s", (int) child_name->length, child_name->buffer);
         }
     }
     return true;
+}
+
+//
+// helper functions
+//
+
+size_t
+SKY_H__sky_it(size_t i, const Source** src, bool only_active) {
+    (*src) = NULL;
+    while(i < SKY->count) {
+        (*src) = &(SKY->entries[i++].source);
+        if(SKY->entries[i].used) {
+            if(!only_active || SKY->entries[i - 1].active) return i;
+        }
+    }
+    return SIZE_MAX;
 }
