@@ -1,5 +1,7 @@
 #include "sched.h"
 
+// #include <gurobi_c.h>
+
 #include <math.h>
 #include <stdbool.h>
 #include <limits.h>
@@ -114,6 +116,9 @@ SCHED_IMPL(SCHED_DEFAULT) {
     ILP prog;
     ILP_init(&prog);
     HH_DBG("Initialized ILP.");
+#if 0
+    exit(0);
+#endif
     // each station can only observe one source at a time
     // SchedulerILP.cpp:96
     {
