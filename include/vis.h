@@ -6,11 +6,7 @@
 
 #include <glenv.h>
 
-#if defined(__GNUC__) || defined(__clang__)
-#define VIS_H__UNUSED __attribute__((unused))
-#else
-#define VIS_H__UNUSED
-#endif
+#include "hh.h"
 
 GLuint
 shader_compile_from_source(GLenum type, const char* source);
@@ -109,7 +105,7 @@ Vis_get_panel(Vis* const vis, const char* title);
 #define VIS_CFG_RATIO 0.75f
 #define VIS_SKD_RATIO 0.25f
 
-static inline bool VIS_H__UNUSED
+static inline bool HH_UNUSED
 Vis_expanded(const Vis* const vis, RGFW_rect original, RGFW_rect curr) {
     (void) vis;
     return curr.w > (int) ((float) original.w * (VIS_CFG_RATIO + VIS_SKD_RATIO * 2));

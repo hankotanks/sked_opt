@@ -135,6 +135,7 @@ Vis_free(Vis* const vis) {
         case PASS:
             glDeleteProgram(vis->layers[i].pass.program);
             if(vis->layers[i].type != BOTH) break;
+            HH_FALLTHROUGH;
         case PANEL:
             free(vis->layers[i].panel);
             break;
@@ -215,6 +216,7 @@ Vis_update_and_draw(Vis* const vis, const float gmst) {
             glDisable(GL_PROGRAM_POINT_SIZE);
             glUseProgram(0);
             if(vis->layers[i].type != BOTH) break;
+            HH_FALLTHROUGH;
         case PANEL:
             glenv_Panel_render(vis->layers[i].panel, vis->layers[i].data);
             break;
@@ -298,12 +300,12 @@ Vis_get_panel(Vis* const vis, const char* title) {
 void*
 Vis_add_layer(Vis* const vis, VisDesc desc) {
     if(desc.type == NONE) return NULL;
-    hh_arradd(vis->layers, 1);
+    (void) hh_arradd(vis->layers, 1);
     hh_arrlast(vis->layers).type = desc.type;
     hh_arrlast(vis->layers).data = NULL;
     if(desc.data_size) hh_arrlast(vis->layers).data = malloc(desc.data_size);
     if(desc.data_size && hh_arrlast(vis->layers).data == NULL) {
-        hh_arrpop(vis->layers);
+        (void) hh_arrpop(vis->layers);
         return NULL;
     }
     hh_arrlast(vis->layers).deinit = desc.deinit;
@@ -336,6 +338,7 @@ Vis_add_layer(Vis* const vis, VisDesc desc) {
         glUniform1f(glGetUniformLocation(hh_arrlast(vis->layers).pass.program, "globe_radius"), RADIUS);
         glUniform1f(glGetUniformLocation(hh_arrlast(vis->layers).pass.program, "shell_radius"), RADIUS * SCALAR);
         if(desc.type != BOTH) break;
+        HH_FALLTHROUGH;
     case PANEL:
         parent = Vis_get_panel(vis, desc.panel.parent_title);
         if(parent != NULL) glenv_Panel_config(desc.panel.panel, .parent = parent);

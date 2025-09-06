@@ -18,13 +18,13 @@ void cat_init(const char* path) {
         hh_path_join(path_file, CAT_H__##type_##_file); \
         file = fopen(path_file, "r"); \
         HH_ASSERT(file != NULL, "Failed to open catalog [%s].", path_file); \
-        hh_arradd(CAT->type_##_list, 1); \
+        (void) hh_arradd(CAT->type_##_list, 1); \
         while(hh_getline(&line, &len, file) != -1) { \
             line_temp = hh_skip_whitespace(line); \
             if(line_temp[0] == '*' || line_temp[0] == '\0') continue; \
-            if(CAT_H__##type_##_parse(line, &hh_arrlast(CAT->type_##_list))) hh_arradd(CAT->type_##_list, 1); \
+            if(CAT_H__##type_##_parse(line, &hh_arrlast(CAT->type_##_list))) (void) hh_arradd(CAT->type_##_list, 1); \
         } \
-        if(hh_arrlen(CAT->type_##_list) > 0) hh_arrpop(CAT->type_##_list); \
+        if(hh_arrlen(CAT->type_##_list) > 0) (void) hh_arrpop(CAT->type_##_list); \
         HH_MSG("Parsed %zu entries from [%s].", \
             hh_arrlen(CAT->type_##_list), path_file); \
         fclose(file); \

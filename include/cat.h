@@ -17,17 +17,11 @@
     X(flux) \
     X(equip)
 
-#if defined(__GNUC__) || defined(__clang__)
-#define CAT_H__UNUSED __attribute__((unused))
-#else
-#define CAT_H__UNUSED
-#endif
-
 #define CAT_DECL(type_) struct CAT_H__##type_##_entry
 #define CAT_IMPL(type_, file_) \
-    static const char* CAT_H__UNUSED CAT_H__##type_##_file = file_; \
-    static bool CAT_H__UNUSED CAT_H__##type_##_parse(const char* line, CAT_DECL(type_)* entry)
-#define CAT_IMPL_ENTRY_FREE(type_) static void CAT_H__UNUSED CAT_H__##type_##_entry_free(CAT_DECL(type_) entry)
+    static const char* HH_UNUSED CAT_H__##type_##_file = file_; \
+    static bool HH_UNUSED CAT_H__##type_##_parse(const char* line, CAT_DECL(type_)* entry)
+#define CAT_IMPL_ENTRY_FREE(type_) static void HH_UNUSED CAT_H__##type_##_entry_free(CAT_DECL(type_) entry)
 
 struct cat_t {
 #define X(type_) CAT_DECL(type_)* type_##_list;

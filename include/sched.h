@@ -6,10 +6,12 @@
 #include "source.h"
 #include "station.h"
 
+// tags of implemented schedules
 #define SCHED_TYPES \
-    X(SCHED_DEMO) \
+    X(SCHED_TEST) \
     X(SCHED_DEFAULT)
 
+// define schedule tags as enum values
 enum sched_type {
 #define X(ty_) ty_,
     SCHED_TYPES
@@ -17,37 +19,27 @@ enum sched_type {
     SCHED_COUNT
 };
 
-#define SCHED_DECL(ty_) SCHED_H__load_##ty_
-#define SCHED_IMPL(ty_) bool SCHED_DECL(ty_)(Output* const out)
+// macros
+#define SCHED_IMPL(ty_) bool SCHED_H__load_##ty_(Sched* const out)
 
-typedef struct {
-    const Source* target;
-    uintptr_t* sta;
-} Scan;
+// start the requested schedule
+void
+start(enum sched_type ty);
 
+// interface
+typedef struct SCHED_H__Sched Sched;
 void
-Scan_init(Scan* const scan, const Source* target);
+Sched_init(Sched* const out);
 void
-Scan_free(Scan* scan);
+Sched_push_begin(Sched* const out, size_t seg, const Source* const target);
 void
-Scan_add(Scan* const scan, const Station* sta);
+Sched_push(Sched* const out, const Station* const sta);
 void
-Scan_dump(const Scan* const scan);
+Sched_push_end(Sched* const out);
+void
+Sched_dump(const Sched* const out);
 
-typedef struct { Scan** scans; } Output;
-
-void
-Output_init(Output* const out);
-void
-Output_free(Output* out);
-void
-Output_add(Output* const out, size_t seg, Scan scan);
-void
-Output_dump(const Output* const out);
-
-void
-sched_start(enum sched_type ty);
-
+// forward declaration of scheduling functions
 #define X(ty_) SCHED_IMPL(ty_);
     SCHED_TYPES
 #undef X

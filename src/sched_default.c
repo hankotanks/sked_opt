@@ -11,46 +11,38 @@
 #include "time_sys.h"
 
 #define VAR_TYPES \
-    X(STA_ACTIVE, true) \
-    X(SRC_OBS, true) \
-    X(STA_SKY_COV, true) \
-    X(OBJ_MINIMA, false)
+    VAR_BIN(STA_ACTIVE) \
+    VAR_BIN(SRC_OBS) \
+    VAR_BIN(STA_SKY_COV) \
+    VAR_CON(OBJ_MINIMA, 0.0, 1e100)
 
 #include "ilp_fwd.h"
 
-ILP_VAR_COUNT_IMPL(STA_ACTIVE) { return prog->count_seg * prog->count_src * prog->count_sta; }
-ILP_VAR_INDEX_IMPL(STA_ACTIVE) { // seg, src, sta
-    size_t seg, src, sta;
-    seg = va_arg(args, size_t);
-    src = va_arg(args, size_t);
-    sta = va_arg(args, size_t);
+VAR_IMPL(STA_ACTIVE, { return prog->count_seg * prog->count_src * prog->count_sta; }, {
+    size_t seg = va_arg(args, size_t);
+    size_t src = va_arg(args, size_t);
+    size_t sta = va_arg(args, size_t);
     return seg * prog->count_src * prog->count_sta + src * prog->count_sta + sta;
-}
+})
 
-ILP_VAR_COUNT_IMPL(SRC_OBS) { return prog->count_seg * prog->count_src; }
-ILP_VAR_INDEX_IMPL(SRC_OBS) { // seg, src
-    size_t seg, src;
-    seg = va_arg(args, size_t);
-    src = va_arg(args, size_t);
+VAR_IMPL(SRC_OBS, { return prog->count_seg * prog->count_src; }, {
+    size_t seg = va_arg(args, size_t);
+    size_t src = va_arg(args, size_t);
     return seg * prog->count_src + src;
-}
+})
 
-ILP_VAR_COUNT_IMPL(STA_SKY_COV) { return prog->count_sta * STATION_SRC_SKY_COV_MAX; }
-ILP_VAR_INDEX_IMPL(STA_SKY_COV) { // sta, box
+VAR_IMPL(STA_SKY_COV, { return prog->count_sta * STATION_SRC_SKY_COV_MAX; }, {
     (void) prog;
-    size_t sta, box;
-    sta = va_arg(args, size_t);
-    box = va_arg(args, size_t);
+    size_t sta = va_arg(args, size_t);
+    size_t box = va_arg(args, size_t);
     return sta * STATION_SRC_SKY_COV_MAX + box;
-}
+})
 
-ILP_VAR_COUNT_IMPL(OBJ_MINIMA) { (void) prog; return 1; }
-ILP_VAR_INDEX_IMPL(OBJ_MINIMA) { (void) prog; (void) args; return 0; } // no params
+VAR_IMPL(OBJ_MINIMA, { (void) prog; return 1; }, { (void) prog; (void) args; return 0; })
 
 #include "ilp.h"
 
 SCHED_IMPL(SCHED_DEFAULT) {
-    (void) out;
     ILP prog;
     ILP_init(&prog);
     HH_DBG("Initialized ILP.");
@@ -143,22 +135,21 @@ SCHED_IMPL(SCHED_DEFAULT) {
     row_set(&prog, 1.0, OBJ_MINIMA);
     row_end_as_obj(&prog, true);
     HH_DBG("Finished building constraints and objective function.");
-    Scan scan;
-    if(ILP_solve(&prog)) {
-        for(size_t seg = 0; seg < prog.count_seg; ++seg) {
-            ILP_src_it(&prog, src_fst) {
-                if(ILP_get_sol(&prog, SRC_OBS, seg, src_fst_idx) > 0.0) {
-                    Scan_init(&scan, src_fst);
-                    ILP_sta_it(&prog, sta)
-                        if(ILP_get_sol(&prog, STA_ACTIVE, seg, src_fst_idx, sta_idx) > 0.0) 
-                            Scan_add(&scan, sta);
-                    Output_add(out, seg, scan);
-                }
+    if(!ILP_solve(&prog)) {
+        ILP_free(&prog);
+        return false;
+    }
+    for(size_t seg = 0; seg < prog.count_seg; ++seg) {
+        ILP_src_it(&prog, src_fst) {
+            if(ILP_get_sol(&prog, SRC_OBS, seg, src_fst_idx) > 0.5) {
+                Sched_push_begin(out, seg, src_fst);
+                ILP_sta_it(&prog, sta)
+                    if(ILP_get_sol(&prog, STA_ACTIVE, seg, src_fst_idx, sta_idx) > 0.5) 
+                        Sched_push(out, sta);
+                Sched_push_end(out);
             }
         }
-        ILP_free(&prog);
-        return true;
     }
     ILP_free(&prog);
-    return false;
+    return true;
 }

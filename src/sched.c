@@ -4,21 +4,10 @@
 
 #include "time_sys.h"
 
-void
-Scan_init(Scan* const scan, const Source* target) {
-    scan->target = target;
-    scan->sta = NULL;
-}
-
-void
-Scan_free(Scan* scan) {
-    hh_arrfree(scan->sta);
-}
-
-void
-Scan_add(Scan* const scan, const Station* sta) {
-    hh_arrput(scan->sta, (uintptr_t) sta);
-}
+typedef struct {
+    const Source* target;
+    uintptr_t* sta;
+} Scan;
 
 void
 Scan_dump(const Scan* const scan) {
@@ -31,27 +20,38 @@ Scan_dump(const Scan* const scan) {
     printf("]");
 }
 
+struct SCHED_H__Sched { 
+    Scan** scans; 
+    size_t seg;
+};
+
 void
-Output_init(Output* const out) {
+Sched_init(Sched* const out) {
     HH_CALLOC(out->scans, sizeof(Scan*) * (TIME_SYS->duration / TIME_SYS->scan_length));
 }
 
 void
-Output_free(Output* out) {
-    for(size_t i = 0, j, k; i < (TIME_SYS->duration / TIME_SYS->scan_length); ++i) {
-        for(j = 0, k = hh_arrlen(out->scans[i]); j < k; ++j) Scan_free(&(out->scans[i][j]));
-        hh_arrfree(out->scans[i]);
-    }
-    free(out->scans);
+Sched_push_begin(Sched* const out, size_t seg, const Source* const target) {
+    Scan curr;
+    curr.target = target;
+    curr.sta = NULL;
+    hh_arrput(out->scans[seg], curr);
+    out->seg = seg;
 }
 
 void
-Output_add(Output* const out, size_t seg, Scan scan) {
-    hh_arrput(out->scans[seg], scan);
+Sched_push(Sched* const out, const Station* const sta) {
+    HH_ASSERT(out->seg != SIZE_MAX, "Can only call Sched_push after Sched_push_begin.");
+    hh_arrput(hh_arrlast(out->scans[out->seg]).sta, (uintptr_t) sta);
 }
 
 void
-Output_dump(const Output* const out) {
+Sched_push_end(Sched* const out) {
+    out->seg = SIZE_MAX;
+}
+
+void
+Sched_dump(const Sched* const out) {
     for(size_t i = 0, j, k; i < (TIME_SYS->duration / TIME_SYS->scan_length); ++i) {
         printf("%zu: ", i);
         for(j = 0, k = hh_arrlen(out->scans[i]); j < k; ++j) {
@@ -62,22 +62,27 @@ Output_dump(const Output* const out) {
 }
 
 void
-sched_start(enum sched_type ty) {
+start(enum sched_type ty) {
     // initialize output
-    Output out;
-    Output_init(&out);
+    Sched out;
+    HH_CALLOC(out.scans, sizeof(Scan*) * (TIME_SYS->duration / TIME_SYS->scan_length));
     // run the schedule
     bool ret;
     switch(ty) {
 #define X(ty_) \
     case ty_: \
-        ret = SCHED_DECL(ty_)(&out); \
+        ret = SCHED_H__load_##ty_(&out); \
         break;
     SCHED_TYPES
 #undef X
     default: HH_UNREACHABLE;
     }
     HH_ASSERT(ret, "Failed to complete schedule.");
-    Output_dump(&out);
-    Output_free(&out);
+    Sched_dump(&out);
+    // free the schedule
+    for(size_t i = 0, j, k; i < (TIME_SYS->duration / TIME_SYS->scan_length); ++i) {
+        for(j = 0, k = hh_arrlen(out.scans[i]); j < k; ++j) hh_arrfree(out.scans[i][j].sta);
+        hh_arrfree(out.scans[i]);
+    }
+    free(out.scans);
 }

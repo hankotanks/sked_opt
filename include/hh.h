@@ -20,6 +20,17 @@
 #define HH_MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define HH_MIN(x, y) (((x) < (y)) ? (x) : (y))
 
+#if defined(__GNUC__) || defined(__clang__)
+#define HH_UNUSED __attribute__((unused))
+#else
+#define HH_UNUSED
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define HH_FALLTHROUGH __attribute__((fallthrough))
+#else
+#define HH_FALLTHROUGH
+#endif
 
 //
 // LOGGING
@@ -338,8 +349,8 @@ hh_path(const char *raw) {
 	if(raw_abs) free(raw_abs);
 	if(path == NULL) return NULL;
 	for(char* curr = path; *curr != '\0'; ++curr) if(*curr == '\\') *curr = '/';
-	hh_arrpop(path);
-	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') hh_arrpop(path);
+	(void) hh_arrpop(path);
+	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') (void) hh_arrpop(path);
 	hh_arrput(path, '\0');
 	return path;
 }
@@ -368,11 +379,11 @@ hh_path_is_file(const char* path) {
 char*
 hh_path_join(char* path, const char* sub) {
 	if(sub[0] == '/' || sub[0] == '\\') ++sub;
-	hh_arrpop(path);
+	(void) hh_arrpop(path);
 	if(hh_arrlast(path) != '/') hh_strput(path, "/");
 	hh_strput(path, sub);
-	hh_arrpop(path);
-	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') hh_arrpop(path);
+	(void) hh_arrpop(path);
+	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') (void) hh_arrpop(path);
 	hh_arrput(path, '\0');
 	return path;
 }
@@ -389,7 +400,7 @@ char*
 hh_path_parent(const char* path) {
 	char* path_parent = NULL;
 	hh_strput(path_parent, path);
-	while(hh_arrlast(path_parent) != '/') hh_arrpop(path_parent);
+	while(hh_arrlast(path_parent) != '/') (void) hh_arrpop(path_parent);
 #ifdef _WIN32
 	if(hh_arrlen(path_parent) == 3 && path_parent[0] >= 'A' && path_parent[0] <= 'Z' && path_parent[1] == ':' && path_parent[2] == '/') {
 		if(hh_arrlen(path) == 4) hh_arrfree(path_parent);
@@ -403,7 +414,7 @@ hh_path_parent(const char* path) {
 		if(hh_arrlen(path) == 2) hh_arrfree(path_parent);
 		else hh_arrput(path_parent, '\0');
 	} else {
-		hh_arrpop(path_parent);
+		(void) hh_arrpop(path_parent);
 		hh_arrput(path_parent, '\0');
 	}
 #endif
@@ -412,7 +423,7 @@ hh_path_parent(const char* path) {
 
 char*
 hh_path_parent_in_place(char* path) {
-	while(hh_arrlast(path) != '/') hh_arrpop(path);
+	while(hh_arrlast(path) != '/') (void) hh_arrpop(path);
 #ifdef _WIN32
 	if(hh_arrlen(path) == 3 && path[0] >= 'A' && path[0] <= 'Z' && path[1] == ':' && path[2] == '/') {
 		if(hh_arrlen(path) == 4) hh_arrfree(path);
@@ -426,7 +437,7 @@ hh_path_parent_in_place(char* path) {
 		if(hh_arrlen(path) == 2) hh_arrfree(path);
 		else hh_arrput(path, '\0');
 	} else {
-		hh_arrpop(path);
+		(void) hh_arrpop(path);
 		hh_arrput(path, '\0');
 	}
 #endif
@@ -587,7 +598,7 @@ hh_read_entire_file(const char* path) {
 	unsigned long size = (unsigned long) size_temp;
     rewind(f);
 	char* buf = NULL;
-	hh_arradd(buf, size);
+	(void) hh_arradd(buf, size);
 	HH_CHECK_STREAM(f, buf != NULL, "Failed to allocate buffer for file contents [%s].", path) 
 		return NULL;
     size_t read_size = fread(buf, 1, size, f);
@@ -595,7 +606,7 @@ hh_read_entire_file(const char* path) {
 		hh_arrfree(buf);
 		return NULL;
 	}
-	hh_arradd(buf, '\0');
+	(void) hh_arradd(buf, '\0');
     fclose(f);
     return buf;
 }
