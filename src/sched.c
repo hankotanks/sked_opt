@@ -78,7 +78,7 @@ start(enum sched_type ty) {
     default: HH_UNREACHABLE;
     }
     HH_ASSERT(ret, "Failed to complete schedule.");
-    Sched_dump(&out);
+    // Sched_dump(&out);
     // free the schedule
     for(size_t i = 0, j, k; i < (TIME_SYS->duration / TIME_SYS->scan_length); ++i) {
         for(j = 0, k = hh_arrlen(out.scans[i]); j < k; ++j) hh_arrfree(out.scans[i][j].sta);

@@ -8,7 +8,6 @@
 
 // tags of implemented schedules
 #define SCHED_TYPES \
-    X(SCHED_TEST) \
     X(SCHED_DEFAULT)
 
 // define schedule tags as enum values

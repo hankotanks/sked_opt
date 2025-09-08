@@ -14,7 +14,7 @@
     VAR_BIN(STA_ACTIVE) \
     VAR_BIN(SRC_OBS) \
     VAR_BIN(STA_SKY_COV) \
-    VAR_CON(OBJ_MINIMA, 0.0, 1e100)
+    VAR_CON(OBJ_SKY_COV, 0.0, 1e100)
 
 #include "ilp_fwd.h"
 
@@ -38,7 +38,7 @@ VAR_IMPL(STA_SKY_COV, { return prog->count_sta * STATION_SRC_SKY_COV_MAX; }, {
     return sta * STATION_SRC_SKY_COV_MAX + box;
 })
 
-VAR_IMPL(OBJ_MINIMA, { (void) prog; return 1; }, { (void) prog; (void) args; return 0; })
+VAR_IMPL(OBJ_SKY_COV, { (void) prog; return 1; }, { (void) prog; (void) args; return 0; })
 
 #include "ilp.h"
 
@@ -46,7 +46,6 @@ SCHED_IMPL(SCHED_DEFAULT) {
     ILP prog;
     ILP_init(&prog);
     HH_DBG("Initialized ILP.");
-    // TODO: This constraint appears broken
     // each station can only observe one source at a time
     // SchedulerILP.cpp:96
     for(size_t t = 0; t < prog.count_seg; ++t) {
@@ -63,20 +62,16 @@ SCHED_IMPL(SCHED_DEFAULT) {
     for(size_t t = 0; t < prog.count_seg; ++t) {
         for(size_t k = 0; k < prog.count_src; ++k) {
             row_begin(&prog);
-            for(size_t b = 0; b < prog.count_sta; ++b) 
-                row_set(&prog, 1.0, STA_ACTIVE, t, k, b);
-            row_set(&prog, (double) prog.count_sta * -1.0, SRC_OBS, t, k);
-            row_end_as_constr(&prog, '<', 0.0);
-        }
-    }
-    // SchedulerILP.cpp:121
-    for(size_t t = 0; t < prog.count_seg; ++t) {
-        for(size_t k = 0; k < prog.count_src; ++k) {
-            row_begin(&prog);
-            for(size_t b = 0; b < prog.count_sta; ++b) 
+            for(size_t b = 0; b < prog.count_sta; ++b)
                 row_set(&prog, 1.0, STA_ACTIVE, t, k, b);
             row_set(&prog, -2.0, SRC_OBS, t, k);
             row_end_as_constr(&prog, '>', 0.0);
+            for(size_t b = 0; b < prog.count_sta; ++b) {
+                row_begin(&prog);
+                row_set(&prog, 1.0, STA_ACTIVE, t, k, b);
+                row_set(&prog, -1.0, SRC_OBS, t, k);
+                row_end_as_constr(&prog, '<', 0.0);
+            }
         }
     }
     HH_DBG("Added constraint: A valid scan requires >= 2 participating stations.");
@@ -120,20 +115,30 @@ SCHED_IMPL(SCHED_DEFAULT) {
             row_end_as_constr(&prog, '<', 0.0);
         }
     } 
-    HH_DBG("Added constraint: Keep sky coverage cells up to date.");
+    HH_DBG("Added constraint: Maintain sky coverages.");
     // objective
     // ShedulerILP.cpp:146
+#if 1
     double co = -1.0 / (double) STATION_SRC_SKY_COV_MAX;
     ILP_sta_it(&prog, sta) {
         (void) sta;
         for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx)
             row_set(&prog, co, STA_SKY_COV, sta_idx, box_idx);
-        row_set(&prog, 1.0, OBJ_MINIMA);
+        row_set(&prog, 1.0, OBJ_SKY_COV);
         row_end_as_constr(&prog, '<', 0.0);
     }
     row_begin(&prog);
-    row_set(&prog, 1.0, OBJ_MINIMA);
+    row_set(&prog, 1.0, OBJ_SKY_COV);
     row_end_as_obj(&prog, true);
+#else
+    row_begin(&prog);
+    ILP_src_it(&prog, src_fst) {
+        for(size_t t = 0; t < prog.count_seg; ++t) {
+            row_set(&prog, 1.0, SRC_OBS, t, src_fst_idx);
+        }
+    }
+    row_end_as_obj(&prog, true);
+#endif
     HH_DBG("Finished building constraints and objective function.");
     if(!ILP_solve(&prog)) {
         ILP_free(&prog);
@@ -148,6 +153,16 @@ SCHED_IMPL(SCHED_DEFAULT) {
                         Sched_push(out, sta);
                 Sched_push_end(out);
             }
+        }
+    }
+    Sched_dump(out);
+    size_t active;
+    for(size_t seg = 0; seg < prog.count_seg; ++seg) {
+        ILP_sta_it(&prog, sta) {
+            active = 0;
+            ILP_src_it(&prog, src_fst)
+                if(ILP_get_sol(&prog, STA_ACTIVE, seg, src_fst_idx, sta_idx) > 0.5) active++;
+            HH_ASSERT(active < 2, "Station observes 2 sources simultaneously.");
         }
     }
     ILP_free(&prog);

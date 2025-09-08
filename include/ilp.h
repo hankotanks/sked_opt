@@ -24,7 +24,7 @@
 #include "ilp_fwd.h"
 
 #define ILP_src_it(prog_, it_) \
-    for(size_t it_##_idx = ILP_H__ILP_src_it_helper(prog_, 0, &it_); it_##_idx != SIZE_MAX; it_##_idx = ILP_H__ILP_src_it_helper(prog_, it_##_idx, &it_))
+    for(size_t it_##_idx = ILP_H__ILP_src_it_helper(prog_, 0, &it_); it_##_idx != SIZE_MAX; it_##_idx = ILP_H__ILP_src_it_helper(prog_, it_##_idx + 1, &it_))
 
 #define ILP_sta_it(prog_, it_) \
     it_ = net_sta((prog_)->map_sta); \
@@ -40,6 +40,8 @@ static void
 ILP_free(ILP* prog);
 static bool
 ILP_solve(const ILP* const prog);
+static void
+ILP_write(const ILP* const prog, const char* path);
 static void
 row_begin(ILP* const prog);
 static void
@@ -101,6 +103,7 @@ GUROBI_DECL(GRBgetdblattrelement, int, GRBmodel *model, const char *attrname, in
 GUROBI_DECL(GRBgetintattr, int, GRBmodel *model, const char *attrname, int *valueP);
 GUROBI_DECL(GRBgeterrormsg, const char*, GRBenv *env);
 GUROBI_DECL(GRBsetintparam, int, GRBenv *env, const char *paramname, int value);
+GUROBI_DECL(GRBwrite, int, GRBmodel *model, const char *filename);
 
 static void HH_UNUSED
 ILP_H__load_gurobi(ILP* const prog);
@@ -115,6 +118,8 @@ ILP_init(ILP* const prog) {
     prog->constr_co = NULL;
     ILP_H__ILP_map_sta(prog);
     ILP_H__ILP_map_src(prog);
+    HH_MSG("participating stations: %s", prog->map_sta);
+    HH_MSG("participating sources: %s", prog->map_src);
     prog->count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
 #define X(ty_) prog->count_var[(size_t) ty_] = ILP_FWD_H__count_##ty_(prog);
 #define VAR_BIN(ty_) X(ty_)
@@ -135,7 +140,9 @@ ILP_init(ILP* const prog) {
     HH_ASSERT(!err, "Failed to initialize Gurobi model.");
     size_t idx = 0;
 #define X(ty_, lb_, ub_, vtype_) for(size_t j = 0; j < prog->count_var[idx]; ++j) { \
-        err = GRBaddvar(prog->model, 0, NULL, NULL, 0.0, lb_, ub_, vtype_, NULL); \
+        char vname_[64]; \
+        snprintf(vname_, sizeof vname_, "%s_%zu", #ty_, j); \
+        err = GRBaddvar(prog->model, 0, NULL, NULL, 0.0, (lb_), (ub_), (vtype_), vname_); \
         HH_ASSERT(!err, "Failed to add %s variable to Gurobi model: %s", #ty_, GRBgeterrormsg(prog->env)); } \
         idx++;
 #define VAR_BIN(ty_) X(ty_, 0.0, 1.0, 'B')
@@ -147,6 +154,11 @@ ILP_init(ILP* const prog) {
 #undef VAR_INT
 #undef X
     GRBupdatemodel(prog->model);
+    int total_var;
+    err = GRBgetintattr(prog->model, "NumVars", &total_var);
+    HH_ASSERT(!err, "Failed to query Gurobi model's column count: %s", GRBgeterrormsg(prog->env));
+    HH_ASSERT((size_t) total_var == prog->total_var, "Wrong number of columns in Gurobi model.");
+    HH_MSG("Total var count: %d", total_var);
     (void) idx;
 }
 
@@ -184,6 +196,13 @@ ILP_solve(const ILP* const prog) {
 }
 
 static void HH_UNUSED
+ILP_write(const ILP* const prog, const char* path) {
+    int err;
+    err = GRBwrite(prog->model, path);
+    HH_ASSERT(!err, "Failed to dump Gurobi model: %s", GRBgeterrormsg(prog->env));
+}
+
+static void HH_UNUSED
 row_begin(ILP* const prog) {
     hh_arrclear(prog->constr_idx);
     hh_arrclear(prog->constr_co);
@@ -199,6 +218,8 @@ row_end_as_constr(ILP* const prog, char constr_type, double rhs) {
 static void HH_UNUSED
 row_end_as_obj(ILP* const prog, bool maximize) {
     HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
+    // for(size_t i = 0, len = hh_arrlen(prog->constr_idx); i < len; ++i) printf("[%d: %lf] ", prog->constr_idx[i], prog->constr_co[i]);
+    // printf("\n");
     int err;
     err = GRBsetdblattrlist(prog->model, "Obj", (int) hh_arrlen(prog->constr_idx), prog->constr_idx, prog->constr_co);
     HH_ASSERT(!err, "Failed to set Gurobi model's objective coefficients: %s", GRBgeterrormsg(prog->env));
@@ -250,7 +271,7 @@ ILP_H__ILP_src_it_helper(const ILP* const prog, size_t i, const Source** src) {
         else break;
     }
     if(((*src) = sky_src(buf)) == NULL) return SIZE_MAX;
-    return i;
+    return i - 1;
 }
 
 static size_t
@@ -337,6 +358,7 @@ ILP_H__load_gurobi(ILP* const prog) {
     GUROBI_IMPL(prog->handle, GRBgetintattr);
     GUROBI_IMPL(prog->handle, GRBgeterrormsg);
     GUROBI_IMPL(prog->handle, GRBsetintparam);
+    GUROBI_IMPL(prog->handle, GRBwrite);
     HH_MSG("Gurobi library loaded successfully!");
     hh_arrfree(path);
 }
