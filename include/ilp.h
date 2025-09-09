@@ -41,7 +41,7 @@ ILP_free(ILP* prog);
 static bool
 ILP_solve(const ILP* const prog);
 static void
-ILP_write(const ILP* const prog, const char* path);
+ILP_write(const ILP* const prog, const char* path, bool iis);
 static void
 row_begin(ILP* const prog);
 static void
@@ -184,8 +184,8 @@ ILP_free(ILP* prog) {
 static bool HH_UNUSED
 ILP_solve(const ILP* const prog) {
     int err;
-    // err = GRBsetintparam(prog->env, "MIPFocus", 1);
-    // HH_ASSERT(!err, "Failed to configure Gurobi model: %s", GRBgeterrormsg(prog->env));
+    err = GRBsetintparam(prog->env, "MIPFocus", 1);
+    HH_ASSERT(!err, "Failed to configure Gurobi model: %s", GRBgeterrormsg(prog->env));
     err = GRBupdatemodel(prog->model);
     HH_ASSERT(!err, "Failed to update Gurobi model: %s", GRBgeterrormsg(prog->env));
     err = GRBoptimize(prog->model);
@@ -197,10 +197,12 @@ ILP_solve(const ILP* const prog) {
 }
 
 static void HH_UNUSED
-ILP_write(const ILP* const prog, const char* path) {
+ILP_write(const ILP* const prog, const char* path, bool iis) {
     int err;
-    err = GRBcomputeIIS(prog->model);
-    HH_ASSERT(!err, "Failed to compute Irreducible Infeasible Subset (IIS): %s", GRBgeterrormsg(prog->env));
+    if(iis) {
+        err = GRBcomputeIIS(prog->model);
+        HH_ASSERT(!err, "Failed to compute Irreducible Infeasible Subset (IIS): %s", GRBgeterrormsg(prog->env));
+    }
     err = GRBwrite(prog->model, path);
     HH_ASSERT(!err, "Failed to dump Gurobi model: %s", GRBgeterrormsg(prog->env));
 }

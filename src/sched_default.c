@@ -55,7 +55,7 @@ VAR_IMPL(OBJ_SCANS, { (void) prog; return 1; }, { (void) prog; (void) args; retu
 
 #include "ilp.h"
 
-#define SEG_LOOKAHEAD 3
+#define SEG_LOOKAHEAD 2
 
 SCHED_IMPL(SCHED_DEFAULT) {
     ILP prog;
@@ -148,7 +148,7 @@ SCHED_IMPL(SCHED_DEFAULT) {
     unsigned int sec[2];
     unsigned int sec_slew;
     count = 0;
-#if 0
+#if 1
     // method with lookahead
     ILP_sta_it(&prog, sta) {
         ILP_src_it(&prog, src_fst) {
@@ -170,37 +170,12 @@ SCHED_IMPL(SCHED_DEFAULT) {
             }
         }
     }
-#endif
-#if 0
-    // method with assumed static sources
-    ILP_sta_it(&prog, sta) {
-        ILP_src_it(&prog, src_fst) {
-            ILP_src_it(&prog, src_snd) {
-                for(size_t seg_fst = 0, seg_snd, seg_slew; seg_fst < prog.count_seg; ++seg_fst) {
-                    sec[0] = (unsigned int) seg_fst * TIME_SYS->scan_length;
-                    sec[1] = (unsigned int) (seg_fst + 1) * TIME_SYS->scan_length;
-                    sec_slew = Station_slew_time(sta, (const Source*[2]) { src_fst, src_snd }, sec);
-                    seg_slew = (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length;
-                    for(seg_snd = seg_fst + 1; seg_snd < (seg_fst + seg_slew) && seg_snd < prog.count_seg; ++seg_snd) {
-                        // sec_slew = Station_slew_time(sta, (const Source*[2]) { src_fst, src_snd }, sec);
-                        // if((seg_snd - seg_fst - 1) * TIME_SYS->scan_length >= sec_slew) continue;
-                        row_begin(&prog);
-                        row_set(&prog, 1.0, STA_ACTIVE, seg_fst, src_fst_idx, sta_idx);
-                        row_set(&prog, 1.0, STA_ACTIVE, seg_snd, src_snd_idx, sta_idx);
-                        row_end_as_constr(&prog, '<', 1.0);
-                        count++;
-                    }
-                }
-            }
-        }
-    }
-#endif
-#if 1
+#else
     // original
     ILP_sta_it(&prog, sta) {
         ILP_src_it(&prog, src_fst) {
             ILP_src_it(&prog, src_snd) {
-                if(src_fst == src_snd) continue;
+                // if(src_fst == src_snd) continue;
                 for(size_t seg_fst = 0, seg_snd; seg_fst < prog.count_seg; ++seg_fst) {
                     sec[0] = (unsigned int) seg_fst * TIME_SYS->scan_length;
                     for(seg_snd = seg_fst + 1; seg_snd < prog.count_seg; ++seg_snd) {
@@ -292,7 +267,6 @@ SCHED_IMPL(SCHED_DEFAULT) {
     row_set(&prog, 1.0, OBJ_SCANS);  
     row_end_as_obj(&prog, true);
     HH_DBG("Finished building constraints and objective function.");
-    // ILP_write(&prog, "./.cache/iis.ilp");
     if(!ILP_solve(&prog)) {
         ILP_free(&prog);
         return false;
