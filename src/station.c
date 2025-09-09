@@ -253,6 +253,7 @@ Station_src_visible(const Station* const sta, const Source* const src, unsigned 
     default: HH_UNREACHABLE;
     }
     return Station_axis_inside_cable_wrap(sta, ax_fst, ax_snd);  
+    // TODO: Must also check horizon masks and minimum station elevation
 }
 
 unsigned int

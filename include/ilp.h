@@ -104,6 +104,7 @@ GUROBI_DECL(GRBgetintattr, int, GRBmodel *model, const char *attrname, int *valu
 GUROBI_DECL(GRBgeterrormsg, const char*, GRBenv *env);
 GUROBI_DECL(GRBsetintparam, int, GRBenv *env, const char *paramname, int value);
 GUROBI_DECL(GRBwrite, int, GRBmodel *model, const char *filename);
+GUROBI_DECL(GRBcomputeIIS, int, GRBmodel *model);
 
 static void HH_UNUSED
 ILP_H__load_gurobi(ILP* const prog);
@@ -183,8 +184,8 @@ ILP_free(ILP* prog) {
 static bool HH_UNUSED
 ILP_solve(const ILP* const prog) {
     int err;
-    err = GRBsetintparam(prog->env, "MIPFocus", 1);
-    HH_ASSERT(!err, "Failed to configure Gurobi model: %s", GRBgeterrormsg(prog->env));
+    // err = GRBsetintparam(prog->env, "MIPFocus", 1);
+    // HH_ASSERT(!err, "Failed to configure Gurobi model: %s", GRBgeterrormsg(prog->env));
     err = GRBupdatemodel(prog->model);
     HH_ASSERT(!err, "Failed to update Gurobi model: %s", GRBgeterrormsg(prog->env));
     err = GRBoptimize(prog->model);
@@ -198,6 +199,8 @@ ILP_solve(const ILP* const prog) {
 static void HH_UNUSED
 ILP_write(const ILP* const prog, const char* path) {
     int err;
+    err = GRBcomputeIIS(prog->model);
+    HH_ASSERT(!err, "Failed to compute Irreducible Infeasible Subset (IIS): %s", GRBgeterrormsg(prog->env));
     err = GRBwrite(prog->model, path);
     HH_ASSERT(!err, "Failed to dump Gurobi model: %s", GRBgeterrormsg(prog->env));
 }
@@ -359,6 +362,7 @@ ILP_H__load_gurobi(ILP* const prog) {
     GUROBI_IMPL(prog->handle, GRBgeterrormsg);
     GUROBI_IMPL(prog->handle, GRBsetintparam);
     GUROBI_IMPL(prog->handle, GRBwrite);
+    GUROBI_IMPL(prog->handle, GRBcomputeIIS);
     HH_MSG("Gurobi library loaded successfully!");
     hh_arrfree(path);
 }
