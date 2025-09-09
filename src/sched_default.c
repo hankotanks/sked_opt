@@ -149,7 +149,6 @@ SCHED_IMPL(SCHED_DEFAULT) {
     unsigned int sec_slew;
     count = 0;
 #if 1
-    // method with lookahead
     ILP_sta_it(&prog, sta) {
         ILP_src_it(&prog, src_fst) {
             ILP_src_it(&prog, src_snd) {
@@ -163,7 +162,8 @@ SCHED_IMPL(SCHED_DEFAULT) {
                         row_begin(&prog);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_fst, src_fst_idx, sta_idx);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_snd, src_snd_idx, sta_idx);
-                        row_end_as_constr(&prog, '<', 1.0);
+                        // row_end_as_constr(&prog, '<', 1.0);
+                        row_end_as_indicator(&prog, '=', 0.0);
                         count++;
                     }
                 }
@@ -171,11 +171,10 @@ SCHED_IMPL(SCHED_DEFAULT) {
         }
     }
 #else
-    // original
     ILP_sta_it(&prog, sta) {
         ILP_src_it(&prog, src_fst) {
             ILP_src_it(&prog, src_snd) {
-                // if(src_fst == src_snd) continue;
+                if(src_fst == src_snd) continue;
                 for(size_t seg_fst = 0, seg_snd; seg_fst < prog.count_seg; ++seg_fst) {
                     sec[0] = (unsigned int) seg_fst * TIME_SYS->scan_length;
                     for(seg_snd = seg_fst + 1; seg_snd < prog.count_seg; ++seg_snd) {
@@ -185,7 +184,8 @@ SCHED_IMPL(SCHED_DEFAULT) {
                         row_begin(&prog);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_fst, src_fst_idx, sta_idx);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_snd, src_snd_idx, sta_idx);
-                        row_end_as_constr(&prog, '<', 1.0);
+                        // row_end_as_constr(&prog, '<', 1.0);
+                        row_end_as_indicator(&prog, '=', 0.0);
                         count++;
                     }
                 }
@@ -267,6 +267,11 @@ SCHED_IMPL(SCHED_DEFAULT) {
     row_set(&prog, 1.0, OBJ_SCANS);  
     row_end_as_obj(&prog, true);
     HH_DBG("Finished building constraints and objective function.");
+    // set parameters
+    ILP_param_int(&prog, "MIPFocus", 3);
+    ILP_param_int(&prog, "Cuts", 2);
+    ILP_param_double(&prog, "Heuristics", 0.05);
+    ILP_param_int(&prog, "PreSolve", 2);
     if(!ILP_solve(&prog)) {
         ILP_free(&prog);
         return false;
