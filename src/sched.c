@@ -47,6 +47,7 @@ Sched_push(Sched* const out, const Station* const sta) {
 
 void
 Sched_push_end(Sched* const out) {
+    if(hh_arrlast(out->scans[out->seg]).sta == NULL) (void) hh_arrpop(out->scans[out->seg]);
     out->seg = SIZE_MAX;
 }
 
