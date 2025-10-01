@@ -159,7 +159,7 @@ SCHED_IMPL(SCHED_DEFAULT) {
                     for(seg_snd = seg_fst + 1; seg_snd < prog.count_seg; ++seg_snd) {
                         sec[1] = (unsigned int) seg_snd * TIME_SYS->scan_length;
                         sec_slew = Station_slew_time(sta, (const Source*[2]) { src_fst, src_snd }, sec);
-                        if((seg_snd - seg_fst - 1) * TIME_SYS->scan_length >= sec_slew) continue;
+                        if(seg_snd - seg_fst - 1 >= (size_t) ceilf((float) sec_slew / (float) TIME_SYS->scan_length)) continue;
                         row_begin(&prog);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_fst, src_fst_idx, sta_idx);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_snd, src_snd_idx, sta_idx);
