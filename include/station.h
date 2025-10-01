@@ -31,5 +31,6 @@ unsigned int
 Station_slew_time(const Station* const sta, const Source* const src[2], unsigned int seconds[2]);
 size_t
 Station_src_sky_cov_idx(const Station* const sta, const Source* const src, unsigned int seconds);
-
+double
+Station_baseline_dist(const Station* const sta_fst, const Station* const sta_snd);
 #endif // STATION_H__

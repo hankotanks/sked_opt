@@ -345,3 +345,12 @@ Station_src_sky_cov_idx(const Station* const sta, const Source* const src, unsig
     if((double) col > n - 1) col = 0;
     return row ? col + 9 : col;
 }
+
+double
+Station_baseline_dist(const Station* const sta_fst, const Station* const sta_snd) {
+    double dx, dy, dz;
+    dx = sta_fst->x - sta_snd->x;
+    dy = sta_fst->y - sta_snd->y;
+    dz = sta_fst->z - sta_snd->z;
+    return sqrt(dx * dx + dy * dy + dz * dz);
+}

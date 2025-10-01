@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <float.h>
 
 #include <sofam.h>
 
@@ -14,7 +15,8 @@
     VAR_BIN(STA_ACTIVE) \
     VAR_BIN(BASELINE) \
     VAR_BIN(STA_SKY_COV) \
-    VAR_CON(OBJ_SKY_COV, 0.0, 1.0)
+    VAR_CON(OBJ_SKY_COV, 0.0, 1.0) \
+    VAR_CON(OBJ_BASELINE, 0.0, 1.0)
 
 #include "ilp_fwd.h"
 
@@ -46,6 +48,7 @@ VAR_IMPL(STA_SKY_COV, { return prog->count_sta * STATION_SRC_SKY_COV_MAX; }, {
 })
 
 VAR_IMPL(OBJ_SKY_COV, { (void) prog; return 1; }, { (void) prog; (void) args; return 0; })
+VAR_IMPL(OBJ_BASELINE, { (void) prog; return 1; }, { (void) prog; (void) args; return 0; })
 
 #include "ilp.h"
 
@@ -98,17 +101,18 @@ SCHED_IMPL(SCHED_DEFAULT) {
                     row_set(&prog, -1.0, STA_ACTIVE, t, src_idx, sta_snd_idx);
                 }
                 row_end_as_constr(&prog, '<', 0.0);
+                count++;
             }
         }
     }
     HH_DBG("Added %zu constraints: 2 participants are required for a scan.", count);
     // constrain baseline variables
     count = 0;
-    for(size_t t = 0; t < prog.count_seg; ++t) {
-        ILP_src_it(&prog, src) {
-            ILP_sta_it(&prog, sta_fst) {
-                ILP_sta_it(&prog, sta_snd) {
-                    if(sta_fst_idx >= sta_snd_idx) continue;
+    ILP_sta_it(&prog, sta_fst) {
+        ILP_sta_it(&prog, sta_snd) {
+            if(sta_fst_idx >= sta_snd_idx) continue;
+            for(size_t t = 0; t < prog.count_seg; ++t) {
+                ILP_src_it(&prog, src) {
                     row_begin(&prog);
                     row_set(&prog, 1.0, BASELINE, t, src_idx, sta_fst_idx, sta_snd_idx);
                     row_set(&prog, -1.0, STA_ACTIVE, t, src_idx, sta_fst_idx);
@@ -119,8 +123,24 @@ SCHED_IMPL(SCHED_DEFAULT) {
                     row_end_as_constr(&prog, '<', 0.0);
                     count += 2;
                 }
+                row_begin(&prog);
+                ILP_src_it(&prog, src) {
+                    row_set(&prog, 1.0, BASELINE, t, src_idx, sta_fst_idx, sta_snd_idx);
+                }
+                row_end_as_constr(&prog, '<', 1.0);
+                count++;
             }
         }
+        row_begin(&prog);
+        ILP_sta_it(&prog, sta_snd) {
+            if(sta_fst_idx >= sta_snd_idx) continue;
+            for(size_t t = 0; t < prog.count_seg; ++t) {
+                ILP_src_it(&prog, src) {
+                    row_set(&prog, 1.0, BASELINE, t, src_idx, sta_fst_idx, sta_snd_idx);
+                }
+            }
+        }
+        row_end_as_constr(&prog, '<', 1.0);
     }
     HH_DBG("Added %zu contraints: Maintain variables representing baselines.", count);
     // must be sufficient time to slew between two targets
@@ -139,7 +159,7 @@ SCHED_IMPL(SCHED_DEFAULT) {
                     for(seg_snd = seg_fst + 1; seg_snd < prog.count_seg; ++seg_snd) {
                         sec[1] = (unsigned int) seg_snd * TIME_SYS->scan_length;
                         sec_slew = Station_slew_time(sta, (const Source*[2]) { src_fst, src_snd }, sec);
-                        if((seg_snd - seg_fst) * TIME_SYS->scan_length >= sec_slew) continue;
+                        if((seg_snd - seg_fst - 1) * TIME_SYS->scan_length >= sec_slew) continue;
                         row_begin(&prog);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_fst, src_fst_idx, sta_idx);
                         row_set(&prog, 1.0, STA_ACTIVE, seg_snd, src_snd_idx, sta_idx);
@@ -184,27 +204,55 @@ SCHED_IMPL(SCHED_DEFAULT) {
         count++;
     }
     HH_DBG("Added %zu constraints: Sky coverage objective.", count);
+    double baseline_dist_sum = 0.0;
+    ILP_sta_it(&prog, sta_fst) {
+        ILP_sta_it(&prog, sta_snd) {
+            if(sta_fst_idx >= sta_snd_idx) continue;
+            baseline_dist_sum += Station_baseline_dist(sta_fst, sta_snd);
+        }
+    }
+    count = 0;
+    co = -1.0 / baseline_dist_sum / (double) prog.count_seg;
+    double baseline_dist_norm;
+    row_begin(&prog);
+    row_set(&prog, 1.0, OBJ_BASELINE);
+    ILP_sta_it(&prog, sta_fst) {
+        ILP_sta_it(&prog, sta_snd) {
+            if(sta_fst_idx >= sta_snd_idx) continue;
+            baseline_dist_norm = Station_baseline_dist(sta_fst, sta_snd) * co;
+            for(size_t seg = 0; seg < prog.count_seg; ++seg) {
+                ILP_src_it(&prog, src) {
+                    row_set(&prog, baseline_dist_norm, BASELINE, seg, src_idx, sta_fst_idx, sta_snd_idx);
+                }
+            }
+        }
+    }
+    row_end_as_constr(&prog, '<', 0.0);
+    count++;
+    HH_DBG("Added %zu constraints: Scaled baseline objective.", count);
     row_begin(&prog);
     row_set(&prog, 1.0, OBJ_SKY_COV);
+    row_set(&prog, 1.0, OBJ_BASELINE);
     row_end_as_obj(&prog, true);
     HH_DBG("Finished building constraints and objective function.");
     // set parameters
-    ILP_param_int(&prog, "MIPFocus", 3);
-    ILP_param_int(&prog, "Cuts", 2);
-    ILP_param_double(&prog, "Heuristics", 0.05);
-    ILP_param_int(&prog, "PreSolve", 2);
+    // ILP_param_int(&prog, "MIPFocus", 3);
+    // ILP_param_int(&prog, "Cuts", 2);
+    // ILP_param_double(&prog, "Heuristics", 0.05);
+    // ILP_param_int(&prog, "PreSolve", 2);
     if(!ILP_solve(&prog)) {
         ILP_free(&prog);
         return false;
     }
     HH_MSG("Sky coverage objective: %lf", ILP_get_sol(&prog, OBJ_SKY_COV));
+    HH_MSG("Baseline objective: %lf", ILP_get_sol(&prog, OBJ_BASELINE));
     for(size_t seg = 0; seg < prog.count_seg; ++seg) {
         ILP_src_it(&prog, src) {
-            Sched_push_begin(out, seg, src_fst);
-                ILP_sta_it(&prog, sta)
-                    if(ILP_get_sol(&prog, STA_ACTIVE, seg, src_idx, sta_idx) > 0.5) 
-                        Sched_push(out, sta);
-                Sched_push_end(out);
+            Sched_push_begin(out, seg, src);
+            ILP_sta_it(&prog, sta) {
+                if(ILP_get_sol(&prog, STA_ACTIVE, seg, src_idx, sta_idx) > 0.5) Sched_push(out, sta);
+            }
+            Sched_push_end(out);
         }
     }
     Sched_dump(out);

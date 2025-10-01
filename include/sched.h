@@ -37,6 +37,8 @@ void
 Sched_push_end(Sched* const out);
 void
 Sched_dump(const Sched* const out);
+void
+Sched_dump_activity(const Sched* const out);
 
 // forward declaration of scheduling functions
 #define X(ty_) SCHED_IMPL(ty_);

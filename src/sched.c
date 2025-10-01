@@ -3,6 +3,8 @@
 #include "hh.h"
 
 #include "time_sys.h"
+#include "network.h"
+#include <math.h>
 
 typedef struct {
     const Source* target;
@@ -20,7 +22,7 @@ Scan_dump(const Scan* const scan) {
     printf("]");
 }
 
-struct SCHED_H__Sched { 
+struct SCHED_H__Sched {
     Scan** scans; 
     size_t seg;
 };
@@ -51,14 +53,87 @@ Sched_push_end(Sched* const out) {
     out->seg = SIZE_MAX;
 }
 
+void printf_padded_size_t(size_t val, size_t max) {
+    size_t digits = 1;
+    size_t tmp = max;
+    while(tmp >= 10) {
+        tmp /= 10;
+        digits++;
+    }
+    printf("%0*zu", (int) digits, val);
+}
+
+
+char*
+Sched_activity(const Sched* const out, const Station* const sta) {
+    uintptr_t* activity = NULL;
+    size_t count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
+    size_t count_sta = 0;
+    size_t count_scans;
+    Scan curr;
+    size_t i, j, k;
+    for(i = 0; i < count_seg; ++i) {
+        for(j = 0, count_scans = hh_arrlen(out->scans[i]); j < count_scans; ++j) {
+            curr = out->scans[i][j];
+            for(k = 0, count_sta = hh_arrlen(curr.sta); k < count_sta; ++k) {
+                if(sta == ((const Station*) curr.sta[k])) {
+                    hh_arrput(activity, (uintptr_t) curr.target);
+                    goto sched_activity_break;
+                }
+            }
+        }
+        hh_arrput(activity, (uintptr_t) NULL);
+sched_activity_break:   
+        continue;
+    }
+    const Source* target = NULL;
+    unsigned int sec[2], sec_slew;
+    char* activity_str = NULL;
+    hh_arradd(activity_str, hh_arrlen(activity));
+    size_t count_slew;
+    for(i = hh_arrlen(activity); i >= 1; --i) {
+        j = i - 1;
+        if(activity[j] != (uintptr_t) NULL) {
+            if(target != NULL) {
+                if((const Source*) activity[j] != target) {
+                    sec[0] = (unsigned int) j * TIME_SYS->scan_length;
+                    sec_slew = Station_slew_time(sta, (const Source*[2]) { (const Source*) activity[j], target }, sec);
+                    count_slew = sec_slew / TIME_SYS->scan_length + 1;
+                    for(k = count_slew; k > 0; --k) {
+                        HH_ASSERT(activity_str[j + k] != '+', "Unreachable!");
+                        activity_str[j + k] = '.';
+                    };
+                }
+            }
+            target = (const Source*) activity[j];
+            sec[1] = (unsigned int) j * TIME_SYS->scan_length;
+            activity_str[j] = '+';
+        } else activity_str[j] = ' ';
+    }
+    hh_arrput(activity_str, '\0');
+    hh_arrfree(activity);
+    return activity_str;
+}
+
 void
 Sched_dump(const Sched* const out) {
-    for(size_t i = 0, j, k; i < (TIME_SYS->duration / TIME_SYS->scan_length); ++i) {
-        printf("%zu: ", i);
+    size_t count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
+    HH_DBG("Dumping generated schedule.");
+    for(size_t i = 0, j, k; i < count_seg; ++i) {
+        printf_padded_size_t(i, count_seg);
+        printf(": ");
         for(j = 0, k = hh_arrlen(out->scans[i]); j < k; ++j) {
             Scan_dump(&(out->scans[i][j]));
         }
         printf("\n");
+    }
+    const Station* sta;
+    char* activity;
+    HH_DBG("Dumping station activity.");
+    net_it_active(sta) {
+        activity = Sched_activity(out, sta);
+        printf("%c%c: %s\n", sta->id[0], sta->id[1], activity);
+        hh_arrfree(activity);
     }
 }
 

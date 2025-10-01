@@ -144,7 +144,7 @@ ILP_init(ILP* const prog) {
     ILP_H__load_gurobi(prog);
     int err;
     err = GRBloadenvinternal(&(prog->env), NULL, GRB_VERSION_MAJOR, GRB_VERSION_MINOR, GRB_VERSION_TECHNICAL);
-    HH_ASSERT(!err, "Failed to load Gurobi environment.");
+    HH_ASSERT(!err, "Failed to load Gurobi environment: %d.", err);
     err = GRBnewmodel(prog->env, &(prog->model), "sked_opt", 0, NULL, NULL, NULL, NULL, NULL);
     HH_ASSERT(!err, "Failed to initialize Gurobi model.");
     size_t idx = 0;
