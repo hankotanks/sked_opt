@@ -45,7 +45,7 @@ args(int argc, char* argv[]) {
     configure_using_xml(argv[1]);
     if(argc == 3 && ((strcmp(argv[2], "--headless") == 0) || strcmp(argv[2], "-H") == 0)) {
         // TODO: This can segfault, but not when clicking the GUI button
-        start(SCHED_DEFAULT);
+        start(SCHED_EXPR);
         return true;
     }
     return false;
@@ -64,8 +64,6 @@ main(int argc, char* argv[]) {
     sky_init();
     // initialize time system
     time_sys_init();
-    // CLI arguments
-    if(args(argc, argv)) goto main_headless_cleanup;
 #if 0
     const Source* src_it;
     sky_it(src_it) {
@@ -78,6 +76,8 @@ main(int argc, char* argv[]) {
 #endif
     // initialize earth params
     earth_params_init();
+    // CLI arguments
+    if(args(argc, argv)) goto main_headless_cleanup;
     // initialize window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, RGFW_RECT(0, 0, WINDOW_W, WINDOW_H), RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_W, WINDOW_H));

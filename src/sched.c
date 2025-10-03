@@ -99,10 +99,16 @@ sched_activity_break:
                     sec[0] = (unsigned int) j * TIME_SYS->scan_length;
                     sec_slew = Station_slew_time(sta, (const Source*[2]) { (const Source*) activity[j], target }, sec);
                     count_slew = (size_t) ceilf((float) sec_slew / (float) TIME_SYS->scan_length);
-                    for(k = count_slew; k > 0; --k) {
-                        HH_ASSERT(activity_str[j + k] != '+', "Unreachable!");
-                        activity_str[j + k] = '.';
-                    };
+                    if(count_slew) {
+                        for(k = count_slew; k > 0; --k) {
+#if 0
+                            HH_ASSERT(activity_str[j + k] != '+', "Unreachable!");
+                            activity_str[j + k] = '.';
+#else
+                            activity_str[j + k] = (activity_str[j + k] == '+') ? '@' : '.';
+#endif
+                        }
+                    }
                 }
             }
             target = (const Source*) activity[j];

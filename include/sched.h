@@ -8,7 +8,8 @@
 
 // tags of implemented schedules
 #define SCHED_TYPES \
-    X(SCHED_DEFAULT)
+    X(SCHED_DEFAULT) \
+    X(SCHED_EXPR)
 
 // define schedule tags as enum values
 enum sched_type {

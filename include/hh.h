@@ -116,6 +116,8 @@ typedef struct { size_t len, cap, elem_size; } hh_arrheader_t;
 // helper functions
 void*
 hh_arrnew_impl(size_t cap, size_t elem_size);
+size_t
+hh_arradd_impl(void** arrp, size_t n, size_t elem_size);
 void 
 hh_arrgrow_impl(void** arrp, size_t n, size_t elem_size);
 
@@ -128,7 +130,8 @@ hh_arrgrow_impl(void** arrp, size_t n, size_t elem_size);
 #define hh_arrlast(arr)         ((arr)[hh_arrheader(arr)->len - 1])
 #define hh_arrput(arr, val)     ((void) hh_arrgrow(arr, 1), (arr)[(hh_arrheader(arr)->len)++] = (val))
 #define hh_arrpop(arr)          ((arr)[--(hh_arrheader(arr)->len)])
-#define hh_arradd(arr, n)       ((void) hh_arrgrow(arr, n), (n) ? (memset((arr) + hh_arrlen(arr), 0, sizeof *(arr) * (n)), hh_arrheader(arr)->len += (n), hh_arrlen(arr) - (n)) : hh_arrlen(arr))
+// #define hh_arradd(arr, n)       ((void) hh_arrgrow(arr, n), (n) ? (memset((arr) + hh_arrlen(arr), 0, sizeof *(arr) * (n)), hh_arrheader(arr)->len += (n), hh_arrlen(arr) - (n)) : hh_arrlen(arr))
+#define hh_arradd(arr, n)       (hh_arradd_impl((void**)&(arr), (n), sizeof *(arr)))
 #define hh_arrlen(arr)          ((arr == NULL) ? 0 : hh_arrheader(arr)->len)
 #define hh_arrcap(arr)          ((arr == NULL) ? 0 : hh_arrheader(arr)->cap)
 
@@ -289,6 +292,17 @@ hh_arrnew_impl(size_t cap, size_t elem_size) {
     hh_arrheader(arr)->cap = cap;
     hh_arrheader(arr)->elem_size = elem_size;
     return arr;
+}
+
+size_t
+hh_arradd_impl(void** arrp, size_t n, size_t elem_size) {
+	hh_arrgrow_impl(arrp, n, elem_size);
+    size_t len = hh_arrlen(*arrp);
+    if(n) {
+        memset((char*) (*arrp) + len * elem_size, 0, elem_size * n);
+        hh_arrheader(*arrp)->len = len + n;
+    }
+    return len;
 }
 
 void 
