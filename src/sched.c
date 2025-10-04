@@ -98,7 +98,7 @@ sched_activity_break:
                 if((const Source*) activity[j] != target) {
                     sec[0] = (unsigned int) j * TIME_SYS->scan_length;
                     sec_slew = Station_slew_time(sta, (const Source*[2]) { (const Source*) activity[j], target }, sec);
-                    count_slew = (size_t) ceilf((float) sec_slew / (float) TIME_SYS->scan_length);
+                    count_slew = (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length + 1;
                     if(count_slew) {
                         for(k = count_slew; k > 0; --k) {
 #if 0

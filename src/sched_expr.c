@@ -64,28 +64,34 @@ constr_exclusion(ILP* const prog) {
     const Station* sta;
     const Station* sta_fst;
     const Station* sta_snd;
-    const Source* src;
+    const Source* src_fst;
+    const Source* src_snd;
     size_t count = 0;
     for(size_t seg = 0; seg < prog->count_seg; ++seg) {
         ILP_sta_it(prog, sta) {
-            row_begin(prog);
-            ILP_sta_it(prog, sta_fst) {
-                ILP_sta_it(prog, sta_snd) {
-                    if(sta_fst_idx >= sta_snd_idx) continue;
-                    if(sta_idx != sta_fst_idx && sta_idx != sta_snd_idx) continue;
-                    ILP_src_it(prog, src) {
-                        row_set(prog, 1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
+            ILP_src_it(prog, src_fst) {
+                ILP_src_it(prog, src_snd) {
+                    if(src_fst_idx >= src_snd_idx) continue;
+                    row_begin(prog);
+                    ILP_sta_it(prog, sta_fst) {
+                        ILP_sta_it(prog, sta_snd) {
+                            if(sta_fst_idx >= sta_snd_idx) continue;
+                            if(sta_idx != sta_fst_idx && sta_idx != sta_snd_idx) continue;
+                            row_set(prog, 1.0, BASELINE_2, seg, src_fst_idx, sta_fst_idx, sta_snd_idx);
+                            row_set(prog, 1.0, BASELINE_2, seg, src_snd_idx, sta_fst_idx, sta_snd_idx);
+                        }
                     }
+                    row_end_as_constr(prog, '<', 1.0);
+                    count++;
                 }
             }
-            row_end_as_constr(prog, '<', 1.0);
-            count++;
         }
     }
     (void) sta;
     (void) sta_fst;
     (void) sta_snd;
-    (void) src;
+    (void) src_fst;
+    (void) src_snd;
     HH_DBG("Added %zu constraints: Stations can only observe one source at a time.", count);
     return count;
 }
@@ -156,23 +162,19 @@ constr_slew(ILP* const prog, bool* viewable) {
             for(seg_snd = seg_fst + 1; seg_snd < prog->count_seg; ++seg_snd) {
                 sec[1] = (unsigned int) seg_snd * TIME_SYS->scan_length;
                 ILP_sta_it(prog, sta_a_fst) { ILP_sta_it(prog, sta_a_snd) { if(sta_a_fst_idx >= sta_a_snd_idx) continue;
-                    if( \
-                        !viewable[viewable_index(prog, n, seg_fst, src_fst_idx, sta_a_fst_idx, sta_a_snd_idx)] ||
-                        !viewable[viewable_index(prog, n, seg_snd, src_snd_idx, sta_a_fst_idx, sta_a_snd_idx)]) continue;
+                    if(!viewable[viewable_index(prog, n, seg_fst, src_fst_idx, sta_a_fst_idx, sta_a_snd_idx)]) continue;
                     ILP_sta_it(prog, sta_b_fst) { ILP_sta_it(prog, sta_b_snd) { if(sta_b_fst_idx >= sta_b_snd_idx) continue;
-                        if( \
-                            !viewable[viewable_index(prog, n, seg_fst, src_fst_idx, sta_b_fst_idx, sta_b_snd_idx)] ||
-                            !viewable[viewable_index(prog, n, seg_snd, src_snd_idx, sta_b_fst_idx, sta_b_snd_idx)]) continue;
+                        if(!viewable[viewable_index(prog, n, seg_snd, src_snd_idx, sta_b_fst_idx, sta_b_snd_idx)]) continue;
                         share_a_fst = sta_a_fst_idx == sta_b_fst_idx || sta_a_fst_idx == sta_b_snd_idx;
                         share_a_snd = sta_a_snd_idx == sta_b_fst_idx || sta_a_snd_idx == sta_b_snd_idx;
                         if(!share_a_fst && !share_a_snd) continue;
                         if(share_a_fst) {
                             sec_slew = Station_slew_time(sta_a_fst, (const Source*[2]) { src_fst, src_snd }, sec);
-                            if(seg_snd - seg_fst > (size_t) ceilf((float) sec_slew / (float) TIME_SYS->scan_length)) continue;
+                            if(seg_snd - seg_fst > (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length) continue;
                         }
                         if(share_a_snd) {
                             sec_slew = Station_slew_time(sta_a_snd, (const Source*[2]) { src_fst, src_snd }, sec);
-                            if(seg_snd - seg_fst > (size_t) ceilf((float) sec_slew / (float) TIME_SYS->scan_length)) continue;
+                            if(seg_snd - seg_fst > (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length) continue;
                         }
                         row_begin(prog);
                         row_set(prog, 1.0, BASELINE_2, seg_fst, src_fst_idx, sta_a_fst_idx, sta_a_snd_idx);
@@ -266,13 +268,19 @@ constr_baseline(ILP* const prog) {
     return count;
 }
 
+#define UNWEIGHTED
+
 double*
 obj(ILP* const prog) {
     const Station* sta;
     const Station* sta_fst;
     const Station* sta_snd;
     row_begin(prog);
+#ifdef UNWEIGHTED
+    double co = 1.0;
+#else
     double co = 1.0 / (double) STATION_SRC_SKY_COV_MAX / (double) prog->count_sta;
+#endif
     ILP_sta_it(prog, sta) {
         (void) sta;
         for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx)
@@ -298,7 +306,9 @@ obj(ILP* const prog) {
     ILP_sta_it(prog, sta_fst) {
         ILP_sta_it(prog, sta_snd) {
             if(sta_fst_idx >= sta_snd_idx) continue;
+#ifndef UNWEIGHTED
             co = baseline_dist[baseline_index(prog, sta_fst_idx, sta_snd_idx)];
+#endif
             row_set(prog, co, OBJ_BASELINE_2, sta_fst_idx, sta_snd_idx);
         }
     }
