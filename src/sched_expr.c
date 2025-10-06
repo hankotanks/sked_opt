@@ -72,16 +72,16 @@ constr_exclusion(ILP* const prog) {
             ILP_src_it(prog, src_fst) {
                 ILP_src_it(prog, src_snd) {
                     if(src_fst_idx >= src_snd_idx) continue;
-                    row_begin(prog);
+                    ILP_row_begin(prog);
                     ILP_sta_it(prog, sta_fst) {
                         ILP_sta_it(prog, sta_snd) {
                             if(sta_fst_idx >= sta_snd_idx) continue;
                             if(sta_idx != sta_fst_idx && sta_idx != sta_snd_idx) continue;
-                            row_set(prog, 1.0, BASELINE_2, seg, src_fst_idx, sta_fst_idx, sta_snd_idx);
-                            row_set(prog, 1.0, BASELINE_2, seg, src_snd_idx, sta_fst_idx, sta_snd_idx);
+                            ILP_row_set(prog, 1.0, BASELINE_2, seg, src_fst_idx, sta_fst_idx, sta_snd_idx);
+                            ILP_row_set(prog, 1.0, BASELINE_2, seg, src_snd_idx, sta_fst_idx, sta_snd_idx);
                         }
                     }
-                    row_end_as_constr(prog, '<', 1.0);
+                    ILP_row_end_as_constr(prog, '<', 1.0);
                     count++;
                 }
             }
@@ -123,9 +123,9 @@ constr_viewable(ILP* const prog, bool** viewable) {
                         (*viewable)[viewable_index(prog, n, seg, src_idx, sta_fst_idx, sta_snd_idx)] = true;
                         continue;
                     }
-                    row_begin(prog);
-                    row_set(prog, 1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
-                    row_end_as_constr(prog, '=', 0.0);
+                    ILP_row_begin(prog);
+                    ILP_row_set(prog, 1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
+                    ILP_row_end_as_constr(prog, '=', 0.0);
                     count++;
                 }
             }
@@ -176,10 +176,10 @@ constr_slew(ILP* const prog, bool* viewable) {
                             sec_slew = Station_slew_time(sta_a_snd, (const Source*[2]) { src_fst, src_snd }, sec);
                             if(seg_snd - seg_fst > (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length) continue;
                         }
-                        row_begin(prog);
-                        row_set(prog, 1.0, BASELINE_2, seg_fst, src_fst_idx, sta_a_fst_idx, sta_a_snd_idx);
-                        row_set(prog, 1.0, BASELINE_2, seg_snd, src_snd_idx, sta_b_fst_idx, sta_b_snd_idx);
-                        row_end_as_constr(prog, '<', 1.0);
+                        ILP_row_begin(prog);
+                        ILP_row_set(prog, 1.0, BASELINE_2, seg_fst, src_fst_idx, sta_a_fst_idx, sta_a_snd_idx);
+                        ILP_row_set(prog, 1.0, BASELINE_2, seg_snd, src_snd_idx, sta_b_fst_idx, sta_b_snd_idx);
+                        ILP_row_end_as_constr(prog, '<', 1.0);
                         count++;
 #if 0
                         HH_MSG("%c%c%c%c-%c%c%c%c, %.*s [%zu] to %.*s [%zu]",
@@ -218,16 +218,16 @@ constr_sky_cov(ILP* const prog) {
         for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx) {
             ILP_sta_it(prog, sta_fst) { ILP_sta_it(prog, sta_snd) { if(sta_fst_idx >= sta_snd_idx) continue;
                 if(sta_idx != sta_fst_idx && sta_idx != sta_snd_idx) continue;
-                row_begin(prog);
+                ILP_row_begin(prog);
                 for(size_t seg = 0; seg < prog->count_seg; ++seg) {
                     ILP_src_it(prog, src) {
                         if(Station_src_sky_cov_idx(sta, src, (unsigned int) seg * TIME_SYS->scan_length) == box_idx) {
-                            row_set(prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
+                            ILP_row_set(prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
                         }
                     }
                 }
-                row_set(prog, 1.0, STA_SKY_COV_2, sta_idx, box_idx);
-                row_end_as_constr(prog, '<', 0.0);
+                ILP_row_set(prog, 1.0, STA_SKY_COV_2, sta_idx, box_idx);
+                ILP_row_end_as_constr(prog, '<', 0.0);
                 count++;
             } }
         }
@@ -250,14 +250,14 @@ constr_baseline(ILP* const prog) {
     ILP_sta_it(prog, sta_fst) {
         ILP_sta_it(prog, sta_snd) {
             if(sta_fst_idx >= sta_snd_idx) continue;
-            row_begin(prog);
+            ILP_row_begin(prog);
             for(size_t seg = 0; seg < prog->count_seg; ++seg) {
                 ILP_src_it(prog, src) {
-                    row_set(prog, co, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
+                    ILP_row_set(prog, co, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
                 }
             }
-            row_set(prog, 1.0, OBJ_BASELINE_2, sta_fst_idx, sta_snd_idx);
-            row_end_as_constr(prog, '<', 0.0);
+            ILP_row_set(prog, 1.0, OBJ_BASELINE_2, sta_fst_idx, sta_snd_idx);
+            ILP_row_end_as_constr(prog, '<', 0.0);
             count++;
         }
     }
@@ -275,7 +275,7 @@ obj(ILP* const prog) {
     const Station* sta;
     const Station* sta_fst;
     const Station* sta_snd;
-    row_begin(prog);
+    ILP_row_begin(prog);
 #ifdef UNWEIGHTED
     double co = 1.0;
 #else
@@ -284,7 +284,7 @@ obj(ILP* const prog) {
     ILP_sta_it(prog, sta) {
         (void) sta;
         for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx)
-            row_set(prog, co, STA_SKY_COV_2, sta_idx, box_idx);
+            ILP_row_set(prog, co, STA_SKY_COV_2, sta_idx, box_idx);
     }
     double* baseline_dist, baseline_dist_max = 0.0;
     HH_MALLOC(baseline_dist, sizeof(double) * baseline_count(prog->count_sta));
@@ -309,10 +309,10 @@ obj(ILP* const prog) {
 #ifndef UNWEIGHTED
             co = baseline_dist[baseline_index(prog, sta_fst_idx, sta_snd_idx)];
 #endif
-            row_set(prog, co, OBJ_BASELINE_2, sta_fst_idx, sta_snd_idx);
+            ILP_row_set(prog, co, OBJ_BASELINE_2, sta_fst_idx, sta_snd_idx);
         }
     }
-    row_end_as_obj(prog, true);
+    ILP_row_end_as_obj(prog, true);
     HH_DBG("Finished building constraints and objective function.");
     return baseline_dist;
 }
@@ -413,10 +413,10 @@ SCHED_IMPL(SCHED_EXPR) {
     // objective
     double* baseline_dist = obj(&prog);
     // solve model
-    ILP_param_int(&prog, "MIPFocus", 3);
-    ILP_param_int(&prog, "Cuts", 2);
-    ILP_param_double(&prog, "Heuristics", 0.05);
-    ILP_param_int(&prog, "PreSolve", 2);
+    // ILP_param_int(&prog, "MIPFocus", 3);
+    // ILP_param_int(&prog, "Cuts", 2);
+    // ILP_param_dbl(&prog, "Heuristics", 0.05);
+    // ILP_param_int(&prog, "PreSolve", 2);
     if(!ILP_solve(&prog)) {
         ILP_free(&prog);
         return false;
@@ -442,23 +442,23 @@ SCHED_IMPL(SCHED_EXPR) {
                     if (sta_fst_idx >= sta_snd_idx) continue;
                     ILP_sta_it(&prog, sta_thd) {
                         if (sta_snd_idx >= sta_thd_idx) continue;
-                        row_begin(&prog);
-                        row_set(&prog,  1.0, BASELINE_2, seg, src_idx, sta_snd_idx, sta_thd_idx);
-                        row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
-                        row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_thd_idx);
-                        row_end_as_constr(&prog, '>', -1.0);
+                        ILP_row_begin(&prog);
+                        ILP_row_set(&prog,  1.0, BASELINE_2, seg, src_idx, sta_snd_idx, sta_thd_idx);
+                        ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
+                        ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_thd_idx);
+                        ILP_row_end_as_constr(&prog, '>', -1.0);
                         count++;
-                        row_begin(&prog);
-                        row_set(&prog,  1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_thd_idx);
-                        row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
-                        row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_snd_idx, sta_thd_idx);
-                        row_end_as_constr(&prog, '>', -1.0);
+                        ILP_row_begin(&prog);
+                        ILP_row_set(&prog,  1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_thd_idx);
+                        ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
+                        ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_snd_idx, sta_thd_idx);
+                        ILP_row_end_as_constr(&prog, '>', -1.0);
                         count++;
-                        row_begin(&prog);
-                        row_set(&prog,  1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
-                        row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_thd_idx);
-                        row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_snd_idx, sta_thd_idx);
-                        row_end_as_constr(&prog, '>', -1.0);
+                        ILP_row_begin(&prog);
+                        ILP_row_set(&prog,  1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_snd_idx);
+                        ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_fst_idx, sta_thd_idx);
+                        ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, sta_snd_idx, sta_thd_idx);
+                        ILP_row_end_as_constr(&prog, '>', -1.0);
                         count++;
                     }
                 }
@@ -492,20 +492,20 @@ SCHED_IMPL(SCHED_EXPR) {
                             if (shares_i) {
                                 // the baseline should be between j and the other station in (k,l)
                                 other_sta = (sta_k_idx == sta_i_idx) ? sta_l_idx : sta_k_idx;
-                                row_begin(&prog);
-                                row_set(&prog, 1.0, BASELINE_2, seg, src_idx, sta_i_idx, sta_j_idx);
-                                row_set(&prog, -1.0, BASELINE_2, seg, src_idx, (other_sta < sta_i_idx) ? other_sta : sta_i_idx, (other_sta < sta_i_idx) ? sta_i_idx : other_sta);
-                                row_set(&prog, -1.0, BASELINE_2, seg, src_idx, (other_sta < sta_j_idx) ? other_sta : sta_j_idx, (other_sta < sta_j_idx) ? sta_j_idx : other_sta);
-                                row_end_as_constr(&prog, '>', -1.0);
+                                ILP_row_begin(&prog);
+                                ILP_row_set(&prog, 1.0, BASELINE_2, seg, src_idx, sta_i_idx, sta_j_idx);
+                                ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, (other_sta < sta_i_idx) ? other_sta : sta_i_idx, (other_sta < sta_i_idx) ? sta_i_idx : other_sta);
+                                ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, (other_sta < sta_j_idx) ? other_sta : sta_j_idx, (other_sta < sta_j_idx) ? sta_j_idx : other_sta);
+                                ILP_row_end_as_constr(&prog, '>', -1.0);
                                 count++;
                             } else if (shares_j) {
                                 // the baseline should be between i and the other station in (k,l)
                                 other_sta = (sta_k_idx == sta_j_idx) ? sta_l_idx : sta_k_idx;
-                                row_begin(&prog);
-                                row_set(&prog, 1.0, BASELINE_2, seg, src_idx, sta_i_idx, sta_j_idx);
-                                row_set(&prog, -1.0, BASELINE_2, seg, src_idx, (other_sta < sta_j_idx) ? other_sta : sta_j_idx, (other_sta < sta_j_idx) ? sta_j_idx : other_sta);
-                                row_set(&prog, -1.0, BASELINE_2, seg, src_idx, (other_sta < sta_i_idx) ? other_sta : sta_i_idx, (other_sta < sta_i_idx) ? sta_i_idx : other_sta);
-                                row_end_as_constr(&prog, '>', -1.0);
+                                ILP_row_begin(&prog);
+                                ILP_row_set(&prog, 1.0, BASELINE_2, seg, src_idx, sta_i_idx, sta_j_idx);
+                                ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, (other_sta < sta_j_idx) ? other_sta : sta_j_idx, (other_sta < sta_j_idx) ? sta_j_idx : other_sta);
+                                ILP_row_set(&prog, -1.0, BASELINE_2, seg, src_idx, (other_sta < sta_i_idx) ? other_sta : sta_i_idx, (other_sta < sta_i_idx) ? sta_i_idx : other_sta);
+                                ILP_row_end_as_constr(&prog, '>', -1.0);
                                 count++;
                             }
                         }

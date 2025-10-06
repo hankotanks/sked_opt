@@ -47,23 +47,27 @@ ILP_free(ILP* prog);
 static void
 ILP_param_int(ILP* const prog, const char* param, int val);
 static void
-ILP_param_double(ILP* const prog, const char* param, double val);
+ILP_param_dbl(ILP* const prog, const char* param, double val);
 static bool
 ILP_solve(const ILP* const prog);
 static void
 ILP_write(const ILP* const prog, const char* path, bool iis);
 static void
-row_begin(ILP* const prog);
+ILP_row_begin(ILP* const prog);
 static void
-row_end_as_constr(ILP* const prog, char constr_type, double rhs);
+ILP_row_end_as_constr(ILP* const prog, char constr_type, double rhs);
 static void
-row_end_as_indicator(ILP* const prog, char constr_type, double rhs);
+ILP_row_end_as_indicator(ILP* const prog, char constr_type, double rhs);
 static void
-row_end_as_obj(ILP* const prog, bool maximize);
+ILP_row_end_as_obj(ILP* const prog, bool maximize);
 static void
-row_set(ILP* const prog, double co, enum var_type ty, ...);
+ILP_row_set(ILP* const prog, double co, enum var_type ty, ...);
 static double
 ILP_get_sol(const ILP* const prog, enum var_type ty, ...);
+static void
+ILP_var_param_int(ILP* const prog, const char* const attr, int val, enum var_type ty, ...);
+static void
+ILP_var_param_dbl(ILP* const prog, const char* const attr, double val, enum var_type ty, ...);
 
 //
 // Implementations
@@ -119,6 +123,7 @@ GUROBI_DECL(GRBsetdblparam, int, GRBenv *env, const char *paramname, double valu
 GUROBI_DECL(GRBwrite, int, GRBmodel *model, const char *filename);
 GUROBI_DECL(GRBcomputeIIS, int, GRBmodel *model);
 GUROBI_DECL(GRBaddgenconstrIndicator, int, GRBmodel *model, const char *name, int binvar, int binval, int nvars, const int *vars, const double *vals, char sense, double rhs);
+GUROBI_DECL(GRBsetintattrelement, int, GRBmodel *model, const char *attrname, int element, int newvalue);
 
 static void HH_UNUSED
 ILP_H__load_gurobi(ILP* const prog);
@@ -202,7 +207,7 @@ ILP_param_int(ILP* const prog, const char* param, int val) {
 }
 
 static void HH_UNUSED
-ILP_param_double(ILP* const prog, const char* param, double val) {
+ILP_param_dbl(ILP* const prog, const char* param, double val) {
     int err = GRBsetdblparam(prog->env, param, val);
     HH_ASSERT(!err, "Failed to configure Gurobi model: %s", GRBgeterrormsg(prog->env));
 }
@@ -232,27 +237,27 @@ ILP_write(const ILP* const prog, const char* path, bool iis) {
 }
 
 static void HH_UNUSED
-row_begin(ILP* const prog) {
+ILP_row_begin(ILP* const prog) {
     hh_arrclear(prog->constr_idx);
     hh_arrclear(prog->constr_co);
 }
 
 static void HH_UNUSED
-row_end_as_constr(ILP* const prog, char constr_type, double rhs) {
+ILP_row_end_as_constr(ILP* const prog, char constr_type, double rhs) {
     HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
     int err = GRBaddconstr(prog->model, (int) hh_arrlen(prog->constr_idx), prog->constr_idx, prog->constr_co, constr_type, rhs, NULL);
     HH_ASSERT(!err, "Failed to add constraint to Gurobi model: %s", GRBgeterrormsg(prog->env));
 }
 
 static void HH_UNUSED
-row_end_as_indicator(ILP* const prog, char constr_type, double rhs) {
+ILP_row_end_as_indicator(ILP* const prog, char constr_type, double rhs) {
     HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
     int err = GRBaddgenconstrIndicator(prog->model, NULL, prog->constr_idx[0], (int) prog->constr_co[0], (int) hh_arrlen(prog->constr_idx) - 1, prog->constr_idx + 1, prog->constr_co + 1, constr_type, rhs);
     HH_ASSERT(!err, "Failed to add constraint to Gurobi model: %s", GRBgeterrormsg(prog->env));
 }
 
 static void HH_UNUSED
-row_end_as_obj(ILP* const prog, bool maximize) {
+ILP_row_end_as_obj(ILP* const prog, bool maximize) {
     HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
     // for(size_t i = 0, len = hh_arrlen(prog->constr_idx); i < len; ++i) printf("[%d: %lf] ", prog->constr_idx[i], prog->constr_co[i]);
     // printf("\n");
@@ -267,7 +272,7 @@ static size_t
 ILP_H__row_idx(const ILP* const prog, enum var_type ty, va_list args);
 
 static void HH_UNUSED
-row_set(ILP* const prog, double co, enum var_type ty, ...) {
+ILP_row_set(ILP* const prog, double co, enum var_type ty, ...) {
     HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
     va_list args;
     va_start(args, ty);
@@ -292,6 +297,24 @@ ILP_get_sol(const ILP* const prog, enum var_type ty, ...) {
     HH_ASSERT(!err, "Failed to retrieve solution from Gurobi model: %s", GRBgeterrormsg(prog->env));
     va_end(args);
     return val;
+}
+
+static void HH_UNUSED
+ILP_var_param_int(ILP* const prog, const char* const attr, int val, enum var_type ty, ...) {
+    va_list args;
+    va_start(args, ty);
+    int err = GRBsetintattrelement(prog->model, attr, (int) ILP_H__row_idx(prog, ty, args), val);
+    HH_ASSERT(!err, "Failed to retrieve solution from Gurobi model: %s", GRBgeterrormsg(prog->env));
+    va_end(args);
+}
+
+static void HH_UNUSED
+ILP_var_param_dbl(ILP* const prog, const char* const attr, double val, enum var_type ty, ...) {
+    va_list args;
+    va_start(args, ty);
+    int err = GRBsetdblattrelement(prog->model, attr, (int) ILP_H__row_idx(prog, ty, args), val);
+    HH_ASSERT(!err, "Failed to retrieve solution from Gurobi model: %s", GRBgeterrormsg(prog->env));
+    va_end(args);
 }
 
 //
@@ -398,6 +421,7 @@ ILP_H__load_gurobi(ILP* const prog) {
     GUROBI_IMPL(prog->handle, GRBwrite);
     GUROBI_IMPL(prog->handle, GRBcomputeIIS);
     GUROBI_IMPL(prog->handle, GRBaddgenconstrIndicator);
+    GUROBI_IMPL(prog->handle, GRBsetintattrelement);
     HH_MSG("Gurobi library loaded successfully!");
     hh_arrfree(path);
 }
