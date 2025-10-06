@@ -59,7 +59,7 @@ VAR_IMPL(OBJ_BASELINE_2, { (void) prog; return baseline_count(prog->count_sta); 
 #include "ilp.h"
 
 // each station can only observe one source at a time
-size_t 
+static size_t 
 constr_exclusion(ILP* const prog) {
     const Station* sta;
     const Station* sta_fst;
@@ -96,12 +96,12 @@ constr_exclusion(ILP* const prog) {
     return count;
 }
 
-size_t 
+static inline size_t 
 viewable_index(const ILP* const prog, size_t n, size_t seg, size_t src, size_t sta_fst, size_t sta_snd) {
     return seg * prog->count_src * n + src * n + baseline_index(prog, sta_fst, sta_snd);
 }
 
-size_t
+static size_t
 constr_viewable(ILP* const prog, bool** viewable) {
     HH_CALLOC(*viewable, prog->count_seg * prog->count_src * baseline_count(prog->count_sta));
     const Station* sta;
@@ -139,7 +139,7 @@ constr_viewable(ILP* const prog, bool** viewable) {
     return count;
 }
 
-size_t
+static size_t
 constr_slew(ILP* const prog, bool* viewable) {
     unsigned int sec[2], sec_slew;
     const Station* sta_a_fst;
@@ -207,7 +207,7 @@ constr_slew(ILP* const prog, bool* viewable) {
     return count;
 }
 
-size_t
+static size_t
 constr_sky_cov(ILP* const prog) {
     const Station* sta;
     const Station* sta_fst;
@@ -240,7 +240,7 @@ constr_sky_cov(ILP* const prog) {
     return count;
 }
 
-size_t 
+static size_t 
 constr_baseline(ILP* const prog) {
     const Station* sta_fst;
     const Station* sta_snd;
@@ -270,7 +270,7 @@ constr_baseline(ILP* const prog) {
 
 #define UNWEIGHTED
 
-double*
+static double*
 obj(ILP* const prog) {
     const Station* sta;
     const Station* sta_fst;
@@ -317,7 +317,7 @@ obj(ILP* const prog) {
     return baseline_dist;
 }
 
-void
+static void
 obj_dump(ILP* const prog, double* baseline_dist) {
     const Station* sta;
     double sum;
@@ -343,7 +343,7 @@ obj_dump(ILP* const prog, double* baseline_dist) {
     }
 }
 
-void
+static void
 sched_build(ILP* const prog, Sched* const out) {
     const Station* sta_fst;
     const Station* sta_snd;
@@ -375,7 +375,7 @@ sched_build(ILP* const prog, Sched* const out) {
     free(sta_pushed);
 }
 
-void
+static void
 sched_validate(const ILP* const prog) {
     const Station* sta_fst;
     const Station* sta_snd;

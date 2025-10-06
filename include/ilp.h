@@ -30,6 +30,12 @@
     it_ = net_sta((prog_)->map_sta); \
     for(size_t it_##_idx = 0; it_##_idx < (prog_)->count_sta; it_ = net_sta(&((prog_)->map_sta[(++it_##_idx) * 2])))
 
+#define ILP_bln_it(prog_, it_fst_, it_snd_) \
+    it_fst_ = net_sta((prog_)->map_sta); \
+    for(size_t it_fst_##_idx = 0, it_snd_##_idx; it_fst_##_idx < (prog_)->count_sta; it_fst_ = net_sta(&((prog_)->map_sta[(++it_fst_##_idx) * 2]))) \
+    for(it_snd_ = net_sta((prog_)->map_sta), it_snd_##_idx = it_fst_##_idx + 1; it_snd_##_idx < (prog_)->count_sta; it_snd_ = net_sta(&((prog_)->map_sta[(++it_snd_##_idx) * 2]))) \
+    if(it_fst_##_idx < it_snd_##_idx)
+
 static void
 ILP_H__ILP_map_sta(ILP* const prog);
 static void
