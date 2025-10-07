@@ -6,12 +6,15 @@
 #include <float.h>
 
 #include <sofam.h>
+#include <stddef.h>
 
 #include "cat.h"
 #include "station.h"
 #include "time_sys.h"
 
-#define WEIGHT_SKY_COV 1.0
+#define MAX_SCAN_REPETITIONS 4
+
+#define WEIGHT_SKY_COV 3.0
 #define WEIGHT_BASELINE 1.0
 
 #define VAR_TYPES \
@@ -22,11 +25,16 @@
 
 #include "ilp_fwd.h"
 
+static inline size_t
+sta_active_index(const ILP* const prog, size_t seg, size_t src, size_t sta) {
+    return seg * prog->count_src * prog->count_sta + src * prog->count_sta + sta;
+}
+
 VAR_IMPL(STA_ACTIVE, { return prog->count_seg * prog->count_src * prog->count_sta; }, {
     size_t seg = va_arg(args, size_t);
     size_t src = va_arg(args, size_t);
     size_t sta = va_arg(args, size_t);
-    return seg * prog->count_src * prog->count_sta + src * prog->count_sta + sta;
+    return sta_active_index(prog, seg, src, sta);
 })
 
 static inline size_t 
@@ -88,8 +96,10 @@ add_constr_sta_exclusion(ILP* const prog) {
     HH_DBG("Added %zu contraints: Stations can only observe one source at a time.", count);
 }
 
-static void
+static bool*
 forbid_sta(ILP* const prog) {
+    bool* viewable;
+    HH_CALLOC(viewable, sizeof(bool) * prog->count_seg * prog->count_src * prog->count_sta);
     const Station* sta;
     const Source* src;
     size_t count = 0;
@@ -97,7 +107,10 @@ forbid_sta(ILP* const prog) {
         ILP_sta_it(prog, sta) {
             ILP_src_it(prog, src) {
                 if( Station_src_visible(sta, src, (unsigned int) seg * TIME_SYS->scan_length) && \
-                    Station_src_visible(sta, src, (unsigned int) (seg + 1) * TIME_SYS->scan_length)) continue;
+                    Station_src_visible(sta, src, (unsigned int) (seg + 1) * TIME_SYS->scan_length)) {
+                    viewable[sta_active_index(prog, seg, src_idx, sta_idx)] = true;
+                    continue;
+                }
                 ILP_var_param_dbl(prog, "LB", 0.0, STA_ACTIVE, seg, src_idx, sta_idx);
                 ILP_var_param_dbl(prog, "UB", 0.0, STA_ACTIVE, seg, src_idx, sta_idx);
                 count++;
@@ -105,6 +118,7 @@ forbid_sta(ILP* const prog) {
         }
     }
     HH_DBG("Forbid %zu STA_ACTIVE variables.", count);
+    return viewable;
 }
 
 static void
@@ -133,7 +147,57 @@ add_constr_sta_concurrent(ILP* const prog) {
 }
 
 static void
-add_constr_baseline_link(ILP* const prog) {
+add_constr_sta_repetition(ILP* const prog) {
+    const Station* sta;
+    const Source* src;
+    size_t count = 0;
+    ILP_sta_it(prog, sta) { 
+        ILP_src_it(prog, src) {
+            for(size_t seg = 0, seg_off; seg < prog->count_seg - MAX_SCAN_REPETITIONS - 1; ++seg) {
+                ILP_row_begin(prog);
+                for(seg_off = 0; seg_off <= MAX_SCAN_REPETITIONS; ++seg_off) {
+                    ILP_row_set(prog, 1.0, STA_ACTIVE, seg + seg_off, src_idx, sta_idx);
+                }
+                ILP_row_end_as_constr(prog, '<', MAX_SCAN_REPETITIONS);
+                count++;
+            }
+        }
+    }
+    (void) sta;
+    HH_DBG("Added %zu contraints: Prevent scans longer than %u seconds.", count, TIME_SYS->scan_length * MAX_SCAN_REPETITIONS);
+}
+
+static void
+add_constr_sta_slew(ILP* const prog, const bool* const viewable) {
+    unsigned int sec[2], sec_slew;
+    const Station* sta;
+    const Source* src_a;
+    const Source* src_b;
+    size_t count = 0;
+    ILP_sta_it(prog, sta) {
+        ILP_src_it(prog, src_a) { ILP_src_it(prog, src_b) { if(src_a == src_b) continue;
+            for(size_t seg_a = 0, seg_b; seg_a < prog->count_seg; ++seg_a) {
+                if(!viewable[sta_active_index(prog, seg_a, src_a_idx, sta_idx)]) continue;
+                sec[0] = (unsigned int) seg_a * TIME_SYS->scan_length;
+                for(seg_b = seg_a + 1; seg_b < prog->count_seg; ++seg_b) {
+                    if(!viewable[sta_active_index(prog, seg_b, src_b_idx, sta_idx)]) continue;
+                    sec[1] = (unsigned int) seg_b * TIME_SYS->scan_length;
+                    sec_slew = Station_slew_time(sta, (const Source*[2]) { src_a, src_b }, sec);
+                    if(seg_b - seg_a - 1 > (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length) continue;
+                    ILP_row_begin(prog);
+                    ILP_row_set(prog, 1.0, STA_ACTIVE, seg_a, src_a_idx, sta_idx);
+                    ILP_row_set(prog, 1.0, STA_ACTIVE, seg_b, src_b_idx, sta_idx);
+                    ILP_row_end_as_constr(prog, '<', 1.0);
+                    count++;
+                }
+            }
+        } }
+    }
+    HH_DBG("Added %zu constraints: Must be sufficient time to slew between two sources.", count);
+}
+
+static void
+add_constr_baseline_link(ILP* const prog, const bool* const viewable) {
     const Station* bln_a;
     const Station* bln_b;
     const Source* src;
@@ -141,10 +205,8 @@ add_constr_baseline_link(ILP* const prog) {
     ILP_bln_it(prog, bln_a, bln_b) {
         for(size_t seg = 0; seg < prog->count_seg; ++seg) {
             ILP_src_it(prog, src) {
-                if( Station_src_visible(bln_a, src, (unsigned int) seg * TIME_SYS->scan_length) && \
-                    Station_src_visible(bln_b, src, (unsigned int) seg * TIME_SYS->scan_length) && \
-                    Station_src_visible(bln_a, src, (unsigned int) (seg + 1) * TIME_SYS->scan_length) && \
-                    Station_src_visible(bln_b, src, (unsigned int) (seg + 1) * TIME_SYS->scan_length)) {
+                if( viewable[sta_active_index(prog, seg, src_idx, bln_a_idx)] && \
+                    viewable[sta_active_index(prog, seg, src_idx, bln_b_idx)]) {
                     ILP_row_begin(prog);
                     ILP_row_set(prog, 2.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
                     ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, bln_a_idx);
@@ -155,11 +217,13 @@ add_constr_baseline_link(ILP* const prog) {
             }
         }
     }
+    (void) bln_a;
+    (void) bln_b;
     HH_DBG("Added %zu contraints: Tie BASELINE to STA_ACTIVE.", count);
 }
 
 static void
-forbid_baseline(ILP* const prog) {
+forbid_baseline(ILP* const prog, const bool* const viewable) {
     const Station* bln_a;
     const Station* bln_b;
     const Source* src;
@@ -167,16 +231,16 @@ forbid_baseline(ILP* const prog) {
     ILP_bln_it(prog, bln_a, bln_b) {
         for(size_t seg = 0; seg < prog->count_seg; ++seg) {
             ILP_src_it(prog, src) {
-                if( Station_src_visible(bln_a, src, (unsigned int) seg * TIME_SYS->scan_length) && \
-                    Station_src_visible(bln_b, src, (unsigned int) seg * TIME_SYS->scan_length) && \
-                    Station_src_visible(bln_a, src, (unsigned int) (seg + 1) * TIME_SYS->scan_length) && \
-                    Station_src_visible(bln_b, src, (unsigned int) (seg + 1) * TIME_SYS->scan_length)) continue;
+                if( viewable[sta_active_index(prog, seg, src_idx, bln_a_idx)] && \
+                    viewable[sta_active_index(prog, seg, src_idx, bln_b_idx)]) continue;
                 ILP_var_param_dbl(prog, "LB", 0.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
                 ILP_var_param_dbl(prog, "UB", 0.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
                 count++;
             }
         }
     }
+    (void) bln_a;
+    (void) bln_b;
     HH_DBG("Forbid %zu BASELINE variables.", count);
 }
 
@@ -198,42 +262,7 @@ add_constr_baseline_concurrent(ILP* const prog) {
     }
     (void) bln_a;
     (void) bln_b;
-    HH_DBG("Added %zu contraints: Prevent simultaneous baseline observations of the same source", count);
-}
-
-static void
-add_constr_sta_slew(ILP* const prog) {
-    unsigned int sec[2], sec_slew;
-    const Station* sta;
-    const Source* src_a;
-    const Source* src_b;
-    size_t count = 0;
-    ILP_sta_it(prog, sta) {
-        ILP_src_it(prog, src_a) { ILP_src_it(prog, src_b) { if(src_a == src_b) continue;
-            for(size_t seg_a = 0, seg_b; seg_a < prog->count_seg; ++seg_a) {
-                sec[0] = (unsigned int) seg_a * TIME_SYS->scan_length;
-#if 1
-                if( !Station_src_visible(sta, src_a, sec[0]) || \
-                    !Station_src_visible(sta, src_a, sec[0] + TIME_SYS->scan_length)) continue;
-#endif
-                for(seg_b = seg_a + 1; seg_b < prog->count_seg; ++seg_b) {
-                    sec[1] = (unsigned int) seg_b * TIME_SYS->scan_length;
-#if 1
-                    if( !Station_src_visible(sta, src_b, sec[1]) || \
-                        !Station_src_visible(sta, src_b, sec[1] + TIME_SYS->scan_length)) continue;
-#endif
-                    sec_slew = Station_slew_time(sta, (const Source*[2]) { src_a, src_b }, sec);
-                    if(seg_b - seg_a - 1 > (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length) continue;
-                    ILP_row_begin(prog);
-                    ILP_row_set(prog, 1.0, STA_ACTIVE, seg_a, src_a_idx, sta_idx);
-                    ILP_row_set(prog, 1.0, STA_ACTIVE, seg_b, src_b_idx, sta_idx);
-                    ILP_row_end_as_constr(prog, '<', 1.0);
-                    count++;
-                }
-            }
-        } }
-    }
-    HH_DBG("Added %zu constraints: Must be sufficient time to slew between two sources.", count);
+    HH_DBG("Added %zu contraints: Prevent simultaneous baseline observations of the same source.", count);
 }
 
 static void
@@ -280,18 +309,25 @@ add_constr_obj_baseline(ILP* const prog) {
     HH_DBG("Added %zu constraints: Maintain baseline distribution objectives.", count);
 }
 
-static double*
-add_obj(ILP* const prog) {
+static void
+add_obj_sky_cov(ILP* const prog) {
     const Station* sta;
-    const Station* bln_a;
-    const Station* bln_b;
     double co_sky_cov = 1.0 / (double) STATION_SRC_SKY_COV_MAX / (double) prog->count_sta;
-    ILP_row_begin(prog);
+    size_t count = 0;
     ILP_sta_it(prog, sta) {
         (void) sta;
-        for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx)
+        for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx) {
             ILP_row_set(prog, co_sky_cov * WEIGHT_SKY_COV, OBJ_SKY_COV, sta_idx, box_idx);
+            count++;
+        }
     }
+    HH_DBG("Added %zu variables to the objective: Sky coverage.", count);
+}
+
+static double*
+add_obj_baseline_activation(ILP* const prog) {
+    const Station* bln_a;
+    const Station* bln_b;
     double* co_baseline, baseline_dist_max = 0.0;
     HH_MALLOC(co_baseline, sizeof(double) * baseline_count(prog->count_sta));
     ILP_bln_it(prog, bln_a, bln_b) {
@@ -306,21 +342,18 @@ add_obj(ILP* const prog) {
     for(size_t i = 0, j = baseline_count(prog->count_sta); i < j; ++i) {
         co_baseline[i] /= baseline_dist_exp_sum;
     }
-#if 1
+    size_t count = 0;
     ILP_bln_it(prog, bln_a, bln_b) {
         ILP_row_set(prog, co_baseline[baseline_index(prog, bln_a_idx, bln_b_idx)] * WEIGHT_BASELINE, OBJ_BASELINE, bln_a_idx, bln_b_idx);
+        count++;
     }
-#endif
-    ILP_row_end_as_obj(prog, true);
-    HH_DBG("Finished building constraints and objective function.");
+    HH_DBG("Added %zu variables to the objective: Baseline activations.", count);
     return co_baseline;
 }
 
 static void
-dump(ILP* const prog, double* co_baseline) {
+dump_sky_cov(ILP* const prog) {
     const Station* sta;
-    const Station* bln_a;
-    const Station* bln_b;
     double sum;
     double var, co;
     co = 1.0 / (double) prog->count_sta * WEIGHT_SKY_COV;
@@ -333,6 +366,13 @@ dump(ILP* const prog, double* co_baseline) {
             sta->id[0], sta->id[1], 
             co, var, co * var);
     }
+}
+
+static void
+dump_baseline_activation(ILP* const prog, double* co_baseline) {
+    const Station* bln_a;
+    const Station* bln_b;
+    double var, co;
     ILP_bln_it(prog, bln_a, bln_b) {
         co = co_baseline[baseline_index(prog, bln_a_idx, bln_b_idx)] * WEIGHT_BASELINE;
         var = ILP_get_sol(prog, OBJ_BASELINE, bln_a_idx, bln_b_idx);
@@ -374,31 +414,62 @@ sched_validate(ILP* const prog) {
     return true;
 }
 
+#ifdef DEBUG_SKY_COV
+static void
+debug_sky_cov(const ILP* const prog) {
+    const Station* sta;
+    const Source* src;
+    ILP_sta_it(prog, sta) {
+        ILP_src_it(prog, src) {
+            printf("%c%c at ", sta->id[0], sta->id[1]);
+            cat_name_print(src->name);
+            printf(": ");
+            for(size_t seg = 0; seg < prog->count_seg; ++seg) 
+                printf("%c", 'a' + (char) Station_src_sky_cov_idx(sta, src, (unsigned int) seg * TIME_SYS->scan_length));
+            printf("\n");
+        }
+    }
+}
+#endif
+
 SCHED_IMPL(SCHED_DEFAULT) {
     ILP prog;
     ILP_init(&prog);
     HH_DBG("Initialized ILP.");
+#ifdef DEBUG_SKY_COV
+    debug_sky_cov(&prog);
+    exit(0);
+#endif
     // add constraints for stations
     add_constr_sta_exclusion(&prog);
-    forbid_sta(&prog);
+    bool* viewable = forbid_sta(&prog);
     add_constr_sta_concurrent(&prog);
-    add_constr_sta_slew(&prog);
+    add_constr_sta_slew(&prog, viewable);
+#if 0
+    add_constr_sta_repetition(&prog);
+#endif    
     // add baseline constraints
-    add_constr_baseline_link(&prog);
-    forbid_baseline(&prog);
+    add_constr_baseline_link(&prog, viewable);
+    forbid_baseline(&prog, viewable);
+    free(viewable);
     add_constr_baseline_concurrent(&prog);
     // prepare objective constraints
     add_constr_obj_sky_cov(&prog);
     add_constr_obj_baseline(&prog);
     // add objectives
-    double* co_baseline = add_obj(&prog);
+    ILP_row_begin(&prog);
+    add_obj_sky_cov(&prog);
+    double* co_baseline = add_obj_baseline_activation(&prog);
+    ILP_row_end_as_obj(&prog, true);
+    HH_DBG("Finished building constraints and objective function.");
     // solve the model
     if(!ILP_solve(&prog)) {
         ILP_free(&prog);
         return false;
     }
     // output objective values
-    dump(&prog, co_baseline);
+    dump_sky_cov(&prog);
+    dump_baseline_activation(&prog, co_baseline);
     free(co_baseline);
     // build schedule and validate
     sched_construct(&prog, out);
