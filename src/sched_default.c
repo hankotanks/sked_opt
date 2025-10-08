@@ -14,14 +14,13 @@
 
 #define MAX_SCAN_REPETITIONS 4
 
-#define WEIGHT_SKY_COV 3.0
-#define WEIGHT_BASELINE 1.0
+#define WEIGHT_SKY_COV 1.0 // 70%
+#define WEIGHT_BASELINE 1.0 // 30%
 
 #define VAR_TYPES \
     VAR_BIN(STA_ACTIVE) \
     VAR_BIN(BASELINE) \
-    VAR_BIN(OBJ_SKY_COV) \
-    VAR_CON(OBJ_BASELINE, 0.0, 1.0)
+    VAR_BIN(OBJ_SKY_COV)
 
 #include "ilp_fwd.h"
 
@@ -67,12 +66,6 @@ VAR_IMPL(OBJ_SKY_COV, { return prog->count_sta * STATION_SRC_SKY_COV_MAX; }, {
     size_t sta = va_arg(args, size_t);
     size_t box = va_arg(args, size_t);
     return sta * STATION_SRC_SKY_COV_MAX + box;
-})
-
-VAR_IMPL(OBJ_BASELINE, { (void) prog; return baseline_count(prog->count_sta); }, { 
-    size_t sta_a = va_arg(args, size_t);
-    size_t sta_b = va_arg(args, size_t);
-    return baseline_index(prog, sta_a, sta_b);
 })
 
 #include "ilp.h"
@@ -122,7 +115,7 @@ forbid_sta(ILP* const prog) {
 }
 
 static void
-add_constr_sta_concurrent(ILP* const prog) {
+add_constr_sta_participation(ILP* const prog) {
     const Station* sta_a;
     const Station* sta_b;
     const Source* src;
@@ -262,7 +255,7 @@ add_constr_baseline_concurrent(ILP* const prog) {
     }
     (void) bln_a;
     (void) bln_b;
-    HH_DBG("Added %zu contraints: Prevent simultaneous baseline observations of the same source.", count);
+    HH_DBG("Added %zu contraints: Prevent simultaneous baseline observations.", count);
 }
 
 static void
@@ -284,29 +277,6 @@ add_constr_obj_sky_cov(ILP* const prog) {
         }
     } 
     HH_DBG("Added %zu constraints: Maintain sky coverages.", count);
-}
-
-static void
-add_constr_obj_baseline(ILP* const prog) {
-    const Station* bln_a;
-    const Station* bln_b;
-    const Source* src;
-    size_t count = 0;
-    double co = -1.0 / (double) prog->count_seg;
-    ILP_bln_it(prog, bln_a, bln_b) {
-        ILP_row_begin(prog);
-        for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-            ILP_src_it(prog, src) {
-                ILP_row_set(prog, co, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
-            }
-        }
-        ILP_row_set(prog, 1.0, OBJ_BASELINE, bln_a_idx, bln_b_idx);
-        ILP_row_end_as_constr(prog, '<', 0.0);
-        count++;
-    }
-    (void) bln_a;
-    (void) bln_b;
-    HH_DBG("Added %zu constraints: Maintain baseline distribution objectives.", count);
 }
 
 static void
@@ -342,10 +312,17 @@ add_obj_baseline_activation(ILP* const prog) {
     for(size_t i = 0, j = baseline_count(prog->count_sta); i < j; ++i) {
         co_baseline[i] /= baseline_dist_exp_sum;
     }
+    const Source* src;
+    double co;
     size_t count = 0;
     ILP_bln_it(prog, bln_a, bln_b) {
-        ILP_row_set(prog, co_baseline[baseline_index(prog, bln_a_idx, bln_b_idx)] * WEIGHT_BASELINE, OBJ_BASELINE, bln_a_idx, bln_b_idx);
-        count++;
+        co = co_baseline[baseline_index(prog, bln_a_idx, bln_b_idx)] / (double) prog->count_seg * WEIGHT_BASELINE;
+        for(size_t seg = 0; seg < prog->count_seg; ++seg) {
+            ILP_src_it(prog, src) {
+                ILP_row_set(prog, co, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
+                count++;
+            }
+        } 
     }
     HH_DBG("Added %zu variables to the objective: Baseline activations.", count);
     return co_baseline;
@@ -372,10 +349,17 @@ static void
 dump_baseline_activation(ILP* const prog, double* co_baseline) {
     const Station* bln_a;
     const Station* bln_b;
+    const Source* src;
     double var, co;
     ILP_bln_it(prog, bln_a, bln_b) {
+        var = 0.0;
+        for(size_t seg = 0; seg < prog->count_seg; ++seg) {
+            ILP_src_it(prog, src) {
+                var += ILP_get_sol(prog, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
+            }
+        }
+        var /= (double) prog->count_seg;
         co = co_baseline[baseline_index(prog, bln_a_idx, bln_b_idx)] * WEIGHT_BASELINE;
-        var = ILP_get_sol(prog, OBJ_BASELINE, bln_a_idx, bln_b_idx);
         HH_MSG("Baseline objective [%c%c-%c%c, co: %lf]: var: %lf [obj: %lf]", 
             bln_a->id[0], bln_a->id[1], 
             bln_b->id[0], bln_b->id[1], co, var, co * var);
@@ -443,7 +427,7 @@ SCHED_IMPL(SCHED_DEFAULT) {
     // add constraints for stations
     add_constr_sta_exclusion(&prog);
     bool* viewable = forbid_sta(&prog);
-    add_constr_sta_concurrent(&prog);
+    add_constr_sta_participation(&prog);
     add_constr_sta_slew(&prog, viewable);
 #if 0
     add_constr_sta_repetition(&prog);
@@ -455,7 +439,6 @@ SCHED_IMPL(SCHED_DEFAULT) {
     add_constr_baseline_concurrent(&prog);
     // prepare objective constraints
     add_constr_obj_sky_cov(&prog);
-    add_constr_obj_baseline(&prog);
     // add objectives
     ILP_row_begin(&prog);
     add_obj_sky_cov(&prog);
