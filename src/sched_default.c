@@ -12,9 +12,11 @@
 #include "station.h"
 #include "time_sys.h"
 
+#if 0
 #define MAX_SCAN_REPETITIONS 4
+#endif
 
-#define WEIGHT_SKY_COV 1.0 // 70%
+#define WEIGHT_SKY_COV  1.0 // 70%
 #define WEIGHT_BASELINE 1.0 // 30%
 
 #define VAR_TYPES \
@@ -139,6 +141,7 @@ add_constr_sta_participation(ILP* const prog) {
     HH_DBG("Added %zu constraints: 2 participants are required for a scan.", count);
 }
 
+#if 0
 static void
 add_constr_sta_repetition(ILP* const prog) {
     const Station* sta;
@@ -159,6 +162,7 @@ add_constr_sta_repetition(ILP* const prog) {
     (void) sta;
     HH_DBG("Added %zu contraints: Prevent scans longer than %u seconds.", count, TIME_SYS->scan_length * MAX_SCAN_REPETITIONS);
 }
+#endif
 
 static void
 add_constr_sta_slew(ILP* const prog, const bool* const viewable) {
@@ -198,15 +202,18 @@ add_constr_baseline_link(ILP* const prog, const bool* const viewable) {
     ILP_bln_it(prog, bln_a, bln_b) {
         for(size_t seg = 0; seg < prog->count_seg; ++seg) {
             ILP_src_it(prog, src) {
-                if( viewable[sta_active_index(prog, seg, src_idx, bln_a_idx)] && \
-                    viewable[sta_active_index(prog, seg, src_idx, bln_b_idx)]) {
-                    ILP_row_begin(prog);
-                    ILP_row_set(prog, 2.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
-                    ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, bln_a_idx);
-                    ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, bln_b_idx);
-                    ILP_row_end_as_constr(prog, '=', 0.0);
-                    count++;
-                }
+                if( !viewable[sta_active_index(prog, seg, src_idx, bln_a_idx)] || \
+                    !viewable[sta_active_index(prog, seg, src_idx, bln_b_idx)]) continue;
+                ILP_row_begin(prog);
+                ILP_row_set(prog, 1.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
+                ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, bln_a_idx);
+                ILP_row_end_as_constr(prog, '<', 0.0);
+                count++;
+                ILP_row_begin(prog);
+                ILP_row_set(prog, 1.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
+                ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, bln_b_idx);
+                ILP_row_end_as_constr(prog, '<', 0.0);
+                count++;
             }
         }
     }
@@ -237,6 +244,7 @@ forbid_baseline(ILP* const prog, const bool* const viewable) {
     HH_DBG("Forbid %zu BASELINE variables.", count);
 }
 
+#if 0
 static void
 add_constr_baseline_concurrent(ILP* const prog) {
     const Station* bln_a;
@@ -257,6 +265,7 @@ add_constr_baseline_concurrent(ILP* const prog) {
     (void) bln_b;
     HH_DBG("Added %zu contraints: Prevent simultaneous baseline observations.", count);
 }
+#endif
 
 static void
 add_constr_obj_sky_cov(ILP* const prog) {
@@ -295,7 +304,7 @@ add_obj_sky_cov(ILP* const prog) {
 }
 
 static double*
-add_obj_baseline_activation(ILP* const prog) {
+add_obj_baseline_activation(ILP* const prog, const bool* const viewable) {
     const Station* bln_a;
     const Station* bln_b;
     double* co_baseline, baseline_dist_max = 0.0;
@@ -319,6 +328,8 @@ add_obj_baseline_activation(ILP* const prog) {
         co = co_baseline[baseline_index(prog, bln_a_idx, bln_b_idx)] / (double) prog->count_seg * WEIGHT_BASELINE;
         for(size_t seg = 0; seg < prog->count_seg; ++seg) {
             ILP_src_it(prog, src) {
+                if( !viewable[sta_active_index(prog, seg, src_idx, bln_a_idx)] || \
+                    !viewable[sta_active_index(prog, seg, src_idx, bln_b_idx)]) continue;
                 ILP_row_set(prog, co, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
                 count++;
             }
@@ -428,21 +439,17 @@ SCHED_IMPL(SCHED_DEFAULT) {
     add_constr_sta_exclusion(&prog);
     bool* viewable = forbid_sta(&prog);
     add_constr_sta_participation(&prog);
-    add_constr_sta_slew(&prog, viewable);
-#if 0
-    add_constr_sta_repetition(&prog);
-#endif    
+    add_constr_sta_slew(&prog, viewable);  
     // add baseline constraints
     add_constr_baseline_link(&prog, viewable);
     forbid_baseline(&prog, viewable);
-    free(viewable);
-    add_constr_baseline_concurrent(&prog);
     // prepare objective constraints
     add_constr_obj_sky_cov(&prog);
     // add objectives
     ILP_row_begin(&prog);
     add_obj_sky_cov(&prog);
-    double* co_baseline = add_obj_baseline_activation(&prog);
+    double* co_baseline = add_obj_baseline_activation(&prog, viewable);
+    free(viewable);
     ILP_row_end_as_obj(&prog, true);
     HH_DBG("Finished building constraints and objective function.");
     // solve the model
