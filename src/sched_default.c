@@ -17,7 +17,7 @@
 #endif
 
 #define WEIGHT_SKY_COV  1.0 // 70%
-#define WEIGHT_BASELINE 1.0 // 30%
+#define WEIGHT_BASELINE 0.0 // 30%
 
 #define VAR_TYPES \
     VAR_BIN(STA_ACTIVE) \

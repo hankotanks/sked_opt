@@ -1,3 +1,4 @@
+#include "meta.h"
 #include "vis.h"
 
 #include "tinyfiledialogs.h"
@@ -24,9 +25,12 @@ select_output_file(struct vis_layer_run_state* state) {
         state->buf_out,
         1,
         aFilterPatterns,
-        "Standard Schedule File Format"
+        "Standard Schedule Format (.skd)"
     );
-    if(path) strcpy(state->buf_out, path);
+    if(path) {
+        if(hh_ends_with(path, ".skd")) strcpy(state->buf_out, path);
+        else HH_ERR("Provided output path must end with '.skd' [%s].", path);
+    }
     goto select_output_file_free;
 select_output_file_failure:
     HH_MSG("Given output path was malformed [%s].", state->buf_out);
@@ -64,7 +68,26 @@ vis_layer_run_layout(void* const data, struct nk_context* ctx, float row_height)
         nk_label(ctx, "scheduling", NK_TEXT_LEFT);
         nk_layout_row_dynamic(ctx, row_height + 1.f, 1);
         if(mjd < 0.0) nk_widget_disable_begin(ctx);
-        if(nk_button_label(ctx, "Start")) start(SCHED_DEFAULT);
+        if(nk_button_label(ctx, "Start")) {
+            char* path = hh_path(state->buf_out);
+            char* path_dir = hh_path_parent(path);
+            if(hh_path_exists(path_dir) && hh_ends_with(path, ".skd")) {
+                // parse the text field back into META
+                hh_arrclear(META->path_parent);
+                hh_strput(META->path_parent, path_dir);
+                hh_arrclear(META->name);
+                hh_strput(META->name, (char*) hh_path_name(path));
+                // remove extension
+                for(size_t i = 5; i > 0; --i) HH_ASSERT(hh_arrpop(META->name) == (".skd")[i - 1], "Unreachable!");
+                hh_arrput(META->name, '\0');
+                start(SCHED_DEFAULT);
+            } else {
+                HH_ERR("Provided output path must end with '.skd' [%s].", state->buf_out);
+                const char* path_fix = hh_path_join(hh_path(META->path_parent), meta_file());
+                strcpy(state->buf_out, path_fix);
+                hh_arrfree(path_fix);
+            }
+        }
         if(mjd < 0.0) nk_widget_disable_end(ctx);
         nk_group_end(ctx);
     }
@@ -85,17 +108,13 @@ Vis_layer_run(Vis* const vis) {
     VisDesc_configure_panel(&desc, panel, NULL);
     struct vis_layer_run_state* state = Vis_add_layer(vis, desc);
     // TODO: consider reading name field from XML if provided
-    char* path = hh_path(".");
-    if(!hh_path_exists(path)) {
-        hh_arrfree(path);
-        return false;
-    }
+    char* path = hh_path(META->path_parent);
     char* path_out = hh_path_join(hh_path(path), "out");
     if(!hh_path_exists(path_out)) {
         hh_arrfree(path_out);
         path_out = path;
     } else hh_arrfree(path);
-    path_out = hh_path_join(path_out, time_sys_file());
+    path_out = hh_path_join(path_out, meta_file());
     snprintf(state->buf_out, sizeof(state->buf_out), "%s", path_out);
     hh_arrfree(path_out);
     return true;

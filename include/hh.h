@@ -235,6 +235,9 @@ hh_getline(char** buf, size_t* bufsiz, FILE* fp);
 size_t 
 hh_strnlen(const char* str, size_t strsz);
 
+bool
+hh_ends_with(const char* str, const char* suf);
+
 //
 // PARSING
 //
@@ -534,6 +537,13 @@ hh_strnlen(const char* str, size_t strsz) {
     size_t len = 0;
     while(len < strsz && str[len] != '\0') len++;
     return len;
+}
+
+bool
+hh_ends_with(const char* str, const char* suf) {
+    size_t len_str = strlen(str);
+    size_t len_suf = strlen(suf);
+    return len_suf <= len_str && !strcmp(str + len_str - len_suf, suf);
 }
 
 bool

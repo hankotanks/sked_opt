@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "meta.h"
 #include "source.h"
 #include "station.h"
 

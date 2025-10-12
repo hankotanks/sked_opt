@@ -1,10 +1,12 @@
 #include "sched.h"
 
+#include <math.h>
+
 #include "hh.h"
 
+#include "meta.h"
 #include "time_sys.h"
 #include "network.h"
-#include <math.h>
 
 typedef struct {
     const Source* target;
@@ -160,7 +162,11 @@ start(enum sched_type ty) {
     default: HH_UNREACHABLE;
     }
     HH_ASSERT(ret, "Failed to complete schedule.");
-    // Sched_dump(&out);
+    {
+        // TODO
+        HH_MSG("out scans: %s", meta_file());
+        HH_MSG("out stats: %s", meta_file_stat());
+    }
     // free the schedule
     for(size_t i = 0, j, k; i < (TIME_SYS->duration / TIME_SYS->scan_length); ++i) {
         for(j = 0, k = hh_arrlen(out.scans[i]); j < k; ++j) hh_arrfree(out.scans[i][j].sta);
