@@ -4,14 +4,13 @@
 
 #include "hh.h"
 
-#include "meta.h"
 #include "time_sys.h"
 #include "network.h"
 
-typedef struct {
+struct SCHED_H__Scan {
     const Source* target;
     uintptr_t* sta;
-} Scan;
+};
 
 void
 Scan_dump(const Scan* const scan) {
@@ -27,11 +26,29 @@ Scan_dump(const Scan* const scan) {
 struct SCHED_H__Sched {
     Scan** scans; 
     size_t seg;
+    enum station_state** activity;
 };
 
 void
 Sched_init(Sched* const out) {
     HH_CALLOC(out->scans, sizeof(Scan*) * (TIME_SYS->duration / TIME_SYS->scan_length));
+    HH_CALLOC(out->activity, sizeof(enum station_state*) * net_count);
+}
+
+void
+Sched_free(Sched* out) {
+    size_t count_seg = (TIME_SYS->duration / TIME_SYS->scan_length);
+    // free scans
+    for(size_t i = 0, j, k; i < count_seg; ++i) {
+        for(j = 0, k = hh_arrlen(out->scans[i]); j < k; ++j) 
+            hh_arrfree(out->scans[i][j].sta);
+        hh_arrfree(out->scans[i]);
+    }
+    free(out->scans);
+    // free station activity
+    const Station* sta;
+    net_it(sta) hh_arrfree(out->activity[sta_idx]);
+    free(out->activity);
 }
 
 void
@@ -66,7 +83,7 @@ void printf_padded_size_t(size_t val, size_t max) {
 }
 
 
-char*
+enum station_state*
 Sched_activity(const Sched* const out, const Station* const sta) {
     uintptr_t* activity = NULL;
     size_t count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
@@ -90,8 +107,8 @@ sched_activity_break:
     }
     const Source* target = NULL;
     unsigned int sec[2], sec_slew;
-    char* activity_str = NULL;
-    hh_arradd(activity_str, hh_arrlen(activity));
+    enum station_state* state = NULL;
+    hh_arradd(state, hh_arrlen(activity));
     size_t count_slew;
     for(i = hh_arrlen(activity); i >= 1; --i) {
         j = i - 1;
@@ -103,11 +120,11 @@ sched_activity_break:
                     count_slew = (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length + 1;
                     if(count_slew) {
                         for(k = count_slew; k > 0; --k) {
-#if 0
-                            HH_ASSERT(activity_str[j + k] != '+', "Unreachable!");
-                            activity_str[j + k] = '.';
+#if 1
+                            HH_ASSERT(state[j + k] != STATE_SCAN, "Unreachable!");
+                            state[j + k] = STATE_SLEW;
 #else
-                            activity_str[j + k] = (activity_str[j + k] == '+') ? '@' : '.';
+                            state[j + k] = (state[j + k] == STATE_SCAN) ? STATE_FAIL : STATE_SLEW;
 #endif
                         }
                     }
@@ -115,12 +132,11 @@ sched_activity_break:
             }
             target = (const Source*) activity[j];
             sec[1] = (unsigned int) j * TIME_SYS->scan_length;
-            activity_str[j] = '+';
-        } else activity_str[j] = ' ';
+            state[j] = STATE_SCAN;
+        } else state[j] = STATE_IDLE;
     }
-    hh_arrput(activity_str, '\0');
     hh_arrfree(activity);
-    return activity_str;
+    return state;
 }
 
 void
@@ -136,21 +152,35 @@ Sched_dump(const Sched* const out) {
         printf("\n");
     }
     const Station* sta;
-    char* activity;
+    enum station_state* activity;
     HH_DBG("Dumping station activity.");
     net_it_active(sta) {
-        activity = Sched_activity(out, sta);
-        printf("%c%c: %s\n", sta->id[0], sta->id[1], activity);
-        hh_arrfree(activity);
+        activity = out->activity[sta_idx];
+        printf("%c%c: ", sta->id[0], sta->id[1]);
+        HH_ASSERT(hh_arrlen(activity) == count_seg, "Unreachable!");
+        for(size_t i = 0; i < count_seg; ++i) {
+            switch(activity[i]) {
+            case STATE_IDLE: printf(" "); break;
+            case STATE_SLEW: printf("."); break;
+            case STATE_SCAN: printf("+"); break;
+            case STATE_FAIL: printf("!"); break;
+            default: HH_UNREACHABLE;
+            }
+        }
+        printf("\n");
     }
 }
+
+size_t
+Sched_get(const Sched* const out, size_t seg, Scan** scans);
+const enum station_state*
+Sched_get_activity(const Sched* const out, const char id[static 2]);
 
 void
 start(enum sched_type ty) {
     // initialize output
     Sched out;
-    HH_CALLOC(out.scans, sizeof(Scan*) * (TIME_SYS->duration / TIME_SYS->scan_length));
-    // run the schedule
+    Sched_init(&out);
     bool ret;
     switch(ty) {
 #define X(ty_) \
@@ -162,15 +192,12 @@ start(enum sched_type ty) {
     default: HH_UNREACHABLE;
     }
     HH_ASSERT(ret, "Failed to complete schedule.");
-    {
-        // TODO
-        HH_MSG("out scans: %s", meta_file());
-        HH_MSG("out stats: %s", meta_file_stat());
-    }
+    const Station* sta;
+    net_it_active(sta)
+        out.activity[sta_idx] = Sched_activity(&out, sta);
+#if 1
+    Sched_dump(&out);
+#endif
     // free the schedule
-    for(size_t i = 0, j, k; i < (TIME_SYS->duration / TIME_SYS->scan_length); ++i) {
-        for(j = 0, k = hh_arrlen(out.scans[i]); j < k; ++j) hh_arrfree(out.scans[i][j].sta);
-        hh_arrfree(out.scans[i]);
-    }
-    free(out.scans);
+    Sched_free(&out);
 }

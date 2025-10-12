@@ -16,8 +16,8 @@
 #define MAX_SCAN_REPETITIONS 4
 #endif
 
-#define WEIGHT_SKY_COV  1.0 // 70%
-#define WEIGHT_BASELINE 0.0 // 30%
+#define WEIGHT_SKY_COV  1.0
+#define WEIGHT_BASELINE 0.0
 
 #define VAR_TYPES \
     VAR_BIN(STA_ACTIVE) \
@@ -464,7 +464,6 @@ SCHED_IMPL(SCHED_DEFAULT) {
     // build schedule and validate
     sched_construct(&prog, out);
     HH_ASSERT(sched_validate(&prog), "Station observes multiple sources simultaneously.");
-    Sched_dump(out);
     // clean up
     ILP_free(&prog);
     return true;
