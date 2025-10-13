@@ -9,49 +9,6 @@
 #include "cat.h"
 #include "map.h"
 
-// TODO: Remove when I'm sure this is deprecated
-#if 0
-bool 
-Scan_eq(const Scan* const fst, const Scan* const snd) {
-    if(fst->target != snd->target) return false;
-    size_t fst_len, snd_len;
-    fst_len = hh_arrlen(fst->sta);
-    snd_len = hh_arrlen(snd->sta);
-    bool found;
-    for(size_t fst_idx = 0, snd_idx; fst_idx < fst_len; ++fst_idx) {
-        found = false;
-        for(snd_idx = 0; snd_idx < snd_len; ++snd_idx) {
-            if(fst->sta[fst_idx] == snd->sta[snd_idx]) {
-                found = true;
-                break;
-            }
-        }
-        if(!found) return false;
-    }
-    return true;
-}
-
-bool
-Scan_is_subnet(const Scan* const fst, const Scan* const snd) {
-    if(fst->target != snd->target) return false;
-    if(Scan_eq(fst, snd)) return false;
-    for(size_t fst_idx = 0, snd_idx; fst_idx < hh_arrlen(fst->sta); ++fst_idx) {
-        for(snd_idx = 0; snd_idx < hh_arrlen(snd->sta); ++snd_idx) {
-            if(fst->sta[fst_idx] == snd->sta[snd_idx]) {
-#if 0
-                if(!Scan_eq(fst, snd)) {
-                    cat_name_print(fst->target->name);
-                    printf(": %c%c\n", ((const Station*) fst->sta[fst_idx])->id[0], ((const Station*) fst->sta[fst_idx])->id[1]);
-                }
-#endif
-                return true;
-            }
-        }
-    }
-    return false;
-}
-#endif
-
 void
 Scan_dump(const Scan* const scan, const struct map* const map) {
     printf("[");
@@ -174,10 +131,11 @@ Sched*
 Sched_init(enum sched_type ty) {
     Sched* out;
     HH_MALLOC(out, sizeof(Sched));
-    HH_CALLOC(out->scans, sizeof(Scan*) * (TIME_SYS->duration / TIME_SYS->scan_length));
-    HH_CALLOC(out->activity, sizeof(enum station_state*) * net_count);
     // register station and source counts
     map_init(&(out->map));
+    // allocate remaining buffers
+    HH_CALLOC(out->scans, sizeof(Scan*) * (TIME_SYS->duration / TIME_SYS->scan_length));
+    HH_CALLOC(out->activity, sizeof(enum station_state*) * out->map.count_sta);
     // solve the corresponding ILP
     bool ret;
     switch(ty) {
@@ -192,7 +150,7 @@ Sched_init(enum sched_type ty) {
     HH_ASSERT(ret, "Failed to complete schedule.");
     // build activity log
     const Station* sta;
-    net_it_active(sta) out->activity[sta_idx] = Sched_activity(out, sta);
+    map_sta_it(&out->map, sta) out->activity[sta_idx] = Sched_activity(out, sta);
     return out;
 }
 
@@ -207,11 +165,11 @@ Sched_free(Sched* out) {
     free(out->scans);
     // free station activity
     const Station* sta;
-    net_it(sta) hh_arrfree(out->activity[sta_idx]);
+    map_sta_it(&out->map, sta) hh_arrfree(out->activity[sta_idx]);
+    (void) sta;
     free(out->activity);
     // free map
-    free(out->map.map_sta);
-    free(out->map.map_src);
+    map_free(&out->map);
     // free schedule
     free(out);
 }
@@ -230,7 +188,7 @@ Sched_dump(const Sched* const out) {
     const Station* sta;
     enum station_state* activity;
     HH_DBG("Dumping station activity.");
-    net_it_active(sta) {
+    map_sta_it(&out->map, sta) {
         activity = out->activity[sta_idx];
         printf("%c%c: ", sta->id[0], sta->id[1]);
         HH_ASSERT(hh_arrlen(activity) == out->map.count_seg, "Unreachable!");
@@ -248,10 +206,15 @@ Sched_dump(const Sched* const out) {
 }
 
 size_t
-Sched_get(const Sched* const out, size_t seg, Scan** scans) {
+Sched_get(const Sched* const out, size_t seg, Scan** const scans) {
     if(hh_arrlen(out->scans[seg]) > 0) (*scans) = out->scans[seg];
     else (*scans) = NULL;
     return hh_arrlen(out->scans[seg]);
+}
+
+const enum station_state*
+Sched_get_activity(const Sched* const out, const Station* const sta) {
+    return out->activity[map_sta_idx(&out->map, sta)];
 }
 
 const struct map*

@@ -9,6 +9,7 @@
 
 #include "meta.h"
 #include "sched.h"
+#include "time_sys.h"
 
 void
 generate_schedule(const Sched* const out) {
@@ -83,6 +84,16 @@ subnet_extend(const struct map* const map, struct subnet* const sub, const Scan*
 struct stats_sta {
     size_t scans;
     size_t obs;
+    unsigned int sec_observation;
+    unsigned int sec_preob;
+    unsigned int sec_slew;
+    unsigned int sec_idle;
+    unsigned int sec_field_system;
+    double percent_observation;
+    double percent_preob;
+    double percent_slew;
+    double percent_idle;
+    double percent_field_system;
 };
 
 struct stats_src {
@@ -97,6 +108,12 @@ struct stats {
     struct stats_sta* n_sta;
     struct stats_src* n_src;
     size_t* n_bl_obs;
+    size_t* n_station_scans;
+    double avg_percent_observation;
+    double avg_percent_preob;
+    double avg_percent_slew;
+    double avg_percent_idle;
+    double avg_percent_field_system;
 };
 
 void
@@ -117,8 +134,15 @@ subnet_free(const struct map* const map, struct subnet* const sub, struct stats*
         }
     }
     stats->n_src[sub->target].scans++;
-    for(size_t j = 0; j < map->count_sta; ++j) 
-        stats->n_sta[j].scans += (size_t) mask[j];
+    size_t participants = 0;
+    for(size_t j = 0; j < map->count_sta; ++j) {
+        if(mask[j]) {
+            stats->n_sta[j].scans++;
+            participants++;
+        }
+    }
+    HH_ASSERT(participants > 1, "Unreachable!");
+    stats->n_station_scans[participants - 2]++;
     if(sub->single_source) stats->n_single_source_scans++;
     else stats->n_subnetting_scans++;
     free(mask);
@@ -130,74 +154,134 @@ subnet_free(const struct map* const map, struct subnet* const sub, struct stats*
 void
 stats_compute(const Sched* const out, struct stats* stats) {
     const struct map* map = Sched_map(out);
+    // clear stats
     stats->n_single_source_scans = 0;
     stats->n_subnetting_scans = 0;
     stats->n_observations = 0;
     HH_CALLOC(stats->n_sta, sizeof(struct stats_sta) * map->count_sta);
     HH_CALLOC(stats->n_src, sizeof(struct stats_src) * map->count_src);
     HH_CALLOC(stats->n_bl_obs, sizeof(size_t) * baseline_count(map->count_sta));
-
+    HH_CALLOC(stats->n_station_scans, sizeof(size_t) * (map->count_sta - 1));
+    // dynamic array of current scans
     Scan* scans = NULL;
-    Sched_get(out, 0, &scans);
-    
-    size_t count_scans = hh_arrlen(scans);
-
+    // list of current subnets
     struct subnet* subnet_list = NULL, subnet_curr;
-
+    // indicates if the current scan is part of an active subnet
     bool found;
-    for(size_t seg = 0; seg < map->count_seg; ++seg) {
+    for(size_t i = 0, j, k, count_scans; i < map->count_seg; ++i) {
         // remove extension flag from all subnets
-        for(size_t i = 0; i < hh_arrlen(subnet_list); ++i) subnet_list[i].ext = false;
+        for(j = 0; j < hh_arrlen(subnet_list); ++j) 
+            subnet_list[j].ext = false;
         // get current scans
-        count_scans = Sched_get(out, seg, &scans);
+        count_scans = Sched_get(out, i, &scans);
         if(count_scans) {
             // for each current scan
             // check if it shares a station and a source with any previous scans
             // if it does, append it to that subnet
-            for(size_t i = 0; i < count_scans; ++i) {
+            for(j = 0; j < count_scans; ++j) {
                 found = false;
-                for(size_t j = 0; j < hh_arrlen(subnet_list); ++j) {
-                    if(subnet_contains_scan(map, &subnet_list[j], &scans[i])) {
-                        if(!subnet_extend(map, &subnet_list[j], &scans[i])) subnet_list[j].single_source = false;
-                        subnet_list[j].ext = true;
+                for(k = 0; k < hh_arrlen(subnet_list); ++k) {
+                    if(subnet_contains_scan(map, &subnet_list[k], &scans[j])) {
+                        if(!subnet_extend(map, &subnet_list[k], &scans[j])) 
+                            subnet_list[k].single_source = false;
+                        subnet_list[k].ext = true;
                         found = true;
                         break;
                     }
                 }
                 if(!found) {
-                    subnet_curr.target = scans[i].target;
+                    subnet_curr.target = scans[j].target;
                     subnet_curr.ext = true;
                     subnet_curr.single_source = true;
                     HH_CALLOC(subnet_curr.obs, sizeof(bool) * baseline_count(map->count_sta));
-                    subnet_extend(map, &subnet_curr, &scans[i]);
+                    subnet_extend(map, &subnet_curr, &scans[j]);
                     hh_arrput(subnet_list, subnet_curr);
                 }
             }
             // remove all subnets that werent extended
-            for(size_t i = 0; i < hh_arrlen(subnet_list); ++i) {
-                if(!subnet_list[i].ext) {
-                    subnet_free(map, &subnet_list[i], stats);
+            for(j = 0; j < hh_arrlen(subnet_list); ++j) {
+                if(!subnet_list[j].ext) {
+                    subnet_free(map, &subnet_list[j], stats);
                     // remove from list
-                    if(&subnet_list[i] == &hh_arrlast(subnet_list)) {
+                    if(&subnet_list[j] == &hh_arrlast(subnet_list)) {
                         (void) hh_arrpop(subnet_list);
                     } else {
                         subnet_curr = hh_arrpop(subnet_list);
-                        subnet_list[i] = subnet_curr;
+                        subnet_list[j] = subnet_curr;
                     }
                 }
             }
         } else {
             // if there are no scans in the segment, we clear the active subnet list
-            for(size_t i = 0; i < hh_arrlen(subnet_list); ++i) {
-                subnet_free(map, &subnet_list[i], stats);
+            for(j = 0; j < hh_arrlen(subnet_list); ++j) {
+                subnet_free(map, &subnet_list[j], stats);
             }
             hh_arrclear(subnet_list);
         }
     }
+    // clear all remaining subnets
     for(size_t i = 0; i < hh_arrlen(subnet_list); ++i) {
         subnet_free(map, &subnet_list[i], stats);
     }
+    // clean up
     hh_arrfree(subnet_list);
+    // sum of per-station time
+    const Station* sta;
+    const enum station_state* sta_activity;
+    map_sta_it(map, sta) {
+        sta_activity = Sched_get_activity(out, sta);
+        for(size_t i = 0; i < hh_arrlen(sta_activity); ++i) {
+            // TODO: Not considering preob and field_system time
+            switch(sta_activity[i]) {
+                case STATE_IDLE: 
+                    stats->n_sta[sta_idx].sec_idle += TIME_SYS->scan_length; 
+                    break;
+                case STATE_SLEW:
+                    stats->n_sta[sta_idx].sec_slew += TIME_SYS->scan_length; 
+                    break;
+                case STATE_SCAN:
+                    stats->n_sta[sta_idx].sec_observation += TIME_SYS->scan_length; 
+                    break;
+                case STATE_FAIL:
+                default: HH_UNREACHABLE;
+            }
+        }
+    }
+    // compute per-station percentage time spent
+    map_sta_it(map, sta) {
+        stats->n_sta[sta_idx].percent_observation = (double) stats->n_sta[sta_idx].sec_observation / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_preob = (double) stats->n_sta[sta_idx].sec_preob / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_slew = (double) stats->n_sta[sta_idx].sec_slew / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_idle = (double) stats->n_sta[sta_idx].sec_idle / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_field_system = (double) stats->n_sta[sta_idx].sec_field_system / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_observation *= 100.0;
+        stats->n_sta[sta_idx].percent_preob *= 100.0;
+        stats->n_sta[sta_idx].percent_slew *= 100.0;
+        stats->n_sta[sta_idx].percent_idle *= 100.0;
+        stats->n_sta[sta_idx].percent_field_system *= 100.0;
+    }
+    // average time spent in each mode
+    double sum;
+    // observation
+    sum = 0.0;
+    map_sta_it(map, sta) sum += stats->n_sta[sta_idx].percent_observation;
+    stats->avg_percent_observation = sum / (double) map->count_sta;
+    // preob
+    sum = 0.0;
+    map_sta_it(map, sta) sum += stats->n_sta[sta_idx].percent_preob;
+    stats->avg_percent_preob = sum / (double) map->count_sta;
+    // slew
+    sum = 0.0;
+    map_sta_it(map, sta) sum += stats->n_sta[sta_idx].percent_slew;
+    stats->avg_percent_slew = sum / (double) map->count_sta;
+    // idle
+    sum = 0.0;
+    map_sta_it(map, sta) sum += stats->n_sta[sta_idx].percent_idle;
+    stats->avg_percent_idle = sum / (double) map->count_sta;
+    // field_system
+    sum = 0.0;
+    map_sta_it(map, sta) sum += stats->n_sta[sta_idx].percent_field_system;
+    stats->avg_percent_field_system = sum / (double) map->count_sta;
 }
 
 void
@@ -220,11 +304,11 @@ generate_statistics(const Sched* const out) {
     ADD_FIELD("n_stations",            NULL); ADD_VALUE("%zu", map->count_sta);
     ADD_FIELD("n_sources",             NULL); ADD_VALUE("%zu", map->count_src);
     // time_average
-    ADD_FIELD("time_average_observation",  NULL); ADD_VALUE("0", NULL); // TODO
-    ADD_FIELD("time_average_preob",        NULL); ADD_VALUE("0", NULL); // TODO
-    ADD_FIELD("time_average_slew",         NULL); ADD_VALUE("0", NULL); // TODO
-    ADD_FIELD("time_average_idle",         NULL); ADD_VALUE("0", NULL); // TODO
-    ADD_FIELD("time_average_field_system", NULL); ADD_VALUE("0", NULL); // TODO
+    ADD_FIELD("time_average_observation",  NULL); ADD_VALUE("%lf", stats.avg_percent_observation);
+    ADD_FIELD("time_average_preob",        NULL); ADD_VALUE("%lf", stats.avg_percent_preob);
+    ADD_FIELD("time_average_slew",         NULL); ADD_VALUE("%lf", stats.avg_percent_slew);
+    ADD_FIELD("time_average_idle",         NULL); ADD_VALUE("%lf", stats.avg_percent_idle);
+    ADD_FIELD("time_average_field_system", NULL); ADD_VALUE("%lf", stats.avg_percent_field_system);
     // sky-coverage_average
     size_t cell_num[] = { 13, 25, 37 };
     size_t cell_dur[] = { 30, 60 };
@@ -235,47 +319,47 @@ generate_statistics(const Sched* const out) {
         }
     }
     // weight_factor
-    ADD_FIELD("weight_factor_sky_coverage",                 NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_number_of_observations",       NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_duration",                     NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_average_sources",              NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_average_stations",             NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_average_baselines",            NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_idle_time",                    NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_idle_time_interval",           NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_closures",                     NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_max_closures",                 NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_low_declination",              NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_low_declination_start_weight", NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_low_declination_full_weight",  NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_low_elevation",                NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_low_elevation_start_weight",   NULL); ADD_VALUE("%lf", 0.0); // TODO
-    ADD_FIELD("weight_factor_low_elevation_full_weight",    NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_sky_coverage",                 NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_number_of_observations",       NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_duration",                     NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_average_sources",              NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_average_stations",             NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_average_baselines",            NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_idle_time",                    NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_idle_time_interval",           NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_closures",                     NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_max_closures",                 NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_low_declination",              NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_low_declination_start_weight", NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_low_declination_full_weight",  NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_low_elevation",                NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_low_elevation_start_weight",   NULL); ADD_VALUE("%lf", 0.0);
+    ADD_FIELD("weight_factor_low_elevation_full_weight",    NULL); ADD_VALUE("%lf", 0.0);
     // time_sta_observation
     const Station* sta;
     map_sta_it(map, sta) {
         ADD_FIELD("time_%.*s_observation", (int) cat_name_len(sta->name), sta->name);
-        ADD_VALUE("%lf", 0.0); // TODO
+        ADD_VALUE("%lf", stats.n_sta[sta_idx].percent_observation);
     }
     // time_sta_preob
     map_sta_it(map, sta) {
         ADD_FIELD("time_%.*s_preob", (int) cat_name_len(sta->name), sta->name);
-        ADD_VALUE("%lf", 0.0); // TODO
+        ADD_VALUE("%lf", stats.n_sta[sta_idx].percent_preob);
     }
     // time_sta_slew
     map_sta_it(map, sta) {
         ADD_FIELD("time_%.*s_slew", (int) cat_name_len(sta->name), sta->name);
-        ADD_VALUE("%lf", 0.0); // TODO
+        ADD_VALUE("%lf", stats.n_sta[sta_idx].percent_slew);
     }
     // time_sta_idle
     map_sta_it(map, sta) {
         ADD_FIELD("time_%.*s_idle", (int) cat_name_len(sta->name), sta->name);
-        ADD_VALUE("%lf", 0.0); // TODO
+        ADD_VALUE("%lf", stats.n_sta[sta_idx].percent_idle);
     }
     // time_sta_field_system
     map_sta_it(map, sta) {
         ADD_FIELD("time_%.*s_field_system", (int) cat_name_len(sta->name), sta->name);
-        ADD_VALUE("%lf", 0.0); // TODO
+        ADD_VALUE("%lf", stats.n_sta[sta_idx].percent_field_system);
     }
     // sky-coverage
     for(size_t i = 0; i < (sizeof(cell_dur) / sizeof(cell_dur[0])); ++i) {
@@ -295,7 +379,7 @@ generate_statistics(const Sched* const out) {
         ADD_FIELD("n_sta_obs_%.*s", (int) cat_name_len(sta->name), sta->name);
         ADD_VALUE("%zu", stats.n_sta[sta_idx].obs);
     }
-    // n_bl_obs n_bl_obs_Ht-Ma
+    // n_bl_obs
     const Station* bln_a;
     const Station* bln_b;
     map_bln_it(map, bln_a, bln_b) {
@@ -317,15 +401,15 @@ generate_statistics(const Sched* const out) {
         ADD_FIELD("n_src_closure_phases_%.*s", (int) cat_name_len(src->name), src->name);
         ADD_VALUE("%d", 0); // TODO
     }
-    // n_src_closure_phases
+    // n_src_closures
     map_src_it(map, src) {
         ADD_FIELD("n_src_closures_%.*s", (int) cat_name_len(src->name), src->name);
         ADD_VALUE("%d", 0); // TODO
     }
     // station_scans
-    for(size_t i = 2; i <= map->count_sta; ++i) {
-        ADD_FIELD("%zu-station_scans", i);
-        ADD_VALUE("%d", 0); // TODO
+    for(size_t i = 0; i < (map->count_sta - 1); ++i) {
+        ADD_FIELD("%zu-station_scans", i + 2);
+        ADD_VALUE("%zu", stats.n_station_scans[i]);
     }
     // write results to file
     char* path = hh_path_join(hh_path(META->path_parent), meta_file_stat());

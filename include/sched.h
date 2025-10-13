@@ -52,9 +52,12 @@ Sched_push(Sched* const out, const Station* const sta);
 void
 Sched_push_end(Sched* const out);
 void
-Sched_dump(const Sched* const out);
+Sched_dump(const Sched* const out); 
+// returns the number of scans in this segment
 size_t
-Sched_get(const Sched* const out, size_t seg, Scan** scans);
+Sched_get(const Sched* const out, size_t seg, Scan** const scans);
+const enum station_state*
+Sched_get_activity(const Sched* const out, const Station* const sta);
 const struct map*
 Sched_map(const Sched* const out);
 
