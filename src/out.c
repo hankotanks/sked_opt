@@ -16,7 +16,7 @@ generate_schedule(const Sched* const out) {
     (void) out;
 }
 
-static char OUT_H__TEMP[32];
+static char OUT_H__TEMP[256];
 #define ADD_FIELD(field_fmt_, ...) do { \
         snprintf(OUT_H__TEMP, sizeof(OUT_H__TEMP), field_fmt_, __VA_ARGS__); \
         hh_strput(fields, OUT_H__TEMP); \
@@ -219,8 +219,74 @@ generate_statistics(const Sched* const out) {
     ADD_FIELD("n_observations",        NULL); ADD_VALUE("%zu", stats.n_observations);
     ADD_FIELD("n_stations",            NULL); ADD_VALUE("%zu", map->count_sta);
     ADD_FIELD("n_sources",             NULL); ADD_VALUE("%zu", map->count_src);
-    // n_sta
+    // time_average
+    ADD_FIELD("time_average_observation",  NULL); ADD_VALUE("0", NULL); // TODO
+    ADD_FIELD("time_average_preob",        NULL); ADD_VALUE("0", NULL); // TODO
+    ADD_FIELD("time_average_slew",         NULL); ADD_VALUE("0", NULL); // TODO
+    ADD_FIELD("time_average_idle",         NULL); ADD_VALUE("0", NULL); // TODO
+    ADD_FIELD("time_average_field_system", NULL); ADD_VALUE("0", NULL); // TODO
+    // sky-coverage_average
+    size_t cell_num[] = { 13, 25, 37 };
+    size_t cell_dur[] = { 30, 60 };
+    for(size_t i = 0; i < (sizeof(cell_dur) / sizeof(cell_dur[0])); ++i) {
+        for(size_t j = 0; j < (sizeof(cell_num) / sizeof(cell_num[0])); ++j) {
+            ADD_FIELD("sky-coverage_average_%zu_areas_%zu_min", cell_num[j], cell_dur[i]);
+            ADD_VALUE("%lf", 0.0); // TODO
+        }
+    }
+    // weight_factor
+    ADD_FIELD("weight_factor_sky_coverage",                 NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_number_of_observations",       NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_duration",                     NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_average_sources",              NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_average_stations",             NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_average_baselines",            NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_idle_time",                    NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_idle_time_interval",           NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_closures",                     NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_max_closures",                 NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_low_declination",              NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_low_declination_start_weight", NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_low_declination_full_weight",  NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_low_elevation",                NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_low_elevation_start_weight",   NULL); ADD_VALUE("%lf", 0.0); // TODO
+    ADD_FIELD("weight_factor_low_elevation_full_weight",    NULL); ADD_VALUE("%lf", 0.0); // TODO
+    // time_sta_observation
     const Station* sta;
+    map_sta_it(map, sta) {
+        ADD_FIELD("time_%.*s_observation", (int) cat_name_len(sta->name), sta->name);
+        ADD_VALUE("%lf", 0.0); // TODO
+    }
+    // time_sta_preob
+    map_sta_it(map, sta) {
+        ADD_FIELD("time_%.*s_preob", (int) cat_name_len(sta->name), sta->name);
+        ADD_VALUE("%lf", 0.0); // TODO
+    }
+    // time_sta_slew
+    map_sta_it(map, sta) {
+        ADD_FIELD("time_%.*s_slew", (int) cat_name_len(sta->name), sta->name);
+        ADD_VALUE("%lf", 0.0); // TODO
+    }
+    // time_sta_idle
+    map_sta_it(map, sta) {
+        ADD_FIELD("time_%.*s_idle", (int) cat_name_len(sta->name), sta->name);
+        ADD_VALUE("%lf", 0.0); // TODO
+    }
+    // time_sta_field_system
+    map_sta_it(map, sta) {
+        ADD_FIELD("time_%.*s_field_system", (int) cat_name_len(sta->name), sta->name);
+        ADD_VALUE("%lf", 0.0); // TODO
+    }
+    // sky-coverage
+    for(size_t i = 0; i < (sizeof(cell_dur) / sizeof(cell_dur[0])); ++i) {
+        for(size_t j = 0; j < (sizeof(cell_num) / sizeof(cell_num[0])); ++j) {
+            map_sta_it(map, sta) {
+                ADD_FIELD("sky-coverage_%.*s_%zu_areas_%zu_min", (int) cat_name_len(sta->name), sta->name, cell_num[j], cell_dur[i]);
+                ADD_VALUE("%lf", 0.0); // TODO
+            }
+        }
+    }
+    // n_sta
     map_sta_it(map, sta) {
         ADD_FIELD("n_sta_scans_%.*s", (int) cat_name_len(sta->name), sta->name);
         ADD_VALUE("%zu", stats.n_sta[sta_idx].scans);
@@ -246,6 +312,21 @@ generate_statistics(const Sched* const out) {
         ADD_FIELD("n_src_obs_%.*s", (int) cat_name_len(src->name), src->name);
         ADD_VALUE("%zu", stats.n_src[src_idx].obs);
     }
+    // n_src_closure_phases
+    map_src_it(map, src) {
+        ADD_FIELD("n_src_closure_phases_%.*s", (int) cat_name_len(src->name), src->name);
+        ADD_VALUE("%d", 0); // TODO
+    }
+    // n_src_closure_phases
+    map_src_it(map, src) {
+        ADD_FIELD("n_src_closures_%.*s", (int) cat_name_len(src->name), src->name);
+        ADD_VALUE("%d", 0); // TODO
+    }
+    // station_scans
+    for(size_t i = 2; i <= map->count_sta; ++i) {
+        ADD_FIELD("%zu-station_scans", i);
+        ADD_VALUE("%d", 0); // TODO
+    }
     // write results to file
     char* path = hh_path_join(hh_path(META->path_parent), meta_file_stat());
     FILE* file = fopen(path, "w");
@@ -256,3 +337,4 @@ generate_statistics(const Sched* const out) {
 }
 
 #undef ADD_FIELD
+#undef ADD_VALUE
