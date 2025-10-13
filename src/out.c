@@ -16,14 +16,16 @@ generate_schedule(const Sched* const out) {
     (void) out;
 }
 
-static char OUT_H__ADD_FIELD_BUF[32];
-#define ADD_FIELD(field_fmt_, field_, value_fmt_, value_) do { \
-        if(field_ != NULL) snprintf(OUT_H__ADD_FIELD_BUF, sizeof(OUT_H__ADD_FIELD_BUF), "%s", (char*) field_); \
-        else snprintf(OUT_H__ADD_FIELD_BUF, sizeof(OUT_H__ADD_FIELD_BUF), "%s", field_fmt_); \
-        hh_strput(fields, OUT_H__ADD_FIELD_BUF); \
+static char OUT_H__TEMP[32];
+#define ADD_FIELD(field_fmt_, ...) do { \
+        snprintf(OUT_H__TEMP, sizeof(OUT_H__TEMP), field_fmt_, __VA_ARGS__); \
+        hh_strput(fields, OUT_H__TEMP); \
         hh_strput(fields, ","); \
-        snprintf(OUT_H__ADD_FIELD_BUF, sizeof(OUT_H__ADD_FIELD_BUF), value_fmt_, value_); \
-        hh_strput(values, OUT_H__ADD_FIELD_BUF); \
+    } while(0)
+
+#define ADD_VALUE(value_fmt_, ...) do { \
+        snprintf(OUT_H__TEMP, sizeof(OUT_H__TEMP), value_fmt_, __VA_ARGS__); \
+        hh_strput(values, OUT_H__TEMP); \
         hh_strput(values, ","); \
     } while(0)
 
@@ -78,17 +80,70 @@ subnet_extend(const struct map* const map, struct subnet* const sub, const Scan*
     return single_source;
 }
 
+struct stats_sta {
+    size_t scans;
+    size_t obs;
+};
+
+struct stats_src {
+    size_t scans;
+    size_t obs;
+};
+
+struct stats {
+    size_t n_single_source_scans;
+    size_t n_subnetting_scans;
+    size_t n_observations;
+    struct stats_sta* n_sta;
+    struct stats_src* n_src;
+    size_t* n_bl_obs;
+};
+
 void
-stats_general(const Sched* const out, size_t* n_single_source_scans, size_t* n_subnetting_scans, size_t* n_observations) {
-    (*n_single_source_scans) = 0;
-    (*n_subnetting_scans) = 0;
-    (*n_observations) = 0;
+subnet_free(const struct map* const map, struct subnet* const sub, struct stats* const stats) {
+    bool* mask;
+    HH_CALLOC(mask, sizeof(bool) * map->count_sta);
+    const Station* bln_a;
+    const Station* bln_b;
+    map_bln_it(map, bln_a, bln_b) {
+        if(sub->obs[baseline_index(map, bln_a_idx, bln_b_idx)]) {
+            stats->n_observations++;
+            stats->n_sta[bln_a_idx].obs++;
+            stats->n_sta[bln_b_idx].obs++;
+            stats->n_bl_obs[baseline_index(map, bln_a_idx, bln_b_idx)]++;
+            stats->n_src[sub->target].obs++;
+            mask[bln_a_idx] = true;
+            mask[bln_b_idx] = true;
+        }
+    }
+    stats->n_src[sub->target].scans++;
+    for(size_t j = 0; j < map->count_sta; ++j) 
+        stats->n_sta[j].scans += (size_t) mask[j];
+    if(sub->single_source) stats->n_single_source_scans++;
+    else stats->n_subnetting_scans++;
+    free(mask);
+    free(sub->obs);
+    (void) bln_a;
+    (void) bln_b;
+}
+
+void
+stats_compute(const Sched* const out, struct stats* stats) {
+    const struct map* map = Sched_map(out);
+    stats->n_single_source_scans = 0;
+    stats->n_subnetting_scans = 0;
+    stats->n_observations = 0;
+    HH_CALLOC(stats->n_sta, sizeof(struct stats_sta) * map->count_sta);
+    HH_CALLOC(stats->n_src, sizeof(struct stats_src) * map->count_src);
+    HH_CALLOC(stats->n_bl_obs, sizeof(size_t) * baseline_count(map->count_sta));
+
     Scan* scans = NULL;
     Sched_get(out, 0, &scans);
-    const struct map* map = Sched_map(out);
+    
     size_t count_scans = hh_arrlen(scans);
-    size_t count_baseline = baseline_count(map->count_sta);
+
     struct subnet* subnet_list = NULL, subnet_curr;
+
     bool found;
     for(size_t seg = 0; seg < map->count_seg; ++seg) {
         // remove extension flag from all subnets
@@ -121,20 +176,12 @@ stats_general(const Sched* const out, size_t* n_single_source_scans, size_t* n_s
             // remove all subnets that werent extended
             for(size_t i = 0; i < hh_arrlen(subnet_list); ++i) {
                 if(!subnet_list[i].ext) {
-                    // count observations
-                    for(size_t j = 0; j < count_baseline; ++j) {
-                        (*n_observations) += (size_t) subnet_list[i].obs[j];
-                    }
-                    // increment appropriate scan type
-                    if(subnet_list[i].single_source) (*n_single_source_scans)++;
-                    else (*n_subnetting_scans)++;
+                    subnet_free(map, &subnet_list[i], stats);
                     // remove from list
                     if(&subnet_list[i] == &hh_arrlast(subnet_list)) {
-                        subnet_curr = hh_arrpop(subnet_list);
-                        free(subnet_curr.obs);
+                        (void) hh_arrpop(subnet_list);
                     } else {
                         subnet_curr = hh_arrpop(subnet_list);
-                        free(subnet_list[i].obs);
                         subnet_list[i] = subnet_curr;
                     }
                 }
@@ -142,49 +189,63 @@ stats_general(const Sched* const out, size_t* n_single_source_scans, size_t* n_s
         } else {
             // if there are no scans in the segment, we clear the active subnet list
             for(size_t i = 0; i < hh_arrlen(subnet_list); ++i) {
-                for(size_t j = 0; j < count_baseline; ++j) {
-                    (*n_observations) += (size_t) subnet_list[i].obs[j];
-                }
-                if(subnet_list[i].single_source) (*n_single_source_scans)++;
-                else (*n_subnetting_scans)++;
-                free(subnet_list[i].obs);
+                subnet_free(map, &subnet_list[i], stats);
             }
             hh_arrclear(subnet_list);
         }
     }
     for(size_t i = 0; i < hh_arrlen(subnet_list); ++i) {
-        for(size_t j = 0; j < count_baseline; ++j) {
-            (*n_observations) += (size_t) subnet_list[i].obs[j];
-        }
-        if(subnet_list[i].single_source) (*n_single_source_scans)++;
-        else (*n_subnetting_scans)++;
-        free(subnet_list[i].obs);
+        subnet_free(map, &subnet_list[i], stats);
     }
     hh_arrfree(subnet_list);
 }
 
 void
 generate_statistics(const Sched* const out) {
+    const struct map* map = Sched_map(out);
     Sched_dump(out);
     // two buffers, one for fields and one for values
     char* fields = NULL;
     char* values = NULL;
-    //
     // general
-    ADD_FIELD("version",               NULL, "%d",  0);
-    size_t n_single_source_scans, n_subnetting_scans, n_observations;
-    stats_general(out, &n_single_source_scans, &n_subnetting_scans, &n_observations);
-    ADD_FIELD("n_scans",               NULL, "%zu", n_single_source_scans + n_subnetting_scans);
-    ADD_FIELD("n_single_source_scans", NULL, "%zu", n_single_source_scans);
-    ADD_FIELD("n_subnetting_scans",    NULL, "%zu", n_subnetting_scans);
-    ADD_FIELD("n_fillin-mode_scans",   NULL, "%d",  0);
-    ADD_FIELD("n_calibrator_scans",    NULL, "%d",  0);
-    ADD_FIELD("n_observations",        NULL, "%zu", n_observations);
-    ADD_FIELD("n_stations",            NULL, "%zu", Sched_map(out)->count_sta);
-    ADD_FIELD("n_sources",             NULL, "%zu", Sched_map(out)->count_src);
-    //
-    // station
-    // TODO
+    struct stats stats;
+    stats_compute(out, &stats);
+    ADD_FIELD("version",               NULL); ADD_VALUE("0",   NULL);
+    ADD_FIELD("n_scans",               NULL); ADD_VALUE("%zu", stats.n_single_source_scans + stats.n_subnetting_scans);
+    ADD_FIELD("n_single_source_scans", NULL); ADD_VALUE("%zu", stats.n_single_source_scans);
+    ADD_FIELD("n_subnetting_scans",    NULL); ADD_VALUE("%zu", stats.n_subnetting_scans);
+    ADD_FIELD("n_fillin-mode_scans",   NULL); ADD_VALUE("0",   NULL);
+    ADD_FIELD("n_calibrator_scans",    NULL); ADD_VALUE("0",   NULL);
+    ADD_FIELD("n_observations",        NULL); ADD_VALUE("%zu", stats.n_observations);
+    ADD_FIELD("n_stations",            NULL); ADD_VALUE("%zu", map->count_sta);
+    ADD_FIELD("n_sources",             NULL); ADD_VALUE("%zu", map->count_src);
+    // n_sta
+    const Station* sta;
+    map_sta_it(map, sta) {
+        ADD_FIELD("n_sta_scans_%.*s", (int) cat_name_len(sta->name), sta->name);
+        ADD_VALUE("%zu", stats.n_sta[sta_idx].scans);
+    }
+    map_sta_it(map, sta) {
+        ADD_FIELD("n_sta_obs_%.*s", (int) cat_name_len(sta->name), sta->name);
+        ADD_VALUE("%zu", stats.n_sta[sta_idx].obs);
+    }
+    // n_bl_obs n_bl_obs_Ht-Ma
+    const Station* bln_a;
+    const Station* bln_b;
+    map_bln_it(map, bln_a, bln_b) {
+        ADD_FIELD("n_bl_obs_%c%c-%c%c", bln_a->id[0], bln_a->id[1], bln_b->id[0], bln_b->id[1]);
+        ADD_VALUE("%zu", stats.n_bl_obs[baseline_index(map, bln_a_idx, bln_b_idx)]);
+    }
+    // n_src
+    const Source* src;
+    map_src_it(map, src) {
+        ADD_FIELD("n_src_scans_%.*s", (int) cat_name_len(src->name), src->name);
+        ADD_VALUE("%zu", stats.n_src[src_idx].scans);
+    }
+    map_src_it(map, src) {
+        ADD_FIELD("n_src_obs_%.*s", (int) cat_name_len(src->name), src->name);
+        ADD_VALUE("%zu", stats.n_src[src_idx].obs);
+    }
     // write results to file
     char* path = hh_path_join(hh_path(META->path_parent), meta_file_stat());
     FILE* file = fopen(path, "w");
