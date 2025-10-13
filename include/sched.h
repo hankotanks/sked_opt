@@ -1,16 +1,17 @@
 #ifndef SCHED_H__
 #define SCHED_H__
 
+#include <X11/Xlib.h>
 #include <stdbool.h>
 #include <stddef.h>
 
 #include "source.h"
 #include "station.h"
+#include "map.h"
 
 // tags of implemented schedules
 #define SCHED_TYPES \
-    X(SCHED_DEFAULT) \
-    X(SCHED_EXPR)
+    X(SCHED_DEFAULT)
 
 // define schedule tags as enum values
 enum sched_type {
@@ -30,18 +31,18 @@ enum station_state {
 
 // incomplete types
 typedef struct SCHED_H__Sched Sched;
-typedef struct SCHED_H__Scan Scan;
+
+// TODO: Consider making this incomplete again
+typedef struct {
+    size_t* sta, target;
+} Scan;
 
 // macros
 #define SCHED_IMPL(ty_) bool SCHED_H__load_##ty_(Sched* const out)
 
-// start the requested schedule
-void
-start(enum sched_type ty);
-
-// interface
-void
-Sched_init(Sched* const out);
+// interface for Sched
+Sched*
+Sched_init(enum sched_type ty);
 void
 Sched_free(Sched* out);
 void
@@ -54,8 +55,8 @@ void
 Sched_dump(const Sched* const out);
 size_t
 Sched_get(const Sched* const out, size_t seg, Scan** scans);
-const enum station_state*
-Sched_get_activity(const Sched* const out, const char id[static 2]);
+const struct map*
+Sched_map(const Sched* const out);
 
 
 // forward declaration of scheduling functions

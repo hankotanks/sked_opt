@@ -7,6 +7,8 @@
 #include <string.h>
 #include <limits.h>
 
+#include "map.h"
+
 /*
 // TODO: Clean up this documentation
 // To implement an ILP:
@@ -29,8 +31,8 @@
 */
 
 #define VAR_IMPL(ty_, count_fn_body_, index_fn_body_) \
-    size_t ILP_FWD_H__count_##ty_(const ILP* const prog) count_fn_body_ \
-    size_t ILP_FWD_H__index_##ty_(const ILP* const prog, va_list args) index_fn_body_
+    size_t ILP_FWD_H__count_##ty_(const struct map* const map) count_fn_body_ \
+    size_t ILP_FWD_H__index_##ty_(const struct map* const map, va_list args) index_fn_body_
 
 //
 // internal implementation details
@@ -61,7 +63,6 @@ typedef struct _GRBmodel GRBmodel;
 #endif
 
 typedef struct {
-    size_t count_sta, count_src, count_seg;
     size_t count_var[VAR_COUNT];
     size_t total_var;
     GRBenv* env;
@@ -73,11 +74,11 @@ typedef struct {
 #endif
     int* constr_idx;
     double* constr_co;
-    char* map_sta;
-    char* map_src;
+    // NOTE: ILP does not own the map
+    const struct map* map;
 } ILP;
 
-#define X(ty_) size_t ILP_FWD_H__count_##ty_(const ILP* const);
+#define X(ty_) size_t ILP_FWD_H__count_##ty_(const struct map* const);
 #define VAR_BIN(ty_) X(ty_)
 #define VAR_CON(ty_, lb_, ub_) X(ty_)
 #define VAR_INT(ty_, lb_, ub_) X(ty_)
@@ -87,7 +88,7 @@ typedef struct {
 #undef VAR_INT
 #undef X
 
-#define X(ty_) size_t ILP_FWD_H__index_##ty_(const ILP* const, va_list);
+#define X(ty_) size_t ILP_FWD_H__index_##ty_(const struct map* const, va_list);
 #define VAR_BIN(ty_) X(ty_)
 #define VAR_CON(ty_, lb_, ub_) X(ty_)
 #define VAR_INT(ty_, lb_, ub_) X(ty_)

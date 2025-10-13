@@ -1,10 +1,10 @@
-#include "astro.h"
 #define HH_IMPL
 #include "hh.h"
 #undef HH_IMPL
 
 #include <glenv.h>
 
+#include "astro.h"
 #include "xml.h"
 #include "xml_util.h"
 #include "cat.h"
@@ -13,6 +13,7 @@
 #include "vis.h"
 #include "sky.h"
 #include "time_sys.h"
+#include "out.h"
 #include "sched.h"
 
 // window configuration options
@@ -60,8 +61,12 @@ args(int argc, char* argv[]) {
     configure_using_xml(path_xml);
     hh_arrfree(path_xml);
     if(argc == 3 && ((strcmp(argv[2], "--headless") == 0) || strcmp(argv[2], "-H") == 0)) {
-        // TODO: This can segfault, but not when clicking the GUI button
-        start(SCHED_EXPR);
+        // TODO: The following 4 lines are duplicated in vis_run.c
+        // consider refactoring
+        Sched* skd = Sched_init(SCHED_DEFAULT);
+        generate_schedule(skd);
+        generate_statistics(skd);
+        Sched_free(skd);
         return true;
     }
     return false;

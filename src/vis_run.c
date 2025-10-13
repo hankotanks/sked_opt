@@ -7,6 +7,7 @@
 
 #include "time_sys.h"
 #include "sched.h"
+#include "out.h"
 
 #define FLAGS NK_WINDOW_BORDER
 #define FLAGS_EDIT NK_EDIT_ALWAYS_INSERT_MODE | NK_EDIT_SELECTABLE | NK_EDIT_AUTO_SELECT
@@ -80,7 +81,12 @@ vis_layer_run_layout(void* const data, struct nk_context* ctx, float row_height)
                 // remove extension
                 for(size_t i = 5; i > 0; --i) HH_ASSERT(hh_arrpop(META->name) == (".skd")[i - 1], "Unreachable!");
                 hh_arrput(META->name, '\0');
-                start(SCHED_DEFAULT);
+                // TODO: The following 4 lines are duplicated in `args` in main.c
+                // consider refactoring
+                Sched* skd = Sched_init(SCHED_DEFAULT);
+                generate_schedule(skd);
+                generate_statistics(skd);
+                Sched_free(skd);
             } else {
                 HH_ERR("Provided output path must end with '.skd' [%s].", state->buf_out);
                 const char* path_fix = hh_path_join(hh_path(META->path_parent), meta_file());

@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <string.h>
 #include <limits.h>
 
@@ -15,33 +16,12 @@
 
 #include "hh.h"
 
-#include "station.h"
-#include "network.h"
-#include "source.h"
-#include "sky.h"
-#include "time_sys.h"
+#include "map.h"
 
 #include "ilp_fwd.h"
 
-#define ILP_src_it(prog_, it_) \
-    for(size_t it_##_idx = ILP_H__ILP_src_it_helper(prog_, 0, &it_); it_##_idx != SIZE_MAX; it_##_idx = ILP_H__ILP_src_it_helper(prog_, it_##_idx + 1, &it_))
-
-#define ILP_sta_it(prog_, it_) \
-    it_ = net_sta((prog_)->map_sta); \
-    for(size_t it_##_idx = 0; it_##_idx < (prog_)->count_sta; it_ = net_sta(&((prog_)->map_sta[(++it_##_idx) * 2])))
-
-#define ILP_bln_it(prog_, it_fst_, it_snd_) \
-     it_fst_ = net_sta((prog_)->map_sta); \
-     for(size_t it_fst_##_idx = 0, it_snd_##_idx; it_fst_##_idx < (prog_)->count_sta; it_fst_ = net_sta(&((prog_)->map_sta[(++it_fst_##_idx) * 2]))) \
-        for(it_snd_##_idx = 0, it_snd_ = net_sta((prog_)->map_sta); it_snd_##_idx < (prog_)->count_sta; it_snd_ = net_sta(&((prog_)->map_sta[(++it_snd_##_idx) * 2]))) \
-            if(it_fst_##_idx < it_snd_##_idx)
-
 static void
-ILP_H__ILP_map_sta(ILP* const prog);
-static void
-ILP_H__ILP_map_src(ILP* const prog);
-static void
-ILP_init(ILP* const prog);
+ILP_init(ILP* const prog, const struct map* const map);
 static void
 ILP_free(ILP* prog);
 static void
@@ -72,34 +52,6 @@ ILP_var_param_dbl(ILP* const prog, const char* const attr, double val, enum var_
 //
 // Implementations
 //
-
-static void
-ILP_H__ILP_map_sta(ILP* const prog) {
-    prog->count_sta = 0;
-    const Station* sta;
-    net_it_active(sta) ++(prog->count_sta);
-    HH_CALLOC(prog->map_sta, prog->count_sta * 2 + 1);
-    size_t i = 0;
-    net_it_active(sta) {
-        prog->map_sta[i++] = sta->id[0];
-        prog->map_sta[i++] = sta->id[1];
-    }
-}
-
-static void
-ILP_H__ILP_map_src(ILP* const prog) {
-    prog->count_src = 0;
-    const Source* src;
-    sky_it_active(src) (prog->count_src)++;
-    HH_CALLOC(prog->map_src, prog->count_src * 8 + 1);
-    size_t j = 0, k;
-    sky_it_active(src) {
-        k = hh_strnlen(src->name, 8);
-        memcpy(prog->map_src + j * 8, src->name, k);
-        for(; k < 8; ++k) prog->map_src[j * 8 + k] = ' ';
-        j++;
-    }
-}
 
 #define GUROBI_DECL(name_, ret_, ...) typedef ret_ (*name_##_t)(__VA_ARGS__); static name_##_t name_
 
@@ -133,15 +85,11 @@ ILP_H__load_gurobi(ILP* const prog);
 #define GRB_VERSION_TECHNICAL 2
 
 static void HH_UNUSED
-ILP_init(ILP* const prog) {
+ILP_init(ILP* const prog, const struct map* const map) {
     prog->constr_idx = NULL;
     prog->constr_co = NULL;
-    ILP_H__ILP_map_sta(prog);
-    ILP_H__ILP_map_src(prog);
-    HH_MSG("participating stations: %s", prog->map_sta);
-    HH_MSG("participating sources: %s", prog->map_src);
-    prog->count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
-#define X(ty_) prog->count_var[(size_t) ty_] = ILP_FWD_H__count_##ty_(prog);
+    prog->map = map;
+#define X(ty_) prog->count_var[(size_t) ty_] = ILP_FWD_H__count_##ty_(prog->map);
 #define VAR_BIN(ty_) X(ty_)
 #define VAR_CON(ty_, lb_, ub_) X(ty_)
 #define VAR_INT(ty_, lb_, ub_) X(ty_)
@@ -186,8 +134,6 @@ static void HH_UNUSED
 ILP_free(ILP* prog) {
     hh_arrfree(prog->constr_idx);
     hh_arrfree(prog->constr_co);
-    free(prog->map_sta);
-    free(prog->map_src);
     int err;
     err = GRBfreemodel(prog->model);
     HH_ASSERT(!err, "Failed to free Gurobi model.");
@@ -321,24 +267,12 @@ ILP_var_param_dbl(ILP* const prog, const char* const attr, double val, enum var_
 // Internal helper functions
 //
 
-static size_t HH_UNUSED
-ILP_H__ILP_src_it_helper(const ILP* const prog, size_t i, const Source** src) {
-    char buf[8];
-    memcpy(buf, &(prog->map_src[8 * i++]), 8);
-    for(size_t j = 8; j-- > 0;) {
-        if(buf[j] == ' ') buf[j] = '\0';
-        else break;
-    }
-    if(((*src) = sky_src(buf)) == NULL) return SIZE_MAX;
-    return i - 1;
-}
-
 static size_t
 ILP_H__row_idx(const ILP* const prog, enum var_type ty, va_list args) {
     size_t idx = SIZE_MAX, offset = 0;
 #define X(ty_) \
     if(ty_ == ty) goto row_idx_post_offset; \
-    offset += ILP_FWD_H__count_##ty_(prog);
+    offset += ILP_FWD_H__count_##ty_(prog->map);
 #define VAR_BIN(ty_) X(ty_)
 #define VAR_CON(ty_, lb_, ub_) X(ty_)
 #define VAR_INT(ty_, lb_, ub_) X(ty_)
@@ -349,7 +283,7 @@ ILP_H__row_idx(const ILP* const prog, enum var_type ty, va_list args) {
 #undef X
     if(false) goto row_idx_post_offset; // avoid unused warning
 row_idx_post_offset:
-#define X(ty_) if(ty_ == ty) idx = ILP_FWD_H__index_##ty_(prog, args);
+#define X(ty_) if(ty_ == ty) idx = ILP_FWD_H__index_##ty_(prog->map, args);
 #define VAR_BIN(ty_) X(ty_)
 #define VAR_CON(ty_, lb_, ub_) X(ty_)
 #define VAR_INT(ty_, lb_, ub_) X(ty_)

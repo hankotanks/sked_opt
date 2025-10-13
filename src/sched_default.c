@@ -27,15 +27,15 @@
 #include "ilp_fwd.h"
 
 static inline size_t
-sta_active_index(const ILP* const prog, size_t seg, size_t src, size_t sta) {
-    return seg * prog->count_src * prog->count_sta + src * prog->count_sta + sta;
+sta_active_index(const struct map* const map, size_t seg, size_t src, size_t sta) {
+    return seg * map->count_src * map->count_sta + src * map->count_sta + sta;
 }
 
-VAR_IMPL(STA_ACTIVE, { return prog->count_seg * prog->count_src * prog->count_sta; }, {
+VAR_IMPL(STA_ACTIVE, { return map->count_seg * map->count_src * map->count_sta; }, {
     size_t seg = va_arg(args, size_t);
     size_t src = va_arg(args, size_t);
     size_t sta = va_arg(args, size_t);
-    return sta_active_index(prog, seg, src, sta);
+    return sta_active_index(map, seg, src, sta);
 })
 
 static inline size_t 
@@ -44,27 +44,27 @@ baseline_count(size_t count_sta) {
 }
 
 static inline size_t 
-baseline_index_inner(const ILP* const prog, size_t sta_a, size_t sta_b) {
+baseline_index_inner(const struct map* const map, size_t sta_a, size_t sta_b) {
     HH_ASSERT(sta_a < sta_b, "Unreachable!");
-    return sta_a * (2 * prog->count_sta - sta_a - 1) / 2 + (sta_b - sta_a - 1);
+    return sta_a * (2 * map->count_sta - sta_a - 1) / 2 + (sta_b - sta_a - 1);
 }
 
 static inline size_t 
-baseline_index(const ILP* const prog, size_t sta_a, size_t sta_b) {
-    return baseline_index_inner(prog, HH_MIN(sta_a, sta_b), HH_MAX(sta_a, sta_b));
+baseline_index(const struct map* const map, size_t sta_a, size_t sta_b) {
+    return baseline_index_inner(map, HH_MIN(sta_a, sta_b), HH_MAX(sta_a, sta_b));
 }
 
-VAR_IMPL(BASELINE, { return prog->count_seg * prog->count_src * baseline_count(prog->count_sta); }, {
+VAR_IMPL(BASELINE, { return map->count_seg * map->count_src * baseline_count(map->count_sta); }, {
     size_t seg = va_arg(args, size_t);
     size_t src = va_arg(args, size_t);
     size_t sta_a = va_arg(args, size_t);
     size_t sta_b = va_arg(args, size_t);
-    size_t n = baseline_count(prog->count_sta);
-    return seg * prog->count_src * n + src * n + baseline_index(prog, sta_a, sta_b);
+    size_t n = baseline_count(map->count_sta);
+    return seg * map->count_src * n + src * n + baseline_index(map, sta_a, sta_b);
 })
 
-VAR_IMPL(OBJ_SKY_COV, { return prog->count_sta * STATION_SRC_SKY_COV_MAX; }, {
-    (void) prog;
+VAR_IMPL(OBJ_SKY_COV, { return map->count_sta * STATION_SRC_SKY_COV_MAX; }, {
+    (void) map;
     size_t sta = va_arg(args, size_t);
     size_t box = va_arg(args, size_t);
     return sta * STATION_SRC_SKY_COV_MAX + box;
@@ -77,10 +77,11 @@ add_constr_sta_exclusion(ILP* const prog) {
     const Station* sta;
     const Source* src;
     size_t count = 0;
-    for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-        ILP_sta_it(prog, sta) {
+    size_t seg;
+    map_seg_it(prog->map, seg) {
+        map_sta_it(prog->map, sta) {
             ILP_row_begin(prog);
-            ILP_src_it(prog, src) {
+            map_src_it(prog->map, src) {
                 ILP_row_set(prog, 1.0, STA_ACTIVE, seg, src_idx, sta_idx);
             }
             ILP_row_end_as_constr(prog, '<', 1.0);
@@ -94,16 +95,17 @@ add_constr_sta_exclusion(ILP* const prog) {
 static bool*
 forbid_sta(ILP* const prog) {
     bool* viewable;
-    HH_CALLOC(viewable, sizeof(bool) * prog->count_seg * prog->count_src * prog->count_sta);
+    HH_CALLOC(viewable, sizeof(bool) * prog->map->count_seg * prog->map->count_src * prog->map->count_sta);
     const Station* sta;
     const Source* src;
     size_t count = 0;
-    for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-        ILP_sta_it(prog, sta) {
-            ILP_src_it(prog, src) {
+    size_t seg;
+    map_seg_it(prog->map, seg) {
+        map_sta_it(prog->map, sta) {
+            map_src_it(prog->map, src) {
                 if( Station_src_visible(sta, src, (unsigned int) seg * TIME_SYS->scan_length) && \
                     Station_src_visible(sta, src, (unsigned int) (seg + 1) * TIME_SYS->scan_length)) {
-                    viewable[sta_active_index(prog, seg, src_idx, sta_idx)] = true;
+                    viewable[sta_active_index(prog->map, seg, src_idx, sta_idx)] = true;
                     continue;
                 }
                 ILP_var_param_dbl(prog, "LB", 0.0, STA_ACTIVE, seg, src_idx, sta_idx);
@@ -122,12 +124,13 @@ add_constr_sta_participation(ILP* const prog) {
     const Station* sta_b;
     const Source* src;
     size_t count = 0;
-    for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-        ILP_src_it(prog, src) {
-            ILP_sta_it(prog, sta_a) {
+    size_t seg;
+    map_seg_it(prog->map, seg) {
+        map_src_it(prog->map, src) {
+            map_sta_it(prog->map, sta_a) {
                 ILP_row_begin(prog);
                 ILP_row_set(prog, 1.0, STA_ACTIVE, seg, src_idx, sta_a_idx);
-                ILP_sta_it(prog, sta_b) {
+                map_sta_it(prog->map, sta_b) {
                     if(sta_a_idx == sta_b_idx) continue;
                     ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, sta_b_idx);
                 }
@@ -141,29 +144,6 @@ add_constr_sta_participation(ILP* const prog) {
     HH_DBG("Added %zu constraints: 2 participants are required for a scan.", count);
 }
 
-#if 0
-static void
-add_constr_sta_repetition(ILP* const prog) {
-    const Station* sta;
-    const Source* src;
-    size_t count = 0;
-    ILP_sta_it(prog, sta) { 
-        ILP_src_it(prog, src) {
-            for(size_t seg = 0, seg_off; seg < prog->count_seg - MAX_SCAN_REPETITIONS - 1; ++seg) {
-                ILP_row_begin(prog);
-                for(seg_off = 0; seg_off <= MAX_SCAN_REPETITIONS; ++seg_off) {
-                    ILP_row_set(prog, 1.0, STA_ACTIVE, seg + seg_off, src_idx, sta_idx);
-                }
-                ILP_row_end_as_constr(prog, '<', MAX_SCAN_REPETITIONS);
-                count++;
-            }
-        }
-    }
-    (void) sta;
-    HH_DBG("Added %zu contraints: Prevent scans longer than %u seconds.", count, TIME_SYS->scan_length * MAX_SCAN_REPETITIONS);
-}
-#endif
-
 static void
 add_constr_sta_slew(ILP* const prog, const bool* const viewable) {
     unsigned int sec[2], sec_slew;
@@ -171,13 +151,14 @@ add_constr_sta_slew(ILP* const prog, const bool* const viewable) {
     const Source* src_a;
     const Source* src_b;
     size_t count = 0;
-    ILP_sta_it(prog, sta) {
-        ILP_src_it(prog, src_a) { ILP_src_it(prog, src_b) { if(src_a == src_b) continue;
-            for(size_t seg_a = 0, seg_b; seg_a < prog->count_seg; ++seg_a) {
-                if(!viewable[sta_active_index(prog, seg_a, src_a_idx, sta_idx)]) continue;
+    size_t seg_a, seg_b;
+    map_sta_it(prog->map, sta) {
+        map_src_it(prog->map, src_a) { map_src_it(prog->map, src_b) { if(src_a == src_b) continue;
+            map_seg_it(prog->map, seg_a) {
+                if(!viewable[sta_active_index(prog->map, seg_a, src_a_idx, sta_idx)]) continue;
                 sec[0] = (unsigned int) seg_a * TIME_SYS->scan_length;
-                for(seg_b = seg_a + 1; seg_b < prog->count_seg; ++seg_b) {
-                    if(!viewable[sta_active_index(prog, seg_b, src_b_idx, sta_idx)]) continue;
+                for(seg_b = seg_a + 1; seg_b < prog->map->count_seg; ++seg_b) {
+                    if(!viewable[sta_active_index(prog->map, seg_b, src_b_idx, sta_idx)]) continue;
                     sec[1] = (unsigned int) seg_b * TIME_SYS->scan_length;
                     sec_slew = Station_slew_time(sta, (const Source*[2]) { src_a, src_b }, sec);
                     if(seg_b - seg_a - 1 > (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length) continue;
@@ -199,11 +180,12 @@ add_constr_baseline_link(ILP* const prog, const bool* const viewable) {
     const Station* bln_b;
     const Source* src;
     size_t count = 0;
-    ILP_bln_it(prog, bln_a, bln_b) {
-        for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-            ILP_src_it(prog, src) {
-                if( !viewable[sta_active_index(prog, seg, src_idx, bln_a_idx)] || \
-                    !viewable[sta_active_index(prog, seg, src_idx, bln_b_idx)]) continue;
+    size_t seg;
+    map_bln_it(prog->map, bln_a, bln_b) {
+        map_seg_it(prog->map, seg) {
+            map_src_it(prog->map, src) {
+                if( !viewable[sta_active_index(prog->map, seg, src_idx, bln_a_idx)] || \
+                    !viewable[sta_active_index(prog->map, seg, src_idx, bln_b_idx)]) continue;
                 ILP_row_begin(prog);
                 ILP_row_set(prog, 1.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
                 ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, bln_a_idx);
@@ -228,11 +210,12 @@ forbid_baseline(ILP* const prog, const bool* const viewable) {
     const Station* bln_b;
     const Source* src;
     size_t count = 0;
-    ILP_bln_it(prog, bln_a, bln_b) {
-        for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-            ILP_src_it(prog, src) {
-                if( viewable[sta_active_index(prog, seg, src_idx, bln_a_idx)] && \
-                    viewable[sta_active_index(prog, seg, src_idx, bln_b_idx)]) continue;
+    size_t seg;
+    map_bln_it(prog->map, bln_a, bln_b) {
+        map_seg_it(prog->map, seg) {
+            map_src_it(prog->map, src) {
+                if( viewable[sta_active_index(prog->map, seg, src_idx, bln_a_idx)] && \
+                    viewable[sta_active_index(prog->map, seg, src_idx, bln_b_idx)]) continue;
                 ILP_var_param_dbl(prog, "LB", 0.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
                 ILP_var_param_dbl(prog, "UB", 0.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
                 count++;
@@ -244,39 +227,17 @@ forbid_baseline(ILP* const prog, const bool* const viewable) {
     HH_DBG("Forbid %zu BASELINE variables.", count);
 }
 
-#if 0
-static void
-add_constr_baseline_concurrent(ILP* const prog) {
-    const Station* bln_a;
-    const Station* bln_b;
-    const Source* src;
-    size_t count = 0;
-    ILP_bln_it(prog, bln_a, bln_b) {
-        for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-            ILP_row_begin(prog);
-            ILP_src_it(prog, src) {
-                ILP_row_set(prog, 1.0, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
-            }
-            ILP_row_end_as_constr(prog, '<', 1.0);
-            count++;
-        }
-    }
-    (void) bln_a;
-    (void) bln_b;
-    HH_DBG("Added %zu contraints: Prevent simultaneous baseline observations.", count);
-}
-#endif
-
 static void
 add_constr_obj_sky_cov(ILP* const prog) {
     const Station* sta;
     const Source* src;
     size_t count = 0;
-    ILP_sta_it(prog, sta) {
+    size_t seg;
+    map_sta_it(prog->map, sta) {
         for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx) {
             ILP_row_begin(prog);
-            for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-                ILP_src_it(prog, src) 
+            map_seg_it(prog->map, seg) {
+                map_src_it(prog->map, src) 
                     if(Station_src_sky_cov_idx(sta, src, (unsigned int) seg * TIME_SYS->scan_length) == box_idx) 
                         ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, sta_idx);
             }
@@ -291,9 +252,9 @@ add_constr_obj_sky_cov(ILP* const prog) {
 static void
 add_obj_sky_cov(ILP* const prog) {
     const Station* sta;
-    double co_sky_cov = 1.0 / (double) STATION_SRC_SKY_COV_MAX / (double) prog->count_sta;
+    double co_sky_cov = 1.0 / (double) STATION_SRC_SKY_COV_MAX / (double) prog->map->count_sta;
     size_t count = 0;
-    ILP_sta_it(prog, sta) {
+    map_sta_it(prog->map, sta) {
         (void) sta;
         for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx) {
             ILP_row_set(prog, co_sky_cov * WEIGHT_SKY_COV, OBJ_SKY_COV, sta_idx, box_idx);
@@ -308,28 +269,29 @@ add_obj_baseline_activation(ILP* const prog, const bool* const viewable) {
     const Station* bln_a;
     const Station* bln_b;
     double* co_baseline, baseline_dist_max = 0.0;
-    HH_MALLOC(co_baseline, sizeof(double) * baseline_count(prog->count_sta));
-    ILP_bln_it(prog, bln_a, bln_b) {
-        co_baseline[baseline_index(prog, bln_a_idx, bln_b_idx)] = Station_baseline_dist(bln_a, bln_b);
+    HH_MALLOC(co_baseline, sizeof(double) * baseline_count(prog->map->count_sta));
+    map_bln_it(prog->map, bln_a, bln_b) {
+        co_baseline[baseline_index(prog->map, bln_a_idx, bln_b_idx)] = Station_baseline_dist(bln_a, bln_b);
         baseline_dist_max = HH_MAX(baseline_dist_max, Station_baseline_dist(bln_a, bln_b));
     }
     double baseline_dist_exp_sum = 0.0;
-    for(size_t i = 0, j = baseline_count(prog->count_sta); i < j; ++i) {
+    for(size_t i = 0, j = baseline_count(prog->map->count_sta); i < j; ++i) {
         co_baseline[i] = exp(co_baseline[i] / baseline_dist_max);
         baseline_dist_exp_sum += co_baseline[i];
     }
-    for(size_t i = 0, j = baseline_count(prog->count_sta); i < j; ++i) {
+    for(size_t i = 0, j = baseline_count(prog->map->count_sta); i < j; ++i) {
         co_baseline[i] /= baseline_dist_exp_sum;
     }
     const Source* src;
     double co;
     size_t count = 0;
-    ILP_bln_it(prog, bln_a, bln_b) {
-        co = co_baseline[baseline_index(prog, bln_a_idx, bln_b_idx)] / (double) prog->count_seg * WEIGHT_BASELINE;
-        for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-            ILP_src_it(prog, src) {
-                if( !viewable[sta_active_index(prog, seg, src_idx, bln_a_idx)] || \
-                    !viewable[sta_active_index(prog, seg, src_idx, bln_b_idx)]) continue;
+    size_t seg;
+    map_bln_it(prog->map, bln_a, bln_b) {
+        co = co_baseline[baseline_index(prog->map, bln_a_idx, bln_b_idx)] / (double) prog->map->count_seg * WEIGHT_BASELINE;
+        map_seg_it(prog->map, seg) {
+            map_src_it(prog->map, src) {
+                if( !viewable[sta_active_index(prog->map, seg, src_idx, bln_a_idx)] || \
+                    !viewable[sta_active_index(prog->map, seg, src_idx, bln_b_idx)]) continue;
                 ILP_row_set(prog, co, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
                 count++;
             }
@@ -344,8 +306,8 @@ dump_sky_cov(ILP* const prog) {
     const Station* sta;
     double sum;
     double var, co;
-    co = 1.0 / (double) prog->count_sta * WEIGHT_SKY_COV;
-    ILP_sta_it(prog, sta) {
+    co = 1.0 / (double) prog->map->count_sta * WEIGHT_SKY_COV;
+    map_sta_it(prog->map, sta) {
         (void) sta;
         sum = 0.0;
         for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx) sum += ILP_get_sol(prog, OBJ_SKY_COV, sta_idx, box_idx);
@@ -362,15 +324,16 @@ dump_baseline_activation(ILP* const prog, double* co_baseline) {
     const Station* bln_b;
     const Source* src;
     double var, co;
-    ILP_bln_it(prog, bln_a, bln_b) {
+    size_t seg;
+    map_bln_it(prog->map, bln_a, bln_b) {
         var = 0.0;
-        for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-            ILP_src_it(prog, src) {
+        map_seg_it(prog->map, seg) {
+            map_src_it(prog->map, src) {
                 var += ILP_get_sol(prog, BASELINE, seg, src_idx, bln_a_idx, bln_b_idx);
             }
         }
-        var /= (double) prog->count_seg;
-        co = co_baseline[baseline_index(prog, bln_a_idx, bln_b_idx)] * WEIGHT_BASELINE;
+        var /= (double) prog->map->count_seg;
+        co = co_baseline[baseline_index(prog->map, bln_a_idx, bln_b_idx)] * WEIGHT_BASELINE;
         HH_MSG("Baseline objective [%c%c-%c%c, co: %lf]: var: %lf [obj: %lf]", 
             bln_a->id[0], bln_a->id[1], 
             bln_b->id[0], bln_b->id[1], co, var, co * var);
@@ -381,10 +344,11 @@ static void
 sched_construct(ILP* const prog, Sched* const out) {
     const Station* sta;
     const Source* src;
-    for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-        ILP_src_it(prog, src) {
+    size_t seg;
+    map_seg_it(prog->map, seg) {
+        map_src_it(prog->map, src) {
             Sched_push_begin(out, seg, src);
-            ILP_sta_it(prog, sta) {
+            map_sta_it(prog->map, sta) {
                 if(ILP_get_sol(prog, STA_ACTIVE, seg, src_idx, sta_idx) > 0.5) Sched_push(out, sta);
             }
             Sched_push_end(out);
@@ -397,10 +361,11 @@ sched_validate(ILP* const prog) {
     const Station* sta;
     const Source* src;
     size_t active;
-    for(size_t seg = 0; seg < prog->count_seg; ++seg) {
-        ILP_sta_it(prog, sta) {
+    size_t seg;
+    map_seg_it(prog->map, seg) {
+        map_sta_it(prog->map, sta) {
             active = 0;
-            ILP_src_it(prog, src)
+            map_src_it(prog->map, src)
                 if(ILP_get_sol(prog, STA_ACTIVE, seg, src_idx, sta_idx) > 0.5) active++;
             if(active >= 2) return false;
         }
@@ -409,32 +374,11 @@ sched_validate(ILP* const prog) {
     return true;
 }
 
-#ifdef DEBUG_SKY_COV
-static void
-debug_sky_cov(const ILP* const prog) {
-    const Station* sta;
-    const Source* src;
-    ILP_sta_it(prog, sta) {
-        ILP_src_it(prog, src) {
-            printf("%c%c at ", sta->id[0], sta->id[1]);
-            cat_name_print(src->name);
-            printf(": ");
-            for(size_t seg = 0; seg < prog->count_seg; ++seg) 
-                printf("%c", 'a' + (char) Station_src_sky_cov_idx(sta, src, (unsigned int) seg * TIME_SYS->scan_length));
-            printf("\n");
-        }
-    }
-}
-#endif
-
 SCHED_IMPL(SCHED_DEFAULT) {
+    const struct map* map = Sched_map(out);
     ILP prog;
-    ILP_init(&prog);
+    ILP_init(&prog, map);
     HH_DBG("Initialized ILP.");
-#ifdef DEBUG_SKY_COV
-    debug_sky_cov(&prog);
-    exit(0);
-#endif
     // add constraints for stations
     add_constr_sta_exclusion(&prog);
     bool* viewable = forbid_sta(&prog);

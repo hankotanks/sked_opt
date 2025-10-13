@@ -6,55 +6,80 @@
 
 #include "time_sys.h"
 #include "network.h"
+#include "cat.h"
+#include "map.h"
 
-struct SCHED_H__Scan {
-    const Source* target;
-    uintptr_t* sta;
-};
+// TODO: Remove when I'm sure this is deprecated
+#if 0
+bool 
+Scan_eq(const Scan* const fst, const Scan* const snd) {
+    if(fst->target != snd->target) return false;
+    size_t fst_len, snd_len;
+    fst_len = hh_arrlen(fst->sta);
+    snd_len = hh_arrlen(snd->sta);
+    bool found;
+    for(size_t fst_idx = 0, snd_idx; fst_idx < fst_len; ++fst_idx) {
+        found = false;
+        for(snd_idx = 0; snd_idx < snd_len; ++snd_idx) {
+            if(fst->sta[fst_idx] == snd->sta[snd_idx]) {
+                found = true;
+                break;
+            }
+        }
+        if(!found) return false;
+    }
+    return true;
+}
+
+bool
+Scan_is_subnet(const Scan* const fst, const Scan* const snd) {
+    if(fst->target != snd->target) return false;
+    if(Scan_eq(fst, snd)) return false;
+    for(size_t fst_idx = 0, snd_idx; fst_idx < hh_arrlen(fst->sta); ++fst_idx) {
+        for(snd_idx = 0; snd_idx < hh_arrlen(snd->sta); ++snd_idx) {
+            if(fst->sta[fst_idx] == snd->sta[snd_idx]) {
+#if 0
+                if(!Scan_eq(fst, snd)) {
+                    cat_name_print(fst->target->name);
+                    printf(": %c%c\n", ((const Station*) fst->sta[fst_idx])->id[0], ((const Station*) fst->sta[fst_idx])->id[1]);
+                }
+#endif
+                return true;
+            }
+        }
+    }
+    return false;
+}
+#endif
 
 void
-Scan_dump(const Scan* const scan) {
+Scan_dump(const Scan* const scan, const struct map* const map) {
     printf("[");
-    cat_name_print(scan->target->name);
+    const Source* target = map_src_get(map, scan->target);
+    HH_ASSERT(target != NULL, "Unreachable!");
+    cat_name_print(target->name);
     printf(": ");
+    const Station* curr;
     for(size_t i = 0, j = hh_arrlen(scan->sta); i < j; ++i) {
-        printf("%c%c", ((const Station*) scan->sta[i])->id[0], ((const Station*) scan->sta[i])->id[1]);
+        curr = map_sta_get(map, scan->sta[i]);
+        HH_ASSERT(curr != NULL, "Unreachable!");
+        printf("%c%c", curr->id[0], curr->id[1]);
     }
     printf("]");
 }
 
 struct SCHED_H__Sched {
+    struct map map;
     Scan** scans; 
     size_t seg;
     enum station_state** activity;
 };
 
 void
-Sched_init(Sched* const out) {
-    HH_CALLOC(out->scans, sizeof(Scan*) * (TIME_SYS->duration / TIME_SYS->scan_length));
-    HH_CALLOC(out->activity, sizeof(enum station_state*) * net_count);
-}
-
-void
-Sched_free(Sched* out) {
-    size_t count_seg = (TIME_SYS->duration / TIME_SYS->scan_length);
-    // free scans
-    for(size_t i = 0, j, k; i < count_seg; ++i) {
-        for(j = 0, k = hh_arrlen(out->scans[i]); j < k; ++j) 
-            hh_arrfree(out->scans[i][j].sta);
-        hh_arrfree(out->scans[i]);
-    }
-    free(out->scans);
-    // free station activity
-    const Station* sta;
-    net_it(sta) hh_arrfree(out->activity[sta_idx]);
-    free(out->activity);
-}
-
-void
 Sched_push_begin(Sched* const out, size_t seg, const Source* const target) {
     Scan curr;
-    curr.target = target;
+    curr.target = map_src_idx(&(out->map), target);
+    HH_ASSERT(curr.target != SIZE_MAX, "Unreachable!");
     curr.sta = NULL;
     hh_arrput(out->scans[seg], curr);
     out->seg = seg;
@@ -63,7 +88,9 @@ Sched_push_begin(Sched* const out, size_t seg, const Source* const target) {
 void
 Sched_push(Sched* const out, const Station* const sta) {
     HH_ASSERT(out->seg != SIZE_MAX, "Can only call Sched_push after Sched_push_begin.");
-    hh_arrput(hh_arrlast(out->scans[out->seg]).sta, (uintptr_t) sta);
+    size_t sta_idx = map_sta_idx(&(out->map), sta);
+    HH_ASSERT(sta_idx != SIZE_MAX, "Unreachable!");
+    hh_arrput(hh_arrlast(out->scans[out->seg]).sta, sta_idx);
 }
 
 void
@@ -82,41 +109,45 @@ void printf_padded_size_t(size_t val, size_t max) {
     printf("%0*zu", (int) digits, val);
 }
 
-
 enum station_state*
 Sched_activity(const Sched* const out, const Station* const sta) {
-    uintptr_t* activity = NULL;
-    size_t count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
+    const struct map* map = &(out->map);
+    size_t sta_idx = map_sta_idx(map, sta);
+    HH_ASSERT(sta_idx != SIZE_MAX, "Unreachable!");
+    size_t* activity = NULL;
     size_t count_sta = 0;
     size_t count_scans;
     Scan curr;
     size_t i, j, k;
-    for(i = 0; i < count_seg; ++i) {
+    map_seg_it(map, i) {
         for(j = 0, count_scans = hh_arrlen(out->scans[i]); j < count_scans; ++j) {
             curr = out->scans[i][j];
             for(k = 0, count_sta = hh_arrlen(curr.sta); k < count_sta; ++k) {
-                if(sta == ((const Station*) curr.sta[k])) {
-                    hh_arrput(activity, (uintptr_t) curr.target);
+                if(sta_idx == curr.sta[k]) {
+                    hh_arrput(activity, curr.target);
                     goto sched_activity_break;
                 }
             }
         }
-        hh_arrput(activity, (uintptr_t) NULL);
+        hh_arrput(activity, SIZE_MAX);
 sched_activity_break:   
         continue;
     }
     const Source* target = NULL;
+    const Source* at;
     unsigned int sec[2], sec_slew;
     enum station_state* state = NULL;
     hh_arradd(state, hh_arrlen(activity));
     size_t count_slew;
     for(i = hh_arrlen(activity); i >= 1; --i) {
         j = i - 1;
-        if(activity[j] != (uintptr_t) NULL) {
+        if(activity[j] != SIZE_MAX) {
+            at = map_src_get(map, activity[j]);
+            HH_ASSERT(at != NULL, "Unreachable!");
             if(target != NULL) {
-                if((const Source*) activity[j] != target) {
+                if(target != at) {
                     sec[0] = (unsigned int) j * TIME_SYS->scan_length;
-                    sec_slew = Station_slew_time(sta, (const Source*[2]) { (const Source*) activity[j], target }, sec);
+                    sec_slew = Station_slew_time(sta, (const Source*[2]) { at, target }, sec);
                     count_slew = (sec_slew + TIME_SYS->scan_length - 1) / TIME_SYS->scan_length + 1;
                     if(count_slew) {
                         for(k = count_slew; k > 0; --k) {
@@ -130,7 +161,7 @@ sched_activity_break:
                     }
                 }
             }
-            target = (const Source*) activity[j];
+            target = at;
             sec[1] = (unsigned int) j * TIME_SYS->scan_length;
             state[j] = STATE_SCAN;
         } else state[j] = STATE_IDLE;
@@ -139,15 +170,60 @@ sched_activity_break:
     return state;
 }
 
+Sched*
+Sched_init(enum sched_type ty) {
+    Sched* out;
+    HH_MALLOC(out, sizeof(Sched));
+    HH_CALLOC(out->scans, sizeof(Scan*) * (TIME_SYS->duration / TIME_SYS->scan_length));
+    HH_CALLOC(out->activity, sizeof(enum station_state*) * net_count);
+    // register station and source counts
+    map_init(&(out->map));
+    // solve the corresponding ILP
+    bool ret;
+    switch(ty) {
+#define X(ty_) \
+    case ty_: \
+        ret = SCHED_H__load_##ty_(out); \
+        break;
+    SCHED_TYPES
+#undef X
+    default: HH_UNREACHABLE;
+    }
+    HH_ASSERT(ret, "Failed to complete schedule.");
+    // build activity log
+    const Station* sta;
+    net_it_active(sta) out->activity[sta_idx] = Sched_activity(out, sta);
+    return out;
+}
+
+void
+Sched_free(Sched* out) {
+    // free scans
+    for(size_t i = 0, j, k; i < out->map.count_seg; ++i) {
+        for(j = 0, k = hh_arrlen(out->scans[i]); j < k; ++j) 
+            hh_arrfree(out->scans[i][j].sta);
+        hh_arrfree(out->scans[i]);
+    }
+    free(out->scans);
+    // free station activity
+    const Station* sta;
+    net_it(sta) hh_arrfree(out->activity[sta_idx]);
+    free(out->activity);
+    // free map
+    free(out->map.map_sta);
+    free(out->map.map_src);
+    // free schedule
+    free(out);
+}
+
 void
 Sched_dump(const Sched* const out) {
-    size_t count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
     HH_DBG("Dumping generated schedule.");
-    for(size_t i = 0, j, k; i < count_seg; ++i) {
-        printf_padded_size_t(i, count_seg);
+    for(size_t i = 0, j, k; i < out->map.count_seg; ++i) {
+        printf_padded_size_t(i, out->map.count_seg);
         printf(": ");
         for(j = 0, k = hh_arrlen(out->scans[i]); j < k; ++j) {
-            Scan_dump(&(out->scans[i][j]));
+            Scan_dump(&(out->scans[i][j]), &(out->map));
         }
         printf("\n");
     }
@@ -157,8 +233,8 @@ Sched_dump(const Sched* const out) {
     net_it_active(sta) {
         activity = out->activity[sta_idx];
         printf("%c%c: ", sta->id[0], sta->id[1]);
-        HH_ASSERT(hh_arrlen(activity) == count_seg, "Unreachable!");
-        for(size_t i = 0; i < count_seg; ++i) {
+        HH_ASSERT(hh_arrlen(activity) == out->map.count_seg, "Unreachable!");
+        for(size_t i = 0; i < out->map.count_seg; ++i) {
             switch(activity[i]) {
             case STATE_IDLE: printf(" "); break;
             case STATE_SLEW: printf("."); break;
@@ -172,32 +248,13 @@ Sched_dump(const Sched* const out) {
 }
 
 size_t
-Sched_get(const Sched* const out, size_t seg, Scan** scans);
-const enum station_state*
-Sched_get_activity(const Sched* const out, const char id[static 2]);
+Sched_get(const Sched* const out, size_t seg, Scan** scans) {
+    if(hh_arrlen(out->scans[seg]) > 0) (*scans) = out->scans[seg];
+    else (*scans) = NULL;
+    return hh_arrlen(out->scans[seg]);
+}
 
-void
-start(enum sched_type ty) {
-    // initialize output
-    Sched out;
-    Sched_init(&out);
-    bool ret;
-    switch(ty) {
-#define X(ty_) \
-    case ty_: \
-        ret = SCHED_H__load_##ty_(&out); \
-        break;
-    SCHED_TYPES
-#undef X
-    default: HH_UNREACHABLE;
-    }
-    HH_ASSERT(ret, "Failed to complete schedule.");
-    const Station* sta;
-    net_it_active(sta)
-        out.activity[sta_idx] = Sched_activity(&out, sta);
-#if 1
-    Sched_dump(&out);
-#endif
-    // free the schedule
-    Sched_free(&out);
+const struct map*
+Sched_map(const Sched* const out) {
+    return &(out->map);
 }
