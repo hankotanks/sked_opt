@@ -61,12 +61,7 @@ args(int argc, char* argv[]) {
     configure_using_xml(path_xml);
     hh_arrfree(path_xml);
     if(argc == 3 && ((strcmp(argv[2], "--headless") == 0) || strcmp(argv[2], "-H") == 0)) {
-        // TODO: The following 4 lines are duplicated in vis_run.c
-        // consider refactoring
-        Sched* skd = Sched_init(SCHED_DEFAULT);
-        generate_schedule(skd);
-        generate_statistics(skd);
-        Sched_free(skd);
+        Sched_init_output_and_free(SCHED_DEFAULT);
         return true;
     }
     return false;
@@ -109,7 +104,6 @@ main(int argc, char* argv[]) {
     Vis_layer_net(&vis);
     Vis_layer_sky(&vis);
     hh_arrfree(path_globe_image);
-    glClearColor(0.f, 0.f, 0.f, 1.f);
     // event loop
     glClearColor(0.f, 0.f, 0.f, 1.f);
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {

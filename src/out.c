@@ -7,8 +7,10 @@
 
 #include "hh.h"
 
+#include "map.h"
 #include "meta.h"
 #include "sched.h"
+#include "station.h"
 #include "time_sys.h"
 
 void
@@ -81,9 +83,91 @@ subnet_extend(const struct map* const map, struct subnet* const sub, const Scan*
     return single_source;
 }
 
+static unsigned int SKY_COV_DUR[] = { 30, 60 }; // in minutes
+
+struct stats_sky_cov {
+    double a13[sizeof(SKY_COV_DUR) / sizeof(unsigned int)];
+    double a25[sizeof(SKY_COV_DUR) / sizeof(unsigned int)];
+    double a37[sizeof(SKY_COV_DUR) / sizeof(unsigned int)];
+};
+
+bool
+scan_contains_sta(const Scan* const scan, size_t sta_idx) {
+    for(size_t i = 0; i < hh_arrlen(scan->sta); ++i) {
+        if(scan->sta[i] == sta_idx) return true;
+    }
+    return false;
+}
+
+double
+sky_cov_generic(const Sched* const out, const Station* const sta, unsigned int seconds, size_t count_cells,
+    Station_sky_cov_idx v1, Station_sky_cov_idx v2) {
+    double score = 0.0;
+    const struct map* map = Sched_map(out);
+    size_t sta_idx = map_sta_idx(map, sta);
+    size_t seg = 0;
+    size_t count_scans;
+    size_t count_win = 0;
+    bool* v1_hit;
+    bool* v2_hit;
+    HH_MALLOC(v1_hit, sizeof(bool) * count_cells);
+    HH_MALLOC(v2_hit, sizeof(bool) * count_cells);
+    size_t v1_score;
+    size_t v2_score;
+    Scan* scans = NULL;
+    for(unsigned int t_start = 0, t_end, t_seg; t_start < TIME_SYS->duration; t_start += seconds / 2) {
+        t_end = (t_start += seconds);
+        memset(v1_hit, 0, sizeof(bool) * count_cells);
+        memset(v2_hit, 0, sizeof(bool) * count_cells);
+        while(seg < map->count_seg && seg *  TIME_SYS->scan_length < t_end) {
+            t_seg = (unsigned int) seg * TIME_SYS->scan_length;
+            count_scans = Sched_get(out, seg, &scans);
+            for(size_t i = 0; i < count_scans; ++i) {
+                if(scan_contains_sta(&scans[i], sta_idx)) {
+                    v1_hit[v1(sta, map_src_get(map, scans[i].target), t_seg)] = true;
+                    v1_hit[v1(sta, map_src_get(map, scans[i].target), t_seg + TIME_SYS->scan_length)] = true;
+                    v2_hit[v2(sta, map_src_get(map, scans[i].target), t_seg)] = true;
+                    v2_hit[v2(sta, map_src_get(map, scans[i].target), t_seg + TIME_SYS->scan_length)] = true;
+                }
+            }
+            seg++;
+        }
+        v1_score = 0;
+        v2_score = 0;
+        for(size_t i = 0; i < count_cells; ++i) {
+            v1_score += (size_t) v1_hit[i];
+            v2_score += (size_t) v2_hit[i];
+        }
+        score += (((double) v1_score / 2.0) + ((double) v2_score / 2.0)) / (double) count_cells;
+        count_win++;
+    }
+    free(v1_hit);
+    free(v2_hit);
+    return score / (double) count_win;
+}
+
+double
+sky_cov_a13(const Sched* const out, const Station* const sta, unsigned int seconds) {
+    return sky_cov_generic(out, sta, seconds, 13, 
+        Station_sky_cov_idx_13v1, Station_sky_cov_idx_13v2);
+}
+
+double
+sky_cov_a25(const Sched* const out, const Station* const sta, unsigned int seconds) {
+    return sky_cov_generic(out, sta, seconds, 25, 
+        Station_sky_cov_idx_25v1, Station_sky_cov_idx_25v2);
+}
+
+double
+sky_cov_a37(const Sched* const out, const Station* const sta, unsigned int seconds) {
+    return sky_cov_generic(out, sta, seconds, 37, 
+        Station_sky_cov_idx_37v1, Station_sky_cov_idx_37v2);
+}
+
 struct stats_sta {
     size_t scans;
     size_t obs;
+    struct stats_sky_cov sky_cov;
     unsigned int sec_observation;
     unsigned int sec_preob;
     unsigned int sec_slew;
@@ -108,6 +192,7 @@ struct stats {
     struct stats_sta* n_sta;
     struct stats_src* n_src;
     size_t* n_bl_obs;
+    struct stats_sky_cov avg_sky_cov;
     size_t* n_station_scans;
     double avg_percent_observation;
     double avg_percent_preob;
@@ -282,6 +367,28 @@ stats_compute(const Sched* const out, struct stats* stats) {
     sum = 0.0;
     map_sta_it(map, sta) sum += stats->n_sta[sta_idx].percent_field_system;
     stats->avg_percent_field_system = sum / (double) map->count_sta;
+    // sky coverage calculation
+    map_sta_it(map, sta) {
+        for(size_t i = 0; i < (sizeof(SKY_COV_DUR) / sizeof(unsigned int)); ++i) {
+            stats->n_sta[sta_idx].sky_cov.a13[i] = sky_cov_a13(out, sta, SKY_COV_DUR[i] * 60);
+            stats->n_sta[sta_idx].sky_cov.a25[i] = sky_cov_a25(out, sta, SKY_COV_DUR[i] * 60);
+            stats->n_sta[sta_idx].sky_cov.a37[i] = sky_cov_a37(out, sta, SKY_COV_DUR[i] * 60);
+        }
+    }
+    // average sky coverage calculation
+    for(size_t i = 0; i < (sizeof(SKY_COV_DUR) / sizeof(unsigned int)); ++i) {
+        stats->avg_sky_cov.a13[i] = 0.0;
+        stats->avg_sky_cov.a25[i] = 0.0;
+        stats->avg_sky_cov.a37[i] = 0.0;
+        map_sta_it(map, sta) {
+            stats->avg_sky_cov.a13[i] += stats->n_sta[sta_idx].sky_cov.a13[i];
+            stats->avg_sky_cov.a25[i] += stats->n_sta[sta_idx].sky_cov.a25[i];
+            stats->avg_sky_cov.a37[i] += stats->n_sta[sta_idx].sky_cov.a37[i];
+        }
+        stats->avg_sky_cov.a13[i] /= (double) map->count_sta;
+        stats->avg_sky_cov.a25[i] /= (double) map->count_sta;
+        stats->avg_sky_cov.a37[i] /= (double) map->count_sta;
+    }
 }
 
 void
@@ -310,13 +417,13 @@ generate_statistics(const Sched* const out) {
     ADD_FIELD("time_average_idle",         NULL); ADD_VALUE("%lf", stats.avg_percent_idle);
     ADD_FIELD("time_average_field_system", NULL); ADD_VALUE("%lf", stats.avg_percent_field_system);
     // sky-coverage_average
-    size_t cell_num[] = { 13, 25, 37 };
-    size_t cell_dur[] = { 30, 60 };
-    for(size_t i = 0; i < (sizeof(cell_dur) / sizeof(cell_dur[0])); ++i) {
-        for(size_t j = 0; j < (sizeof(cell_num) / sizeof(cell_num[0])); ++j) {
-            ADD_FIELD("sky-coverage_average_%zu_areas_%zu_min", cell_num[j], cell_dur[i]);
-            ADD_VALUE("%lf", 0.0); // TODO
-        }
+    for(size_t i = 0; i < (sizeof(SKY_COV_DUR) / sizeof(unsigned int)); ++i) {
+        ADD_FIELD("sky-coverage_average_13_areas_%u_min", SKY_COV_DUR[i]);
+        ADD_VALUE("%lf", stats.avg_sky_cov.a13[i]);
+        ADD_FIELD("sky-coverage_average_25_areas_%u_min", SKY_COV_DUR[i]);
+        ADD_VALUE("%lf", stats.avg_sky_cov.a25[i]);
+        ADD_FIELD("sky-coverage_average_37_areas_%u_min", SKY_COV_DUR[i]);
+        ADD_VALUE("%lf", stats.avg_sky_cov.a37[i]);
     }
     // weight_factor
     ADD_FIELD("weight_factor_sky_coverage",                 NULL); ADD_VALUE("%lf", 0.0);
@@ -362,12 +469,18 @@ generate_statistics(const Sched* const out) {
         ADD_VALUE("%lf", stats.n_sta[sta_idx].percent_field_system);
     }
     // sky-coverage
-    for(size_t i = 0; i < (sizeof(cell_dur) / sizeof(cell_dur[0])); ++i) {
-        for(size_t j = 0; j < (sizeof(cell_num) / sizeof(cell_num[0])); ++j) {
-            map_sta_it(map, sta) {
-                ADD_FIELD("sky-coverage_%.*s_%zu_areas_%zu_min", (int) cat_name_len(sta->name), sta->name, cell_num[j], cell_dur[i]);
-                ADD_VALUE("%lf", 0.0); // TODO
-            }
+    for(size_t i = 0; i < (sizeof(SKY_COV_DUR) / sizeof(unsigned int)); ++i) {
+        map_sta_it(map, sta) {
+            ADD_FIELD("sky-coverage_%.*s_13_areas_%u_min", (int) cat_name_len(sta->name), sta->name, SKY_COV_DUR[i]);
+            ADD_VALUE("%lf", stats.n_sta[sta_idx].sky_cov.a13[i]);
+        }
+        map_sta_it(map, sta) {
+            ADD_FIELD("sky-coverage_%.*s_25_areas_%u_min", (int) cat_name_len(sta->name), sta->name, SKY_COV_DUR[i]);
+            ADD_VALUE("%lf", stats.n_sta[sta_idx].sky_cov.a25[i]);
+        }
+        map_sta_it(map, sta) {
+            ADD_FIELD("sky-coverage_%.*s_37_areas_%u_min", (int) cat_name_len(sta->name), sta->name, SKY_COV_DUR[i]);
+            ADD_VALUE("%lf", stats.n_sta[sta_idx].sky_cov.a37[i]);
         }
     }
     // n_sta

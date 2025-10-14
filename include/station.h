@@ -22,6 +22,8 @@ typedef struct {
     double sefd[BAND_OTHER];
 } Station;
 
+typedef size_t (*Station_sky_cov_idx)(const Station* const, const Source* const, unsigned int);
+
 // interface
 void
 Station_dump(const Station* const sta);
@@ -29,8 +31,19 @@ bool
 Station_src_visible(const Station* const sta, const Source* const src, unsigned int seconds);
 unsigned int
 Station_slew_time(const Station* const sta, const Source* const src[2], unsigned int seconds[2]);
+
+// sky coverage cell indexers
 size_t
-Station_src_sky_cov_idx(const Station* const sta, const Source* const src, unsigned int seconds);
-double
-Station_baseline_dist(const Station* const sta_fst, const Station* const sta_snd);
+Station_sky_cov_idx_13v1(const Station* const sta, const Source* const src, unsigned int seconds);
+size_t
+Station_sky_cov_idx_13v2(const Station* const sta, const Source* const src, unsigned int seconds);
+size_t
+Station_sky_cov_idx_25v1(const Station* const sta, const Source* const src, unsigned int seconds);
+size_t
+Station_sky_cov_idx_25v2(const Station* const sta, const Source* const src, unsigned int seconds);
+size_t
+Station_sky_cov_idx_37v1(const Station* const sta, const Source* const src, unsigned int seconds);
+size_t
+Station_sky_cov_idx_37v2(const Station* const sta, const Source* const src, unsigned int seconds);
+
 #endif // STATION_H__

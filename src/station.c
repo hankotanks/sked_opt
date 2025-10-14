@@ -285,7 +285,7 @@ void azel_to_xyew(double az_cos, double az_sin, double el, double* ax1, double* 
 unsigned int
 Station_slew_time_raw(const Station* const sta, const Source* const src[2], unsigned int seconds[2]){
     // TODO: There are special cases for a few antennas that I need to handle
-    // See: Initializer.cpp: 437
+    // See: Initializer.cpp:437
     double ax_fst[2], ax_snd[2];
     switch(sta->axes) {
     case AXES_AZEL:
@@ -336,21 +336,129 @@ wrap_to_two_pi(double angle) {
 }
 
 size_t
-Station_src_sky_cov_idx(const Station* const sta, const Source* const src, unsigned int seconds) {
+Station_sky_cov_idx_13v1(const Station* const sta, const Source* const src, unsigned int seconds) {
     double az, el;
     Station_src_az_el(sta, src, seconds, &az, &el);
     size_t row = (size_t) floor(el / (DPI / 4.0));
     double n = row ? 4.0 : 9.0;
     size_t col = (size_t) round(wrap_to_two_pi(az) / (D2PI / n));
-    if((double) col > n - 1) col = 0;
+    if((double) col > n - 1.0) col = 0;
     return row ? col + 9 : col;
 }
 
-double
-Station_baseline_dist(const Station* const sta_fst, const Station* const sta_snd) {
-    double dx, dy, dz;
-    dx = sta_fst->x - sta_snd->x;
-    dy = sta_fst->y - sta_snd->y;
-    dz = sta_fst->z - sta_snd->z;
-    return sqrt(dx * dx + dy * dy + dz * dz);
+size_t
+Station_sky_cov_idx_13v2(const Station* const sta, const Source* const src, unsigned int seconds) {
+    double el_space = DPI / 5.5;
+    double az, el;
+    Station_src_az_el(sta, src, seconds, &az, &el);
+    size_t row = (size_t) floor(el / el_space);
+    if(row > 1) return 12;
+    double n = row ? 4.0 : 8.0;
+    double az_space = D2PI / n;
+    size_t col = (size_t) round(wrap_to_two_pi(az / az_space));
+    if((double) col > n - 1.0) col = 0;
+    return row ? col + 8 : col;
+}
+
+size_t
+Station_sky_cov_idx_25v1(const Station* const sta, const Source* const src, unsigned int seconds) {
+    double el_space = DPI / 6.0;
+    double az, el;
+    Station_src_az_el(sta, src, seconds, &az, &el);
+    size_t row = (size_t) floor(el / el_space);
+    double n;
+    switch(row) {
+    case 0 : n = 13.0; break;
+    case 1 : n =  9.0; break;
+    default: n =  3.0;
+    }
+    double az_space = D2PI / n;
+    size_t col = (size_t) round(wrap_to_two_pi(az / az_space));
+    if((double) col > n - 1.0) col = 0;
+    size_t idx;
+    switch(row) {
+    case 0 : idx = col; break;
+    case 1 : idx = col + 13; break;
+    default: idx = col + 22;
+    }
+    return idx;
+}
+
+size_t
+Station_sky_cov_idx_25v2(const Station* const sta, const Source* const src, unsigned int seconds) {
+    double el_space = DPI / 7.5;
+    double az, el;
+    Station_src_az_el(sta, src, seconds, &az, &el);
+    size_t row = (size_t) floor(el / el_space);
+    double n;
+    switch(row) {
+    case 0 : n = 12.0; break;
+    case 1 : n =  8.0; break;
+    case 2 : n =  4.0; break;
+    default: return 24;
+    }
+    double az_space = D2PI / n;
+    size_t col = (size_t) round(wrap_to_two_pi(az / az_space));
+    if((double) col > n - 1.0) col = 0;
+    size_t idx = col;
+    switch(row) {
+    case 0 : break;
+    case 1 : idx += 12; break;
+    case 2 : idx += 20; break;
+    default: HH_UNREACHABLE;
+    }
+    return idx;
+}
+
+size_t
+Station_sky_cov_idx_37v1(const Station* const sta, const Source* const src, unsigned int seconds) {
+    double el_space = DPI / 8.0;
+    double az, el;
+    Station_src_az_el(sta, src, seconds, &az, &el);
+    size_t row = (size_t) floor(el / el_space);
+    double n;
+    switch(row) {
+    case 0 : n = 14.0; break;
+    case 1 : n = 12.0; break;
+    case 2 : n =  8.0; break;
+    default: n =  3.0;
+    }
+    double az_space = D2PI / n;
+    size_t col = (size_t) round(wrap_to_two_pi(az / az_space));
+    if((double) col > n - 1.0) col = 0;
+    size_t idx = col;
+    switch(row) {
+    case 1 : idx += 14; break;
+    case 2 : idx += 26; break; 
+    default: idx += 34;
+    }
+    return idx;
+}
+
+size_t
+Station_sky_cov_idx_37v2(const Station* const sta, const Source* const src, unsigned int seconds) {
+    double el_space = DPI / 9.5;
+    double az, el;
+    Station_src_az_el(sta, src, seconds, &az, &el);
+    size_t row = (size_t) floor(el / el_space);
+    double n;
+    switch(row) {
+    case 0 : n = 13.0; break;
+    case 1 : n = 12.0; break;
+    case 2 : n =  7.0; break;
+    case 3 : n =  4.0; break;
+    default: return 36;
+    }
+    double az_space = D2PI / n;
+    size_t col = (size_t) round(wrap_to_two_pi(az / az_space));
+    if((double) col > n - 1.0) col = 0;
+    size_t idx = col;
+    switch(row) {
+    case 0 : break;
+    case 1 : idx += 13; break;
+    case 2 : idx += 25; break;
+    case 3 : idx += 32; break; 
+    default: HH_UNREACHABLE;
+    }
+    return idx;
 }

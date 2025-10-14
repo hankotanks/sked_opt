@@ -31,11 +31,8 @@ enum station_state {
 
 // incomplete types
 typedef struct SCHED_H__Sched Sched;
-
 // TODO: Consider making this incomplete again
-typedef struct {
-    size_t* sta, target;
-} Scan;
+typedef struct { size_t* sta, target; } Scan;
 
 // macros
 #define SCHED_IMPL(ty_) bool SCHED_H__load_##ty_(Sched* const out)
@@ -61,6 +58,13 @@ Sched_get_activity(const Sched* const out, const Station* const sta);
 const struct map*
 Sched_map(const Sched* const out);
 
+// macro for quickly dumping a schedule
+#define Sched_init_output_and_free(ty_) do { \
+        Sched* SCHED_H__skd = Sched_init(ty_); \
+        generate_schedule(SCHED_H__skd); \
+        generate_statistics(SCHED_H__skd); \
+        Sched_free(SCHED_H__skd); \
+    } while(0)
 
 // forward declaration of scheduling functions
 #define X(ty_) SCHED_IMPL(ty_);

@@ -238,7 +238,7 @@ add_constr_obj_sky_cov(ILP* const prog) {
             ILP_row_begin(prog);
             map_seg_it(prog->map, seg) {
                 map_src_it(prog->map, src) 
-                    if(Station_src_sky_cov_idx(sta, src, (unsigned int) seg * TIME_SYS->scan_length) == box_idx) 
+                    if(Station_sky_cov_idx_13v1(sta, src, (unsigned int) seg * TIME_SYS->scan_length) == box_idx) 
                         ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, sta_idx);
             }
             ILP_row_set(prog, 1.0, OBJ_SKY_COV, sta_idx, box_idx);
@@ -264,6 +264,15 @@ add_obj_sky_cov(ILP* const prog) {
     HH_DBG("Added %zu variables to the objective: Sky coverage.", count);
 }
 
+double
+baseline_dist(const Station* const sta_fst, const Station* const sta_snd) {
+    double dx, dy, dz;
+    dx = sta_fst->x - sta_snd->x;
+    dy = sta_fst->y - sta_snd->y;
+    dz = sta_fst->z - sta_snd->z;
+    return sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 static double*
 add_obj_baseline_activation(ILP* const prog, const bool* const viewable) {
     const Station* bln_a;
@@ -271,8 +280,8 @@ add_obj_baseline_activation(ILP* const prog, const bool* const viewable) {
     double* co_baseline, baseline_dist_max = 0.0;
     HH_MALLOC(co_baseline, sizeof(double) * baseline_count(prog->map->count_sta));
     map_bln_it(prog->map, bln_a, bln_b) {
-        co_baseline[baseline_index(prog->map, bln_a_idx, bln_b_idx)] = Station_baseline_dist(bln_a, bln_b);
-        baseline_dist_max = HH_MAX(baseline_dist_max, Station_baseline_dist(bln_a, bln_b));
+        co_baseline[baseline_index(prog->map, bln_a_idx, bln_b_idx)] = baseline_dist(bln_a, bln_b);
+        baseline_dist_max = HH_MAX(baseline_dist_max, baseline_dist(bln_a, bln_b));
     }
     double baseline_dist_exp_sum = 0.0;
     for(size_t i = 0, j = baseline_count(prog->map->count_sta); i < j; ++i) {
