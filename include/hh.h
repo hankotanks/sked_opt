@@ -20,6 +20,17 @@
 #define HH_MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define HH_MIN(x, y) (((x) < (y)) ? (x) : (y))
 
+#if defined(__GNUC__) || defined(__clang__)
+#define HH_UNUSED __attribute__((unused))
+#else
+#define HH_UNUSED
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define HH_FALLTHROUGH __attribute__((fallthrough))
+#else
+#define HH_FALLTHROUGH
+#endif
 
 //
 // LOGGING
@@ -105,6 +116,8 @@ typedef struct { size_t len, cap, elem_size; } hh_arrheader_t;
 // helper functions
 void*
 hh_arrnew_impl(size_t cap, size_t elem_size);
+size_t
+hh_arradd_impl(void** arrp, size_t n, size_t elem_size);
 void 
 hh_arrgrow_impl(void** arrp, size_t n, size_t elem_size);
 
@@ -112,17 +125,22 @@ hh_arrgrow_impl(void** arrp, size_t n, size_t elem_size);
 #define hh_arrnew(arr)          ((arr) = hh_arrnew_impl(HH_ARR_CAP_DEFAULT, sizeof(*arr)))
 #define hh_arrgrow(arr, n)      (hh_arrgrow_impl((void**) &(arr), (n), sizeof(*(arr))), (arr))
 // PUBLIC API
+#define hh_arrclear(arr)        ((arr == NULL) ? 0 : (hh_arrheader(arr)->len = 0))
 #define hh_arrfree(arr)         ((void) ((arr) ? free(hh_arrheader(arr)) : (void) 0), (arr) = NULL)
 #define hh_arrlast(arr)         ((arr)[hh_arrheader(arr)->len - 1])
 #define hh_arrput(arr, val)     ((void) hh_arrgrow(arr, 1), (arr)[(hh_arrheader(arr)->len)++] = (val))
 #define hh_arrpop(arr)          ((arr)[--(hh_arrheader(arr)->len)])
-#define hh_arradd(arr, n)       ((void) hh_arrgrow(arr, n), (n) ? (memset((arr) + hh_arrlen(arr), 0, sizeof *(arr) * (n)), hh_arrheader(arr)->len += (n), hh_arrlen(arr) - (n)) : hh_arrlen(arr))
+// #define hh_arradd(arr, n)       ((void) hh_arrgrow(arr, n), (n) ? (memset((arr) + hh_arrlen(arr), 0, sizeof *(arr) * (n)), hh_arrheader(arr)->len += (n), hh_arrlen(arr) - (n)) : hh_arrlen(arr))
+#define hh_arradd(arr, n)       (hh_arradd_impl((void**)&(arr), (n), sizeof *(arr)))
 #define hh_arrlen(arr)          ((arr == NULL) ? 0 : hh_arrheader(arr)->len)
 #define hh_arrcap(arr)          ((arr == NULL) ? 0 : hh_arrheader(arr)->cap)
 
 //
 // STRINGS
 //
+
+#define HH_STR_HELPER(x) #x
+#define HH_STR(x) HH_STR_HELPER(x)
 
 #define hh_strput(arr, str) do { \
 		if(hh_arrlen(arr) == 0 || (hh_arrlen(arr) != 0 && hh_arrlast(arr) != '\0')) hh_arrput(arr, '\0'); \
@@ -217,6 +235,9 @@ hh_getline(char** buf, size_t* bufsiz, FILE* fp);
 size_t 
 hh_strnlen(const char* str, size_t strsz);
 
+bool
+hh_ends_with(const char* str, const char* suf);
+
 //
 // PARSING
 //
@@ -274,6 +295,17 @@ hh_arrnew_impl(size_t cap, size_t elem_size) {
     hh_arrheader(arr)->cap = cap;
     hh_arrheader(arr)->elem_size = elem_size;
     return arr;
+}
+
+size_t
+hh_arradd_impl(void** arrp, size_t n, size_t elem_size) {
+	hh_arrgrow_impl(arrp, n, elem_size);
+    size_t len = hh_arrlen(*arrp);
+    if(n) {
+        memset((char*) (*arrp) + len * elem_size, 0, elem_size * n);
+        hh_arrheader(*arrp)->len = len + n;
+    }
+    return len;
 }
 
 void 
@@ -334,8 +366,8 @@ hh_path(const char *raw) {
 	if(raw_abs) free(raw_abs);
 	if(path == NULL) return NULL;
 	for(char* curr = path; *curr != '\0'; ++curr) if(*curr == '\\') *curr = '/';
-	hh_arrpop(path);
-	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') hh_arrpop(path);
+	(void) hh_arrpop(path);
+	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') (void) hh_arrpop(path);
 	hh_arrput(path, '\0');
 	return path;
 }
@@ -364,11 +396,11 @@ hh_path_is_file(const char* path) {
 char*
 hh_path_join(char* path, const char* sub) {
 	if(sub[0] == '/' || sub[0] == '\\') ++sub;
-	hh_arrpop(path);
+	(void) hh_arrpop(path);
 	if(hh_arrlast(path) != '/') hh_strput(path, "/");
 	hh_strput(path, sub);
-	hh_arrpop(path);
-	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') hh_arrpop(path);
+	(void) hh_arrpop(path);
+	if(hh_arrlen(path) > 2 && hh_arrlast(path) == '/') (void) hh_arrpop(path);
 	hh_arrput(path, '\0');
 	return path;
 }
@@ -385,7 +417,7 @@ char*
 hh_path_parent(const char* path) {
 	char* path_parent = NULL;
 	hh_strput(path_parent, path);
-	while(hh_arrlast(path_parent) != '/') hh_arrpop(path_parent);
+	while(hh_arrlast(path_parent) != '/') (void) hh_arrpop(path_parent);
 #ifdef _WIN32
 	if(hh_arrlen(path_parent) == 3 && path_parent[0] >= 'A' && path_parent[0] <= 'Z' && path_parent[1] == ':' && path_parent[2] == '/') {
 		if(hh_arrlen(path) == 4) hh_arrfree(path_parent);
@@ -399,7 +431,7 @@ hh_path_parent(const char* path) {
 		if(hh_arrlen(path) == 2) hh_arrfree(path_parent);
 		else hh_arrput(path_parent, '\0');
 	} else {
-		hh_arrpop(path_parent);
+		(void) hh_arrpop(path_parent);
 		hh_arrput(path_parent, '\0');
 	}
 #endif
@@ -408,7 +440,7 @@ hh_path_parent(const char* path) {
 
 char*
 hh_path_parent_in_place(char* path) {
-	while(hh_arrlast(path) != '/') hh_arrpop(path);
+	while(hh_arrlast(path) != '/') (void) hh_arrpop(path);
 #ifdef _WIN32
 	if(hh_arrlen(path) == 3 && path[0] >= 'A' && path[0] <= 'Z' && path[1] == ':' && path[2] == '/') {
 		if(hh_arrlen(path) == 4) hh_arrfree(path);
@@ -422,7 +454,7 @@ hh_path_parent_in_place(char* path) {
 		if(hh_arrlen(path) == 2) hh_arrfree(path);
 		else hh_arrput(path, '\0');
 	} else {
-		hh_arrpop(path);
+		(void) hh_arrpop(path);
 		hh_arrput(path, '\0');
 	}
 #endif
@@ -508,6 +540,13 @@ hh_strnlen(const char* str, size_t strsz) {
 }
 
 bool
+hh_ends_with(const char* str, const char* suf) {
+    size_t len_str = strlen(str);
+    size_t len_suf = strlen(suf);
+    return len_suf <= len_str && !strcmp(str + len_str - len_suf, suf);
+}
+
+bool
 hh_span_next(hh_span_t* span) {
 	span->ptr += span->len;
 	span->len = 0;
@@ -583,7 +622,7 @@ hh_read_entire_file(const char* path) {
 	unsigned long size = (unsigned long) size_temp;
     rewind(f);
 	char* buf = NULL;
-	hh_arradd(buf, size);
+	(void) hh_arradd(buf, size);
 	HH_CHECK_STREAM(f, buf != NULL, "Failed to allocate buffer for file contents [%s].", path) 
 		return NULL;
     size_t read_size = fread(buf, 1, size, f);
@@ -591,7 +630,7 @@ hh_read_entire_file(const char* path) {
 		hh_arrfree(buf);
 		return NULL;
 	}
-	hh_arradd(buf, '\0');
+	(void) hh_arradd(buf, '\0');
     fclose(f);
     return buf;
 }

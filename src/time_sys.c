@@ -3,6 +3,8 @@
 #include <math.h>
 #include <time.h>
 
+#include <sofam.h>
+
 #include "hh.h"
 
 #include "xml.h"
@@ -67,7 +69,7 @@ DateTime_to_gmst(DateTime dt) {
         (0.06570982441908 * (jd0 - 2451545.0)) + \
         (1.00273790935 * (jd - jd0) * 24.0) + \
         (0.000026 * pow((jd - 2451545.0) / 36525.0, 2.0));
-    return fmod(hrs, 24.0) * 15.0;
+    return fmod(hrs, 24.0) * 15.0 / 180.0 * DPI;
 }
 
 const char* MONTH_NAMES[12] = {
@@ -76,7 +78,8 @@ const char* MONTH_NAMES[12] = {
 #undef X
 };
 
-static TimeSys TIME_SYS_H__time_sys; TimeSys* TIME_SYS = &TIME_SYS_H__time_sys;
+static struct TIME_SYS_H__TIME_SYS TIME_SYS_H__TIME_SYS; 
+struct TIME_SYS_H__TIME_SYS* TIME_SYS = &TIME_SYS_H__TIME_SYS;
 
 void
 time_sys_init(void) {

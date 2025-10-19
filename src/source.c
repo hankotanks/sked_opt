@@ -1,5 +1,7 @@
 #include "source.h"
 
+#include <math.h>
+
 #include "cat.h"
 
 void

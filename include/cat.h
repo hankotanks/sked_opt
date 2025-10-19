@@ -17,17 +17,11 @@
     X(flux) \
     X(equip)
 
-#if defined(__GNUC__) || defined(__clang__)
-#define CAT_H__UNUSED __attribute__((unused))
-#else
-#define CAT_H__UNUSED
-#endif
-
 #define CAT_DECL(type_) struct CAT_H__##type_##_entry
 #define CAT_IMPL(type_, file_) \
-    static const char* CAT_H__UNUSED CAT_H__##type_##_file = file_; \
-    static bool CAT_H__UNUSED CAT_H__##type_##_parse(const char* line, CAT_DECL(type_)* entry)
-#define CAT_IMPL_ENTRY_FREE(type_) static void CAT_H__UNUSED CAT_H__##type_##_entry_free(CAT_DECL(type_) entry)
+    static const char* HH_UNUSED CAT_H__##type_##_file = file_; \
+    static bool HH_UNUSED CAT_H__##type_##_parse(const char* line, CAT_DECL(type_)* entry)
+#define CAT_IMPL_ENTRY_FREE(type_) static void HH_UNUSED CAT_H__##type_##_entry_free(CAT_DECL(type_) entry)
 
 struct cat_t {
 #define X(type_) CAT_DECL(type_)* type_##_list;
@@ -204,7 +198,7 @@ enum dish_axes {
 struct dish_limits {
     double rate;
     double limits[2];
-    size_t c;
+    unsigned int overhead;
 };
 
 CAT_DECL(antenna) {
@@ -241,11 +235,13 @@ CAT_IMPL(antenna, "antenna.cat") {
     if(!hh_span_next(&span)) return false;
     if(!hh_span_double(span, &entry->offset)) return false;
     // axes_limits
+    size_t temp;
     for(size_t i = 0, j; i <= 1; ++i) {
         if(!hh_span_next(&span)) return false;
         if(!hh_span_double(span, &(entry->axes_limits[i].rate))) return false;
         if(!hh_span_next(&span)) return false;
-        if(!hh_span_size_t(span, &(entry->axes_limits[i].c))) return false;
+        if(!hh_span_size_t(span, &temp)) return false;
+        entry->axes_limits[i].overhead = (unsigned int) temp;
         for(j = 0; j <= 1; ++j) {
             if(!hh_span_next(&span)) return false;
             if(!hh_span_double(span, &(entry->axes_limits[i].limits[j]))) return false;

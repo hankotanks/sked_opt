@@ -5,9 +5,11 @@
 
 typedef struct {
     char name[8];
-    double raan, decl, epoch;
+    double raan, raan_rad, decl, decl_rad;
+    double epoch;
+    double crs[3];
     bool band[BAND_OTHER];
-    struct flux_step* flux[BAND_OTHER];
+    struct flux_step* flux[BAND_OTHER]; // NOTE: Source does not own these flux arrays
 } Source;
 
 void

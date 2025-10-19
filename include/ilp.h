@@ -4,250 +4,361 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <string.h>
 #include <limits.h>
 
-#include <lp_lib.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
-#include "station.h"
-#include "network.h"
-#include "source.h"
-#include "sky.h"
-#include "time_sys.h"
+#include "hh.h"
+
+#include "map.h"
 
 #include "ilp_fwd.h"
 
-#define ILP_map_src_it(prog_, it_) \
-    Source it_; \
-    size_t it_##_idx = 0; \
-    ILP_H__ILP_map_src_it_helper(prog_, &it_##_idx, &it_); \
-    for(bool it_##_term = true; it_##_term; it_##_term = ILP_H__ILP_map_src_it_helper(prog_, &it_##_idx, &it_))
-
-#define ILP_map_sta_it(prog_, it_) \
-    Station it_; \
-    net_get_sta((prog_)->map_sta, &it_); \
-    for(size_t it_##_idx = 0; it_##_idx < (prog_)->count_sta; net_get_sta(&((prog_)->map_sta[(++it_##_idx) * 2]), &it_))
-
-#if defined(__GNUC__) || defined(__clang__)
-#define ILP_H__UNUSED __attribute__((unused))
-#else
-#define ILP_H__UNUSED
-#endif
-
 static void
-ILP_map_sta_build(ILP* const prog);
-static size_t
-ILP_get_sta_idx(const ILP* const prog, const char id[static 2]);
-static void
-ILP_map_src_build(ILP* const prog);
-static size_t
-ILP_get_src_idx(const ILP* const prog, const char name[static 8]);
-static void
-ILP_init(ILP* const prog);
+ILP_init(ILP* const prog, const struct map* const map);
 static void
 ILP_free(ILP* prog);
 static void
-ILP_dump(const ILP* const prog);
+ILP_param_int(ILP* const prog, const char* param, int val);
+static void
+ILP_param_dbl(ILP* const prog, const char* param, double val);
 static bool
 ILP_solve(const ILP* const prog);
 static void
-row_begin(ILP* const prog);
+ILP_write(const ILP* const prog, const char* path, bool iis);
 static void
-row_end_as_constr(ILP* const prog, int constr_type, double rhs);
+ILP_row_begin(ILP* const prog);
 static void
-row_end_as_obj(ILP* const prog);
+ILP_row_end_as_constr(ILP* const prog, char constr_type, double rhs);
 static void
-row_set(ILP* const prog, double co, enum var_type ty, ...);
+ILP_row_end_as_indicator(ILP* const prog, char constr_type, double rhs);
+static void
+ILP_row_end_as_obj(ILP* const prog, bool maximize);
+static void
+ILP_row_set(ILP* const prog, double co, enum var_type ty, ...);
 static double
-row_get(const ILP* const prog, enum var_type ty, ...);
+ILP_get_sol(const ILP* const prog, enum var_type ty, ...);
+static void
+ILP_var_param_int(ILP* const prog, const char* const attr, int val, enum var_type ty, ...);
+static void
+ILP_var_param_dbl(ILP* const prog, const char* const attr, double val, enum var_type ty, ...);
 
 //
 // Implementations
 //
 
-static void
-ILP_map_sta_build(ILP* const prog) {
-    prog->count_sta = 0;
-    Station sta;
-    bool* active;
-    for(size_t i = 0; i < NET->count; ++i) {
-        active = net_get_sta_by_idx(i, &sta);
-        if(active != NULL && *active) (prog->count_sta)++;
-    }
-    HH_CALLOC(prog->map_sta, prog->count_sta * 2 + 1);
-    for(size_t i = 0, j = 0; i < NET->count; ++i) {
-        active = net_get_sta_by_idx(i, &sta);
-        if(active != NULL && *active) {
-            prog->map_sta[j++] = sta.id[0];
-            prog->map_sta[j++] = sta.id[1];
-        }
-    }
-}
+#define GUROBI_DECL(name_, ret_, ...) typedef ret_ (*name_##_t)(__VA_ARGS__); static name_##_t name_
 
-static size_t ILP_H__UNUSED
-ILP_get_sta_idx(const ILP* const prog, const char id[static 2]) {
-    char needle[3] = { id[0], id[1], '\0' };
-    const char* pos = strstr(prog->map_sta, needle);
-    if(!pos) return SIZE_MAX;
-    return (size_t) ((pos - prog->map_sta) / 2);
-}
+GUROBI_DECL(GRBloadenvinternal, int, GRBenv** envP, const char* logfilename, int major, int minor, int tech);
+GUROBI_DECL(GRBfreeenv, int, GRBenv* env);
+GUROBI_DECL(GRBnewmodel, int, GRBenv* env, GRBmodel** modelP, const char* Pname, int numvars, double* obj, double* lb, double* ub, char* vtype, char** varnames);
+GUROBI_DECL(GRBupdatemodel, int, GRBmodel* model);
+GUROBI_DECL(GRBfreemodel, int, GRBmodel* model);
+GUROBI_DECL(GRBaddvar, int, GRBmodel* model, int numnz, int* vind, double* vval, double obj, double lb, double ub, char vtype, const char* varname);
+GUROBI_DECL(GRBgetvarbyname, int, GRBmodel *model, const char *name, int *indexP);
+GUROBI_DECL(GRBaddconstr, int, GRBmodel *model, int numnz, int *cind, double *cval, char sense, double rhs, const char *constrname);
+GUROBI_DECL(GRBsetdblattrelement, int, GRBmodel *model, const char *attrname, int element, double newvalue);
+GUROBI_DECL(GRBoptimize, int, GRBmodel *model);
+GUROBI_DECL(GRBsetdblattrlist, int, GRBmodel *model, const char *attrname, int len, int *ind, double *newvalues);
+GUROBI_DECL(GRBsetintattr, int, GRBmodel *model, const char *attrname, int newvalue);
+GUROBI_DECL(GRBgetdblattrelement, int, GRBmodel *model, const char *attrname, int element, double *valueP);
+GUROBI_DECL(GRBgetintattr, int, GRBmodel *model, const char *attrname, int *valueP);
+GUROBI_DECL(GRBgeterrormsg, const char*, GRBenv *env);
+GUROBI_DECL(GRBsetintparam, int, GRBenv *env, const char *paramname, int value);
+GUROBI_DECL(GRBsetdblparam, int, GRBenv *env, const char *paramname, double value);
+GUROBI_DECL(GRBwrite, int, GRBmodel *model, const char *filename);
+GUROBI_DECL(GRBcomputeIIS, int, GRBmodel *model);
+GUROBI_DECL(GRBaddgenconstrIndicator, int, GRBmodel *model, const char *name, int binvar, int binval, int nvars, const int *vars, const double *vals, char sense, double rhs);
+GUROBI_DECL(GRBsetintattrelement, int, GRBmodel *model, const char *attrname, int element, int newvalue);
 
-static void
-ILP_map_src_build(ILP* const prog) {
-    prog->count_src = 0;
-    Source src;
-    bool* active;
-    for(size_t i = 0; i < SKY->count; ++i) {
-        active = sky_get_src_by_idx(i, &src);
-        if(active != NULL && *active) (prog->count_src)++;
-    }
-    HH_CALLOC(prog->map_src, prog->count_src * 8 + 1);
-    for(size_t i = 0, j = 0, k; i < SKY->count; ++i) {
-        active = sky_get_src_by_idx(i, &src);
-        if(active != NULL && *active) {
-            k = hh_strnlen(src.name, 8);
-            memcpy(prog->map_src + j * 8, src.name, k);
-            for(; k < 8; ++k) prog->map_src[j * 8 + k] = ' ';
-            j++;
-        }
-    }
-}
+static void HH_UNUSED
+ILP_H__load_gurobi(ILP* const prog);
 
-static size_t ILP_H__UNUSED
-ILP_get_src_idx(const ILP* const prog, const char name[static 8]) {
-    char needle[9];
-    memset(needle, 0, 8);
-    needle[8] = '\0';
-    for(size_t i = 0; i < 8; i++) {
-        if(name[i] == '\0') break;
-        needle[i] = name[i];
-    }
-    const char* pos = strstr(prog->map_src, needle);
-    if(!pos) return SIZE_MAX;
-    return (size_t) ((pos - prog->map_src) / 8);
-}
+#define GRB_VERSION_MAJOR     12
+#define GRB_VERSION_MINOR     0
+#define GRB_VERSION_TECHNICAL 2
 
-static void ILP_H__UNUSED
-ILP_init(ILP* const prog) {
-    ILP_map_sta_build(prog);
-    ILP_map_src_build(prog);
-    prog->count_seg = TIME_SYS->duration / TIME_SYS->scan_length;
-#define X(ty_) prog->count_var[(size_t) ty_] = ILP_VAR_COUNT_DECL(ty_)(prog);
+static void HH_UNUSED
+ILP_init(ILP* const prog, const struct map* const map) {
+    prog->constr_idx = NULL;
+    prog->constr_co = NULL;
+    prog->map = map;
+#define X(ty_) prog->count_var[(size_t) ty_] = ILP_FWD_H__count_##ty_(prog->map);
+#define VAR_BIN(ty_) X(ty_)
+#define VAR_CON(ty_, lb_, ub_) X(ty_)
+#define VAR_INT(ty_, lb_, ub_) X(ty_)
     VAR_TYPES
+#undef VAR_BIN
+#undef VAR_CON
+#undef VAR_INT
 #undef X
     prog->total_var = 0;
     for(size_t i = 0; i < VAR_COUNT; ++i) prog->total_var += prog->count_var[i];
-    HH_MALLOC(prog->buf, sizeof(*(prog->buf)) * prog->total_var);
-    prog->rec = make_lp(0, (int) prog->total_var);
-    HH_ASSERT(prog->rec != NULL, "Failed to construct ILP.");
-}
-
-static void ILP_H__UNUSED
-ILP_free(ILP* prog) {
-    free(prog->buf);
-    free(prog->map_sta);
-    free(prog->map_src);
-    delete_lp(prog->rec);
-}
-
-// TODO: Determine if schedule parameters should be dumped here
-// ... or just variable and constraint counts
-static void ILP_H__UNUSED
-ILP_dump(const ILP* const prog) {
-    HH_DBG("datetime start: %s", time_sys_text(0));
-    HH_DBG("datetime final: %s", time_sys_text(TIME_SYS->duration));
-    HH_DBG("duration [s]: %u", TIME_SYS->duration);
-    HH_DBG("scan length [s]: %u", TIME_SYS->scan_length);
-    HH_DBG("scan count: %zu", prog->count_seg);
-    HH_DBG("num stations: %zu", prog->count_sta);
-    HH_DBG("num sources: %zu",  prog->count_src);
-#define X(ty_) HH_DBG("%s count: %zu", #ty_, prog->count_var[(size_t) ty_]);
+    ILP_H__load_gurobi(prog);
+    int err;
+    err = GRBloadenvinternal(&(prog->env), NULL, GRB_VERSION_MAJOR, GRB_VERSION_MINOR, GRB_VERSION_TECHNICAL);
+    HH_ASSERT(!err, "Failed to load Gurobi environment: %d.", err);
+    // ILP_param_int(prog, "Threads", 1);
+    err = GRBnewmodel(prog->env, &(prog->model), "sked_opt", 0, NULL, NULL, NULL, NULL, NULL);
+    HH_ASSERT(!err, "Failed to initialize Gurobi model.");
+    size_t idx = 0;
+#define X(ty_, lb_, ub_, vtype_) for(size_t j = 0; j < prog->count_var[idx]; ++j) { \
+        char vname_[64]; \
+        snprintf(vname_, sizeof vname_, "%s_%zu", #ty_, j); \
+        err = GRBaddvar(prog->model, 0, NULL, NULL, 0.0, (lb_), (ub_), (vtype_), vname_); \
+        HH_ASSERT(!err, "Failed to add %s variable to Gurobi model: %s", #ty_, GRBgeterrormsg(prog->env)); } \
+        idx++;
+#define VAR_BIN(ty_) X(ty_, 0.0, 1.0, 'B')
+#define VAR_CON(ty_, lb_, ub_) X(ty_, lb_, ub_, 'C')
+#define VAR_INT(ty_, lb_, ub_) X(ty_, (double) lb_, (double) ub_, 'I')
     VAR_TYPES
+#undef VAR_BIN
+#undef VAR_CON
+#undef VAR_INT
 #undef X
-    HH_DBG("total variable count: %zu", prog->total_var);
+    GRBupdatemodel(prog->model);
+    int total_var;
+    err = GRBgetintattr(prog->model, "NumVars", &total_var);
+    HH_ASSERT(!err, "Failed to query Gurobi model's column count: %s", GRBgeterrormsg(prog->env));
+    HH_ASSERT((size_t) total_var == prog->total_var, "Wrong number of columns in Gurobi model.");
+    HH_MSG("Total var count: %d", total_var);
+    (void) idx;
 }
 
-static bool ILP_H__UNUSED
+static void HH_UNUSED
+ILP_free(ILP* prog) {
+    hh_arrfree(prog->constr_idx);
+    hh_arrfree(prog->constr_co);
+    int err;
+    err = GRBfreemodel(prog->model);
+    HH_ASSERT(!err, "Failed to free Gurobi model.");
+    err = GRBfreeenv(prog->env);
+    HH_ASSERT(!err, "Failed to free Gurobi environment.");
+#ifdef _WIN32
+    FreeLibrary(prog->handle);
+#else
+    dlclose(prog->handle);
+#endif
+}
+
+static void HH_UNUSED
+ILP_param_int(ILP* const prog, const char* param, int val) {
+    int err = GRBsetintparam(prog->env, param, val);
+    HH_ASSERT(!err, "Failed to configure Gurobi model: %s", GRBgeterrormsg(prog->env));
+}
+
+static void HH_UNUSED
+ILP_param_dbl(ILP* const prog, const char* param, double val) {
+    int err = GRBsetdblparam(prog->env, param, val);
+    HH_ASSERT(!err, "Failed to configure Gurobi model: %s", GRBgeterrormsg(prog->env));
+}
+
+static bool HH_UNUSED
 ILP_solve(const ILP* const prog) {
-    return solve(prog->rec) == OPTIMAL;
+    int err;
+    err = GRBupdatemodel(prog->model);
+    HH_ASSERT(!err, "Failed to update Gurobi model: %s", GRBgeterrormsg(prog->env));
+    err = GRBoptimize(prog->model);
+    HH_ASSERT(!err, "Failed to optimize Gurobi model: %s", GRBgeterrormsg(prog->env));
+    int status;
+    err = GRBgetintattr(prog->model, "Status", &status);
+    HH_ASSERT(!err, "Failed to retrieve status of Gurobi model: %s", GRBgeterrormsg(prog->env));
+    return (status == 2);
 }
 
-static void ILP_H__UNUSED
-row_begin(ILP* const prog) {
-    memset(prog->buf, 0, sizeof(*(prog->buf)) * prog->total_var);
+static void HH_UNUSED
+ILP_write(const ILP* const prog, const char* path, bool iis) {
+    int err;
+    if(iis) {
+        err = GRBcomputeIIS(prog->model);
+        HH_ASSERT(!err, "Failed to compute Irreducible Infeasible Subset (IIS): %s", GRBgeterrormsg(prog->env));
+    }
+    err = GRBwrite(prog->model, path);
+    HH_ASSERT(!err, "Failed to dump Gurobi model: %s", GRBgeterrormsg(prog->env));
 }
 
-static void ILP_H__UNUSED
-row_begin_load(ILP* const prog) {
-    get_variables(prog->rec, prog->buf + 1);
+static void HH_UNUSED
+ILP_row_begin(ILP* const prog) {
+    hh_arrclear(prog->constr_idx);
+    hh_arrclear(prog->constr_co);
 }
 
-static void ILP_H__UNUSED
-row_end_as_constr(ILP* const prog, int constr_type, double rhs) {
-    add_constraint(prog->rec, prog->buf, constr_type, rhs);
+static void HH_UNUSED
+ILP_row_end_as_constr(ILP* const prog, char constr_type, double rhs) {
+    HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
+    int err = GRBaddconstr(prog->model, (int) hh_arrlen(prog->constr_idx), prog->constr_idx, prog->constr_co, constr_type, rhs, NULL);
+    HH_ASSERT(!err, "Failed to add constraint to Gurobi model: %s", GRBgeterrormsg(prog->env));
 }
 
-static void ILP_H__UNUSED
-row_end_as_obj(ILP* const prog) {
-    set_obj_fn(prog->rec, prog->buf);
+static void HH_UNUSED
+ILP_row_end_as_indicator(ILP* const prog, char constr_type, double rhs) {
+    HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
+    int err = GRBaddgenconstrIndicator(prog->model, NULL, prog->constr_idx[0], (int) prog->constr_co[0], (int) hh_arrlen(prog->constr_idx) - 1, prog->constr_idx + 1, prog->constr_co + 1, constr_type, rhs);
+    HH_ASSERT(!err, "Failed to add constraint to Gurobi model: %s", GRBgeterrormsg(prog->env));
+}
+
+static void HH_UNUSED
+ILP_row_end_as_obj(ILP* const prog, bool maximize) {
+    HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
+    // for(size_t i = 0, len = hh_arrlen(prog->constr_idx); i < len; ++i) printf("[%d: %lf] ", prog->constr_idx[i], prog->constr_co[i]);
+    // printf("\n");
+    int err;
+    err = GRBsetdblattrlist(prog->model, "Obj", (int) hh_arrlen(prog->constr_idx), prog->constr_idx, prog->constr_co);
+    HH_ASSERT(!err, "Failed to set Gurobi model's objective coefficients: %s", GRBgeterrormsg(prog->env));
+    err = GRBsetintattr(prog->model, "ModelSense", maximize ? -1 : 1);
+    HH_ASSERT(!err, "Failed to set Gurobi model's model sense: %s", GRBgeterrormsg(prog->env));
 }
 
 static size_t
 ILP_H__row_idx(const ILP* const prog, enum var_type ty, va_list args);
 
-static void ILP_H__UNUSED
-row_set(ILP* const prog, double co, enum var_type ty, ...) {
+static void HH_UNUSED
+ILP_row_set(ILP* const prog, double co, enum var_type ty, ...) {
+    HH_ASSERT(hh_arrlen(prog->constr_idx) == hh_arrlen(prog->constr_co), "UNREACHABLE");
     va_list args;
     va_start(args, ty);
-    prog->buf[ILP_H__row_idx(prog, ty, args)] = co;
+    int idx = (int) ILP_H__row_idx(prog, ty, args);
+    va_end(args);
+    for(size_t i = 0, len = hh_arrlen(prog->constr_idx); i < len; ++i) {
+        if(prog->constr_idx[i] == idx) {
+            prog->constr_co[i] += co;
+            return;
+        }
+    }
+    hh_arrput(prog->constr_idx, idx);
+    hh_arrput(prog->constr_co, co);
+}
+
+static double HH_UNUSED
+ILP_get_sol(const ILP* const prog, enum var_type ty, ...) {
+    va_list args;
+    va_start(args, ty);
+    double val;
+    int err = GRBgetdblattrelement(prog->model, "X", (int) ILP_H__row_idx(prog, ty, args), &val);
+    HH_ASSERT(!err, "Failed to retrieve solution from Gurobi model: %s", GRBgeterrormsg(prog->env));
+    va_end(args);
+    return val;
+}
+
+static void HH_UNUSED
+ILP_var_param_int(ILP* const prog, const char* const attr, int val, enum var_type ty, ...) {
+    va_list args;
+    va_start(args, ty);
+    int err = GRBsetintattrelement(prog->model, attr, (int) ILP_H__row_idx(prog, ty, args), val);
+    HH_ASSERT(!err, "Failed to retrieve solution from Gurobi model: %s", GRBgeterrormsg(prog->env));
     va_end(args);
 }
 
-static double ILP_H__UNUSED
-row_get(const ILP* const prog, enum var_type ty, ...) {
+static void HH_UNUSED
+ILP_var_param_dbl(ILP* const prog, const char* const attr, double val, enum var_type ty, ...) {
     va_list args;
     va_start(args, ty);
-    size_t idx = ILP_H__row_idx(prog, ty, args);
+    int err = GRBsetdblattrelement(prog->model, attr, (int) ILP_H__row_idx(prog, ty, args), val);
+    HH_ASSERT(!err, "Failed to retrieve solution from Gurobi model: %s", GRBgeterrormsg(prog->env));
     va_end(args);
-    return prog->buf[idx];
 }
 
 //
 // Internal helper functions
 //
 
-static bool ILP_H__UNUSED
-ILP_H__ILP_map_src_it_helper(const ILP* const prog, size_t* i, Source* src) {
-    char buf[8];
-    memcpy(buf, &(prog->map_src[8 * (*i)++]), 8);
-    for(size_t j = 8; j-- > 0;) {
-        if(buf[j] == ' ') buf[j] = '\0';
-        else break;
-    }
-    Source temp;
-    if(sky_get_src(buf, &temp) == NULL) return false;
-    (*src) = temp;
-    return true;
-}
-
 static size_t
 ILP_H__row_idx(const ILP* const prog, enum var_type ty, va_list args) {
-    size_t idx = SIZE_MAX, offset = 1;
+    size_t idx = SIZE_MAX, offset = 0;
 #define X(ty_) \
     if(ty_ == ty) goto row_idx_post_offset; \
-    offset += ILP_VAR_COUNT_DECL(ty_)(prog);
+    offset += ILP_FWD_H__count_##ty_(prog->map);
+#define VAR_BIN(ty_) X(ty_)
+#define VAR_CON(ty_, lb_, ub_) X(ty_)
+#define VAR_INT(ty_, lb_, ub_) X(ty_)
     VAR_TYPES
+#undef VAR_BIN
+#undef VAR_CON
+#undef VAR_INT
 #undef X
-if(false) goto row_idx_post_offset; // avoid unused warning
+    if(false) goto row_idx_post_offset; // avoid unused warning
 row_idx_post_offset:
-#define X(ty_) if(ty_ == ty) idx = ILP_VAR_INDEX_DECL(ty_)(prog, args);
+#define X(ty_) if(ty_ == ty) idx = ILP_FWD_H__index_##ty_(prog->map, args);
+#define VAR_BIN(ty_) X(ty_)
+#define VAR_CON(ty_, lb_, ub_) X(ty_)
+#define VAR_INT(ty_, lb_, ub_) X(ty_)
     VAR_TYPES
+#undef VAR_BIN
+#undef VAR_CON
+#undef VAR_INT
 #undef X
     if(idx == SIZE_MAX) HH_UNREACHABLE;
     (void) prog;
     (void) ty;
     (void) args;
     return idx + offset;
+}
+
+#ifdef _WIN32
+#define GUROBI_IMPL(handle_, name_) do { \
+        union { FARPROC obj; name_##_t fn; } ILP_H__GUROBI_IMPL_helper; \
+        ILP_H__GUROBI_IMPL_helper.obj = GetProcAddress(handle_, #name_); \
+        name_ = ILP_H__GUROBI_IMPL_helper.fn; \
+        HH_ASSERT(name_ != NULL, "Failed to load Gurobi."); \
+    } while (0)
+#else
+#define GUROBI_IMPL(handle_, name_) do { \
+        union { void *obj; name_##_t fn; } ILP_H__GUROBI_IMPL_helper; \
+        ILP_H__GUROBI_IMPL_helper.obj = dlsym(handle_, #name_); \
+        name_ = ILP_H__GUROBI_IMPL_helper.fn; \
+        HH_ASSERT(name_ != NULL, "Failed to load Gurobi."); \
+    } while(0)
+#endif
+
+#define GUROBI_VERSION 120
+#define GUROBI_LIB_NAME "gurobi" HH_STR(GUROBI_VERSION)
+#ifdef _WIN32
+#define GUROBI_LIB_FILE GUROBI_LIB_NAME ".dll"
+#else
+#define GUROBI_LIB_FILE "lib" GUROBI_LIB_NAME ".so"
+#endif
+
+static void HH_UNUSED
+ILP_H__load_gurobi(ILP* const prog) {
+    char* gurobi_home = getenv("GUROBI_HOME");
+    HH_ASSERT(gurobi_home != NULL, "Failed to load Gurobi.");
+    char* path = hh_path_join(hh_path_join(hh_path(gurobi_home), "lib"), GUROBI_LIB_FILE);
+    HH_ASSERT(hh_path_exists(path), "Failed to load Gurobi.");
+#ifdef _WIN32
+    prog->handle = LoadLibrary(path);
+#else
+    prog->handle = dlopen(path, RTLD_LAZY);
+#endif
+    HH_ASSERT(prog->handle, "Failed to load Gurobi.");
+    GUROBI_IMPL(prog->handle, GRBloadenvinternal);
+    GUROBI_IMPL(prog->handle, GRBfreeenv);
+    GUROBI_IMPL(prog->handle, GRBnewmodel);
+    GUROBI_IMPL(prog->handle, GRBupdatemodel);
+    GUROBI_IMPL(prog->handle, GRBfreemodel);
+    GUROBI_IMPL(prog->handle, GRBaddvar);
+    GUROBI_IMPL(prog->handle, GRBgetvarbyname);
+    GUROBI_IMPL(prog->handle, GRBaddconstr);
+    GUROBI_IMPL(prog->handle, GRBsetdblattrelement);
+    GUROBI_IMPL(prog->handle, GRBoptimize);
+    GUROBI_IMPL(prog->handle, GRBsetdblattrlist);
+    GUROBI_IMPL(prog->handle, GRBsetintattr);
+    GUROBI_IMPL(prog->handle, GRBgetdblattrelement);
+    GUROBI_IMPL(prog->handle, GRBgetintattr);
+    GUROBI_IMPL(prog->handle, GRBgeterrormsg);
+    GUROBI_IMPL(prog->handle, GRBsetintparam);
+    GUROBI_IMPL(prog->handle, GRBsetdblparam);
+    GUROBI_IMPL(prog->handle, GRBwrite);
+    GUROBI_IMPL(prog->handle, GRBcomputeIIS);
+    GUROBI_IMPL(prog->handle, GRBaddgenconstrIndicator);
+    GUROBI_IMPL(prog->handle, GRBsetintattrelement);
+    HH_MSG("Gurobi library loaded successfully!");
+    hh_arrfree(path);
 }
 
 #endif // ILP_H__
