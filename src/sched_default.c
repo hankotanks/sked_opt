@@ -12,9 +12,8 @@
 #include "station.h"
 #include "time_sys.h"
 
-#if 0
-#define MAX_SCAN_REPETITIONS 4
-#endif
+#define SKY_COV_CELL_COUNT 13
+#define SKY_COV_CELL_INDEX Station_sky_cov_idx_13v1
 
 #define WEIGHT_SKY_COV  1.0
 #define WEIGHT_BASELINE 0.0
@@ -63,11 +62,11 @@ VAR_IMPL(BASELINE, { return map->count_seg * map->count_src * baseline_count(map
     return seg * map->count_src * n + src * n + baseline_index(map, sta_a, sta_b);
 })
 
-VAR_IMPL(OBJ_SKY_COV, { return map->count_sta * STATION_SRC_SKY_COV_MAX; }, {
+VAR_IMPL(OBJ_SKY_COV, { return map->count_sta * SKY_COV_CELL_COUNT; }, {
     (void) map;
     size_t sta = va_arg(args, size_t);
     size_t box = va_arg(args, size_t);
-    return sta * STATION_SRC_SKY_COV_MAX + box;
+    return sta * SKY_COV_CELL_COUNT + box;
 })
 
 #include "ilp.h"
@@ -234,11 +233,11 @@ add_constr_obj_sky_cov(ILP* const prog) {
     size_t count = 0;
     size_t seg;
     map_sta_it(prog->map, sta) {
-        for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx) {
+        for(size_t box_idx = 0; box_idx < SKY_COV_CELL_COUNT; ++box_idx) {
             ILP_row_begin(prog);
             map_seg_it(prog->map, seg) {
                 map_src_it(prog->map, src) 
-                    if(Station_sky_cov_idx_13v1(sta, src, (unsigned int) seg * TIME_SYS->scan_length) == box_idx) 
+                    if(SKY_COV_CELL_INDEX(sta, src, (unsigned int) seg * TIME_SYS->scan_length) == box_idx) 
                         ILP_row_set(prog, -1.0, STA_ACTIVE, seg, src_idx, sta_idx);
             }
             ILP_row_set(prog, 1.0, OBJ_SKY_COV, sta_idx, box_idx);
@@ -252,11 +251,11 @@ add_constr_obj_sky_cov(ILP* const prog) {
 static void
 add_obj_sky_cov(ILP* const prog) {
     const Station* sta;
-    double co_sky_cov = 1.0 / (double) STATION_SRC_SKY_COV_MAX / (double) prog->map->count_sta;
+    double co_sky_cov = 1.0 / (double) SKY_COV_CELL_COUNT / (double) prog->map->count_sta;
     size_t count = 0;
     map_sta_it(prog->map, sta) {
         (void) sta;
-        for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx) {
+        for(size_t box_idx = 0; box_idx < SKY_COV_CELL_COUNT; ++box_idx) {
             ILP_row_set(prog, co_sky_cov * WEIGHT_SKY_COV, OBJ_SKY_COV, sta_idx, box_idx);
             count++;
         }
@@ -319,8 +318,8 @@ dump_sky_cov(ILP* const prog) {
     map_sta_it(prog->map, sta) {
         (void) sta;
         sum = 0.0;
-        for(size_t box_idx = 0; box_idx < STATION_SRC_SKY_COV_MAX; ++box_idx) sum += ILP_get_sol(prog, OBJ_SKY_COV, sta_idx, box_idx);
-        var = sum / (double) STATION_SRC_SKY_COV_MAX;
+        for(size_t box_idx = 0; box_idx < SKY_COV_CELL_COUNT; ++box_idx) sum += ILP_get_sol(prog, OBJ_SKY_COV, sta_idx, box_idx);
+        var = sum / (double) SKY_COV_CELL_COUNT;
         HH_MSG("Sky coverage objective [%c%c, co: %lf]: var: %lf [obj: %lf]", 
             sta->id[0], sta->id[1], 
             co, var, co * var);

@@ -3,6 +3,7 @@
 #undef HH_IMPL
 
 #include <glenv.h>
+#include <sofam.h>
 
 #include "astro.h"
 #include "xml.h"
@@ -17,7 +18,7 @@
 #include "sched.h"
 
 // window configuration options
-#define WINDOW_TITLE "sked_opt"
+const char WINDOW_TITLE[256] = "sked_opt";
 #define WINDOW_W 800
 #define WINDOW_H 600
 
@@ -113,7 +114,7 @@ main(int argc, char* argv[]) {
         }
         glenv_new_frame();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        Vis_update_and_draw(&vis, (float) DateTime_to_gmst(TIME_SYS->start));
+        Vis_update_and_draw(&vis, DateTime_to_gmst(TIME_SYS->start) * 180.0 / DPI);
         glenv_render(NK_ANTI_ALIASING_ON);
     }
     glenv_deinit();

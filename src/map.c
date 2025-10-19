@@ -78,6 +78,10 @@ map_src_get(const struct map* const map, size_t idx) {
 
 size_t
 MAP_H__map_src_it_helper(const struct map* const map, size_t i, const Source** src) {
+    if(i >= map->count_src) {
+        (*src) = NULL;
+        return SIZE_MAX;
+    }
     char buf[8];
     memcpy(buf, &(map->map_src[8 * i++]), 8);
     for(size_t j = 8; j-- > 0;) {

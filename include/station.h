@@ -7,9 +7,6 @@
 #include "cat.h"
 #include "source.h"
 
-// macros
-#define STATION_SRC_SKY_COV_MAX 13
-
 // station struct
 typedef struct {
     char id[2];
@@ -18,11 +15,12 @@ typedef struct {
     double lon, lat;
     enum dish_axes axes;
     struct dish_limits axes_limits[2];
+    size_t mask_count;
+    double mask[81]; // deg
+    double mask_min; // deg
     bool band[BAND_OTHER];
     double sefd[BAND_OTHER];
 } Station;
-
-typedef size_t (*Station_sky_cov_idx)(const Station* const, const Source* const, unsigned int);
 
 // interface
 void
@@ -31,6 +29,9 @@ bool
 Station_src_visible(const Station* const sta, const Source* const src, unsigned int seconds);
 unsigned int
 Station_slew_time(const Station* const sta, const Source* const src[2], unsigned int seconds[2]);
+
+// sky coverage indexer template
+typedef size_t (*Station_sky_cov_idx)(const Station* const, const Source* const, unsigned int);
 
 // sky coverage cell indexers
 size_t

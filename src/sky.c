@@ -187,7 +187,7 @@ SKY_H__sky_it(size_t i, const Source** src, bool only_active) {
     (*src) = NULL;
     while(i < SKY->count) {
         (*src) = &(SKY->entries[i++].source);
-        if(SKY->entries[i].used) {
+        if(SKY->entries[i - 1].used) {
             if(!only_active || SKY->entries[i - 1].active) return i;
         }
     }

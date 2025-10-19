@@ -22,12 +22,12 @@ struct map {
 
 #define map_sta_it(map_, it_) \
     it_ = net_sta((map_)->map_sta); \
-    for(size_t it_##_idx = 0; it_##_idx < (map_)->count_sta; it_ = net_sta(&((map_)->map_sta[(++it_##_idx) * 2])))
+    for(size_t it_##_idx = 0; (it_##_idx < (map_)->count_sta) && (it_ = net_sta(&((map_)->map_sta[it_##_idx * 2]))); ++it_##_idx)
 
 #define map_bln_it(map_, it_fst_, it_snd_) \
      it_fst_ = net_sta((map_)->map_sta); \
-     for(size_t it_fst_##_idx = 0, it_snd_##_idx; it_fst_##_idx < (map_)->count_sta; it_fst_ = net_sta(&((map_)->map_sta[(++it_fst_##_idx) * 2]))) \
-        for(it_snd_##_idx = 0, it_snd_ = net_sta((map_)->map_sta); it_snd_##_idx < (map_)->count_sta; it_snd_ = net_sta(&((map_)->map_sta[(++it_snd_##_idx) * 2]))) \
+     for(size_t it_fst_##_idx = 0, it_snd_##_idx; (it_fst_##_idx < (map_)->count_sta) && (it_fst_ = net_sta(&((map_)->map_sta[it_fst_##_idx * 2]))); ++it_fst_##_idx) \
+        for(it_snd_##_idx = 0, it_snd_ = net_sta((map_)->map_sta); (it_snd_##_idx < (map_)->count_sta) && (it_snd_ = net_sta(&((map_)->map_sta[it_snd_##_idx * 2]))); ++it_snd_##_idx) \
             if(it_fst_##_idx < it_snd_##_idx)
 
 void

@@ -19,19 +19,6 @@ generate_schedule(const Sched* const out) {
     (void) out;
 }
 
-static char OUT_H__TEMP[256];
-#define ADD_FIELD(field_fmt_, ...) do { \
-        snprintf(OUT_H__TEMP, sizeof(OUT_H__TEMP), field_fmt_, __VA_ARGS__); \
-        hh_strput(fields, OUT_H__TEMP); \
-        hh_strput(fields, ","); \
-    } while(0)
-
-#define ADD_VALUE(value_fmt_, ...) do { \
-        snprintf(OUT_H__TEMP, sizeof(OUT_H__TEMP), value_fmt_, __VA_ARGS__); \
-        hh_strput(values, OUT_H__TEMP); \
-        hh_strput(values, ","); \
-    } while(0)
-
 inline size_t 
 baseline_count(size_t count_sta) {
     return count_sta * (count_sta - 1) / 2;
@@ -334,15 +321,15 @@ stats_compute(const Sched* const out, struct stats* stats) {
     }
     // compute per-station percentage time spent
     map_sta_it(map, sta) {
-        stats->n_sta[sta_idx].percent_observation = (double) stats->n_sta[sta_idx].sec_observation / (double) TIME_SYS->duration;
-        stats->n_sta[sta_idx].percent_preob = (double) stats->n_sta[sta_idx].sec_preob / (double) TIME_SYS->duration;
-        stats->n_sta[sta_idx].percent_slew = (double) stats->n_sta[sta_idx].sec_slew / (double) TIME_SYS->duration;
-        stats->n_sta[sta_idx].percent_idle = (double) stats->n_sta[sta_idx].sec_idle / (double) TIME_SYS->duration;
-        stats->n_sta[sta_idx].percent_field_system = (double) stats->n_sta[sta_idx].sec_field_system / (double) TIME_SYS->duration;
-        stats->n_sta[sta_idx].percent_observation *= 100.0;
-        stats->n_sta[sta_idx].percent_preob *= 100.0;
-        stats->n_sta[sta_idx].percent_slew *= 100.0;
-        stats->n_sta[sta_idx].percent_idle *= 100.0;
+        stats->n_sta[sta_idx].percent_observation   = (double) stats->n_sta[sta_idx].sec_observation  / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_preob         = (double) stats->n_sta[sta_idx].sec_preob        / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_slew          = (double) stats->n_sta[sta_idx].sec_slew         / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_idle          = (double) stats->n_sta[sta_idx].sec_idle         / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_field_system  = (double) stats->n_sta[sta_idx].sec_field_system / (double) TIME_SYS->duration;
+        stats->n_sta[sta_idx].percent_observation  *= 100.0;
+        stats->n_sta[sta_idx].percent_preob        *= 100.0;
+        stats->n_sta[sta_idx].percent_slew         *= 100.0;
+        stats->n_sta[sta_idx].percent_idle         *= 100.0;
         stats->n_sta[sta_idx].percent_field_system *= 100.0;
     }
     // average time spent in each mode
@@ -390,6 +377,17 @@ stats_compute(const Sched* const out, struct stats* stats) {
         stats->avg_sky_cov.a37[i] /= (double) map->count_sta;
     }
 }
+
+static char OUT_H__TEMP[512];
+#define ADD_FIELD(field_fmt_, ...) do { \
+        snprintf(OUT_H__TEMP, sizeof(OUT_H__TEMP), field_fmt_ ",", __VA_ARGS__); \
+        hh_strput(fields, OUT_H__TEMP); \
+    } while(0)
+
+#define ADD_VALUE(value_fmt_, ...) do { \
+        snprintf(OUT_H__TEMP, sizeof(OUT_H__TEMP), value_fmt_ ",", __VA_ARGS__); \
+        hh_strput(values, OUT_H__TEMP); \
+    } while(0)
 
 void
 generate_statistics(const Sched* const out) {
@@ -529,6 +527,8 @@ generate_statistics(const Sched* const out) {
     FILE* file = fopen(path, "w");
     HH_ASSERT(file, "Failed to write statistics to file [%s].", path);
     fprintf(file, "%s\n%s\n", fields, values);
+    hh_arrfree(fields);
+    hh_arrfree(values);
     fclose(file);
     hh_arrfree(path);
 }

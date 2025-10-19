@@ -194,7 +194,7 @@ look_at(GLfloat view[static 16], const GLfloat eye[static 3], const GLfloat up[s
 }
 
 void
-Vis_update_and_draw(Vis* const vis, const float gmst) {
+Vis_update_and_draw(Vis* const vis, const double gmst) {
     // update camera
     static const GLfloat up[3] = { 0.f, 1.f, 0.f };
     GLfloat eye[3];
@@ -211,7 +211,7 @@ Vis_update_and_draw(Vis* const vis, const float gmst) {
             glEnable(GL_PROGRAM_POINT_SIZE);
             glUniformMatrix4fv(vis->layers[i].pass.loc_proj, 1, GL_FALSE, vis->camera.proj);
             glUniformMatrix4fv(vis->layers[i].pass.loc_view, 1, GL_FALSE, vis->camera.view);
-            glUniform1f(vis->layers[i].pass.loc_gmst, gmst);
+            glUniform1f(vis->layers[i].pass.loc_gmst, (GLfloat) gmst);
             (vis->layers[i].pass.render)(vis->layers[i].data);
             glDisable(GL_PROGRAM_POINT_SIZE);
             glUseProgram(0);

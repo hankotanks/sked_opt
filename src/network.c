@@ -64,6 +64,10 @@ net_sta_active(const char id[static 2]) {
     return NULL;
 }
 
+// TODO: This should be configurable somehow
+// potentially on a per-station basis
+#define STA_MASK_MIN 5.0
+
 void
 net_init(void) {
     HH_ASSERT(CAT->station_list != NULL, "No stations were parsed from raw catalogs.");
@@ -73,9 +77,11 @@ net_init(void) {
     size_t len_sta = hh_arrlen(CAT->station_list);
     size_t len_pos = hh_arrlen(CAT->position_list);
     size_t len_eqp = hh_arrlen(CAT->equip_list);
+    size_t len_msk = hh_arrlen(CAT->mask_list);
     char sta_name_pos[8];
     size_t sta_sefd_count = 0;
     size_t sta_band_count;
+    size_t sta_mask_count = 0;
     for(size_t i = 0, j, k; i < NET->count; ++i) {
         strncpy(sta.name, CAT->antenna_list[i].name, 8);
         sta.axes = CAT->antenna_list[i].axes;
@@ -132,10 +138,25 @@ net_init(void) {
         HH_ERR("Failed to find position entry for %.*s. Skipping.", (int) cat_name_len(sta.name), sta.name);
         continue;
 net_init_add_sta:
+        sta.mask_count = 0;
+        sta.mask_min = STA_MASK_MIN;
+        for(j = 0; j < len_msk; ++j) {
+            if(CAT->mask_list[j].id[0] != sta.id[0] || CAT->mask_list[j].id[1] != sta.id[1]) {
+                if((!cat_name_eq(CAT->mask_list[j].name, sta.name) && 
+                    !cat_name_eq(CAT->mask_list[j].name, sta_name_pos))) continue;
+            }
+            if(CAT->mask_list[j].type == MASK_COORD) continue;
+            // mask type
+            sta.mask_count = CAT->mask_list[j].count;
+            // copy over the horizon mask
+            memcpy(sta.mask, CAT->mask_list[j].entries.azi_el, sta.mask_count);
+            sta_mask_count++;
+        }
         // TODO: Consider handling of stations without SEFD readings (sta_band_count == 0)
         net_add(sta);
     }
     HH_MSG("Found SEFD readings for %zu out of %zu antennas.", sta_sefd_count, NET->count);
+    HH_MSG("Added horizon masks for %zu out of %zu stations.", sta_mask_count, NET->count);
 }
 
 void
@@ -197,7 +218,7 @@ NET_H__net_it(size_t i, const Station** sta, bool only_active) {
     (*sta) = NULL;
     while(i < NET->count) {
         (*sta) = &(NET->entries[i++].station);
-        if(NET->entries[i].used) {
+        if(NET->entries[i - 1].used) {
             if(!only_active || NET->entries[i - 1].active) return i;
         }
     }

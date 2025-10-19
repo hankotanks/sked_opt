@@ -82,7 +82,7 @@ Vis_init(Vis* const vis, RGFW_window* const win);
 void
 Vis_free(Vis* const vis);
 void
-Vis_update_and_draw(Vis* const vis, const float gmst);
+Vis_update_and_draw(Vis* const vis, const double gmst);
 void
 Vis_handle_events(Vis* const vis, const RGFW_window* const win);
 // NOTE: A few rough edges with dynamically adding layers:

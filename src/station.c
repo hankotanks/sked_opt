@@ -183,13 +183,10 @@ void
 Station_src_ha_dc(const Station* const sta, const Source* const src, unsigned int seconds, double* ha, double* dc) {
     DateTime dt = TIME_SYS->start;
     dt.sec += (double) seconds;
-    double gmst = DateTime_to_gmst(dt) * DPI / 180.0; // TODO: It needs to be clear that DateTime_to_gmst returns degrees
-
     double lon, lat, alt;
     Station_lat_lon_alt(sta, &lon, &lat, &alt);
-
     (*dc) = src->decl_rad;
-    (*ha) = gmst + lon - src->raan_rad;
+    (*ha) = DateTime_to_gmst(dt) + lon - src->raan_rad;
     while((*ha) >  DPI) (*ha) -= D2PI;
     while((*ha) < -DPI) (*ha) += D2PI;
 }
@@ -229,7 +226,43 @@ Station_axis_inside_cable_wrap(const Station* const sta, double ax_fst, double a
 }
 
 bool
+Station_src_visible_mask(const Station* const sta, double az, double el) {
+    HH_ASSERT(sta->mask_count != 0, "Unreachable!");
+    az = fmod(az, D2PI);
+    if(az < 0.0) az += D2PI;
+    // convert to deg  
+    az /= DPI;
+    az *= 180.0;
+    el /= DPI;
+    el *= 180.0;
+    if(sta->mask_count % 2 == 0) {
+        // line mask
+        size_t mask_fst, mask_snd = 1;
+        while(az > sta->mask[mask_snd * 2]) ++mask_snd;
+        HH_ASSERT(mask_snd > 0, "Unreachable!");
+        mask_fst = mask_snd - 1;
+        double delta = az - sta->mask[mask_fst * 2];
+        return el >= (sta->mask[mask_fst * 2 + 1] + 
+            (sta->mask[mask_snd * 2 + 1] - sta->mask[mask_fst * 2 + 1]) / 
+            (sta->mask[mask_snd * 2] - sta->mask[mask_fst * 2]) * delta);
+    } else {
+        // step mask
+        size_t mask = 1;
+        while(az > sta->mask[mask * 2]) ++mask;
+        return el >= sta->mask[mask * 2 - 1];
+    }
+}
+
+bool
 Station_src_visible(const Station* const sta, const Source* const src, unsigned int seconds) {
+    // check against minimum elevation
+    double az, el;
+    Station_src_az_el(sta, src, seconds, &az, &el); 
+    if((el * 180.0 / DPI) < sta->mask_min) return false;
+    // check horizon mask if available
+    if(sta->mask_count > 0 && !Station_src_visible_mask(sta, az, el)) 
+        return false;
+    // calculate source availability given antenna axes limitations
     double ax_fst, ax_snd;
     switch(sta->axes) {
     case AXES_AZEL:
@@ -252,8 +285,7 @@ Station_src_visible(const Station* const sta, const Source* const src, unsigned 
     } break;
     default: HH_UNREACHABLE;
     }
-    return Station_axis_inside_cable_wrap(sta, ax_fst, ax_snd);  
-    // TODO: Must also check horizon masks and minimum station elevation
+    return Station_axis_inside_cable_wrap(sta, ax_fst, ax_snd);
 }
 
 unsigned int
@@ -343,7 +375,9 @@ Station_sky_cov_idx_13v1(const Station* const sta, const Source* const src, unsi
     double n = row ? 4.0 : 9.0;
     size_t col = (size_t) round(wrap_to_two_pi(az) / (D2PI / n));
     if((double) col > n - 1.0) col = 0;
-    return row ? col + 9 : col;
+    size_t idx = row ? col + 9 : col;
+    HH_ASSERT(idx < 13, "Unreachable!");
+    return idx;
 }
 
 size_t
@@ -357,7 +391,9 @@ Station_sky_cov_idx_13v2(const Station* const sta, const Source* const src, unsi
     double az_space = D2PI / n;
     size_t col = (size_t) round(wrap_to_two_pi(az / az_space));
     if((double) col > n - 1.0) col = 0;
-    return row ? col + 8 : col;
+    size_t idx = row ? col + 8 : col;
+    HH_ASSERT(idx < 13, "Unreachable!");
+    return idx;
 }
 
 size_t
@@ -381,6 +417,7 @@ Station_sky_cov_idx_25v1(const Station* const sta, const Source* const src, unsi
     case 1 : idx = col + 13; break;
     default: idx = col + 22;
     }
+    HH_ASSERT(idx < 25, "Unreachable!");
     return idx;
 }
 
@@ -407,6 +444,7 @@ Station_sky_cov_idx_25v2(const Station* const sta, const Source* const src, unsi
     case 2 : idx += 20; break;
     default: HH_UNREACHABLE;
     }
+    HH_ASSERT(idx < 25, "Unreachable!");
     return idx;
 }
 
@@ -428,10 +466,12 @@ Station_sky_cov_idx_37v1(const Station* const sta, const Source* const src, unsi
     if((double) col > n - 1.0) col = 0;
     size_t idx = col;
     switch(row) {
+    case 0: break;
     case 1 : idx += 14; break;
     case 2 : idx += 26; break; 
     default: idx += 34;
     }
+    HH_ASSERT(idx < 37, "Unreachable!");
     return idx;
 }
 
@@ -460,5 +500,6 @@ Station_sky_cov_idx_37v2(const Station* const sta, const Source* const src, unsi
     case 3 : idx += 32; break; 
     default: HH_UNREACHABLE;
     }
+    HH_ASSERT(idx < 37, "Unreachable!");
     return idx;
 }
