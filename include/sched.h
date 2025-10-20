@@ -61,9 +61,12 @@ Sched_map(const Sched* const out);
 // macro for quickly dumping a schedule
 #define Sched_init_output_and_free(ty_) do { \
         Sched* SCHED_H__skd = Sched_init(ty_); \
-        generate_schedule(SCHED_H__skd); \
-        generate_statistics(SCHED_H__skd); \
-        Sched_free(SCHED_H__skd); \
+        if(SCHED_H__skd) { \
+            Sched_dump(SCHED_H__skd); \
+            generate_schedule(SCHED_H__skd); \
+            if(META->generate_statistics) generate_statistics(SCHED_H__skd); \
+            Sched_free(SCHED_H__skd); \
+        } \
     } while(0)
 
 // forward declaration of scheduling functions
