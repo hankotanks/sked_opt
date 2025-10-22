@@ -81,6 +81,7 @@ enum {
 
 #define HH_ASSERT_BEFORE(cond) for(; !(cond); assert(cond))
 #define HH_ASSERT(cond, ...) do { for(; !(cond); assert(cond)) HH_ERR(__VA_ARGS__); } while(0)
+#define HH_ASSERT_UNREACHABLE(cond) HH_ASSERT(cond, "Unreachable!")
 
 #define HH_CHECK_STREAM(stream, cond, ...) if(!(cond)) { \
 		fclose((stream)); \
@@ -88,7 +89,7 @@ enum {
 	} \
 	if(!(cond))
 
-#define HH_UNREACHABLE HH_ASSERT(false, "Unreachable!")
+#define HH_UNREACHABLE HH_ASSERT_UNREACHABLE(false)
 
 #define HH_MALLOC(var, size) do { \
 		(var) = malloc(size); \
@@ -107,8 +108,8 @@ enum {
 #ifdef HH_ARGS
 
 struct hh_args_t {
-#define HH_ARG_REQ(ty_, name_, ...) ty_ name_;
-#define HH_ARG_OPT(ty_, name_, ...) ty_ name_;
+#define HH_ARG_REQ(ty_, default_, name_, ...) ty_ name_;
+#define HH_ARG_OPT(ty_, default_, name_, ...) ty_ name_;
 	HH_ARGS
 #undef HH_ARG_REQ
 #undef HH_ARG_OPT
@@ -116,8 +117,8 @@ struct hh_args_t {
 };
 
 static struct hh_args_t HH_H__hh_args = {
-#define HH_ARG_REQ(ty_, name_, flag_, desc_, default_, ...) .name_ = default_,
-#define HH_ARG_OPT(ty_, name_, flag_, desc_, default_, ...) .name_ = default_,
+#define HH_ARG_REQ(ty_, default_, name_, ...) .name_ = default_,
+#define HH_ARG_OPT(ty_, default_, name_, ...) .name_ = default_,
 	HH_ARGS
 #undef HH_ARG_REQ
 #undef HH_ARG_OPT
@@ -343,7 +344,7 @@ hh_args_parse(int argc, char* argv[]) {
 		return false;
 	}
 	int i = 1;
-#define HH_ARG_REQ(ty_, name_, flag_, desc_, default_, parser_, ...) hh_args->name_ = (ty_) parser_(argv[i++]);
+#define HH_ARG_REQ(ty_, default_, name_, flag_, flag_long_, desc_, parser_, ...) hh_args->name_ = (ty_) parser_(argv[i++]);
 #define HH_ARG_OPT(...)
     HH_ARGS
 #undef HH_ARG_REQ
@@ -352,8 +353,8 @@ hh_args_parse(int argc, char* argv[]) {
 	hh_args_parse_t temp;
 	for(i = 1 + argc_min; i < argc; i++) {
 #define HH_ARG_REQ(...)
-#define HH_ARG_OPT(ty_, name_, flag_, desc_, default_, parser_, ...) \
-		if(!strcmp(argv[i], flag_)) { \
+#define HH_ARG_OPT(ty_, default_, name_, flag_, flag_long_, desc_, parser_, ...) \
+		if(!strcmp(argv[i], flag_) || !strcmp(argv[i], flag_long_)) { \
 			ok = 1; \
 			temp = parser_; \
 			if(temp) { \
@@ -380,10 +381,10 @@ hh_args_parse(int argc, char* argv[]) {
 void
 hh_args_clean(void) {
 	hh_args_clean_t temp;
-#define HH_ARG_REQ(ty_, name_, flag_, desc_, default_, parser_, clean_) \
+#define HH_ARG_REQ(ty_, default_, name_, flag_, flag_long_, desc_, parser_, clean_) \
 	temp = clean_; \
 	if(temp) (temp)(hh_args->name_);
-#define HH_ARG_OPT(ty_, name_, flag_, desc_, default_, parser_, clean_) \
+#define HH_ARG_OPT(ty_, default_, name_, flag_, flag_long_, desc_, parser_, clean_) \
 	temp = clean_; \
 	if(temp) (temp)((void*) hh_args->name_);
     HH_ARGS

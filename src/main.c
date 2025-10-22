@@ -1,12 +1,12 @@
 #define HH_ARGS \
-    HH_ARG_OPT(char*, path_cfg, "-c", "path to XML configuration", NULL, args_parse_path_cfg, args_parse_path_clean) \
-    HH_ARG_OPT(bool,  headless, "-H", "skip GUI configuration panel", false, NULL, NULL) \
-    HH_ARG_OPT(bool,  gen_stat, "-S", "generate stats alongside schedule", false, NULL, NULL) \
-    HH_ARG_OPT(char*, path_out, "-o", "output path", NULL, args_parse_path_out, args_parse_path_clean)
+    HH_ARG_OPT(char*, NULL,  path_cfg, "-c", "--config",   "path to XML configuration",         args_parse_path_cfg, args_parse_path_clean) \
+    HH_ARG_OPT(bool,  false, headless, "-H", "--headless", "headless (skip GUI configuration)", NULL, NULL) \
+    HH_ARG_OPT(bool,  false, gen_stat, "-s", "--stats",    "generate schedule statistics",      NULL, NULL) \
+    HH_ARG_OPT(char*, NULL,  path_out, "-o", "--output",   "output path",                       args_parse_path_out, args_parse_path_clean)
 
 #include "hh.h"
 
-void*
+void* HH_UNUSED
 args_parse_path_cfg(char* arg, int* ok) {
 	char* path = hh_path(arg);
 	if(!hh_path_exists(path) || !hh_path_is_file(path)) {
@@ -26,7 +26,7 @@ void* HH_UNUSED
 args_parse_path_out(char* arg, int* ok) {
     char* path = hh_path(arg);
     char* path_parent = hh_path_parent(path);
-	if(!hh_path_exists(path_parent) || hh_path_is_file(path_parent)) {
+	if(!hh_path_exists(path_parent)) {
 		HH_ERR("Provided output file path contained nonexistent directories [%s].", path);
 		(*ok) = 0;
 		return NULL;
@@ -41,7 +41,7 @@ args_parse_path_out(char* arg, int* ok) {
 	return path;
 }
 
-void
+void HH_UNUSED
 args_parse_path_clean(void* val) {
 	hh_arrfree(val);
 }

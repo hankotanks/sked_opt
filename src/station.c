@@ -1,6 +1,7 @@
 #include "station.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <math.h>
 #include <limits.h>
@@ -96,7 +97,7 @@ Station_geo_to_loc(const Station* const sta, double g2l[static 3][3]) {
     double lon_sin = sin(lon);
 
     double rotz[3][3] = {{ lon_cos, lon_sin, 0.0 }, { -lon_sin, lon_cos, 0.0 }, { 0.0, 0.0, 1.0 }};
-    iauRxr( roty, rotz, g2l);
+    iauRxr(roty, rotz, g2l);
 }
 
 #undef A
@@ -141,9 +142,9 @@ Station_src_az_el(const Station* const sta, const Source* const src, unsigned in
     double k1a[3] = { 0.0 };
     double k1a_t1[3];
 
-    k1a_t1[0] = ( EARTH_PARAMS->vel[0] + v1[0] ) / CMPS;
-    k1a_t1[1] = ( EARTH_PARAMS->vel[1] + v1[1] ) / CMPS;
-    k1a_t1[2] = ( EARTH_PARAMS->vel[2] + v1[2] ) / CMPS;
+    k1a_t1[0] = (EARTH_PARAMS->vel[0] + v1[0]) / CMPS;
+    k1a_t1[1] = (EARTH_PARAMS->vel[1] + v1[1]) / CMPS;
+    k1a_t1[2] = (EARTH_PARAMS->vel[2] + v1[2]) / CMPS;
 
     double rqu[3] = { src->crs[0], src->crs[1], src->crs[2] };
 
@@ -193,10 +194,14 @@ Station_src_ha_dc(const Station* const sta, const Source* const src, unsigned in
 
 bool
 Station_axis_inside_cable_wrap(const Station* const sta, double ax_fst, double ax_snd) {
-    // TODO: Check importance of axes offsets
+    // NOTE: Check importance of axes offsets
     // See: AbstractCableWrap.cpp:121
     struct { double offset[2]; } ax_off_fst = { 0 };
     struct { double offset[2]; } ax_off_snd = { 0 };
+#define AX_OFF_LOW (5.0 * DPI / 180.0)
+    ax_off_fst.offset[0] = AX_OFF_LOW;
+    ax_off_snd.offset[0] = AX_OFF_LOW;
+#undef AX_OFF_LOW
     struct dish_limits ax_lim_fst, ax_lim_snd;
     ax_lim_fst = sta->axes_limits[0];
     ax_lim_fst.limits[0] *= (DPI / 180.0);
@@ -291,22 +296,23 @@ Station_src_visible(const Station* const sta, const Source* const src, unsigned 
 unsigned int
 Station_slew_time_by_axis(const Station* const sta, double delta, bool snd) {
     double rate_deg = sta->axes_limits[snd].rate;
-    double rate = rate_deg * (DPI / 180.0) / 60.0;
+    double rate = rate_deg * DPI / 180.0;
     double acc = rate;
     unsigned int overhead = sta->axes_limits[snd].overhead;
-    double t_acc = rate / acc; // TODO: This is currently always 1.0
-    double s_acc = 2.0 * (acc * t_acc * t_acc / 2.0); // TODO: Can be simplified?
+    double t_acc = rate / acc; // NOTE: This is currently always 1.0
+    double s_acc = 2.0 * (acc * t_acc * t_acc / 2.0); // NOTE: Can be simplified?
     double t;
     if(delta < s_acc) t = 2.0 * sqrt(delta / acc);
     else t = 2.0 * t_acc + (delta - s_acc) / rate;
     if(fmod(t, 1.0) > 0.85) ++t;
-    // TODO: Minor deviation from VieSched++
+    // NOTE: Minor deviation from VieSched++
     // See: AbstractAntenna.cpp:73
     if(rate < 0.015) ++t;
     return (unsigned int) ceil(t) + overhead;
 }
 
-void azel_to_xyew(double az_cos, double az_sin, double el, double* ax1, double* ax2) {
+void 
+azel_to_xyew(double az_cos, double az_sin, double el, double* ax1, double* ax2) {
     double el_cos = cos(el);
     double el_sin = sin(el);
     // default: EW case
@@ -314,10 +320,358 @@ void azel_to_xyew(double az_cos, double az_sin, double el, double* ax1, double* 
     *ax2 = asin(fmax(fmin(el_cos * az_sin, 1.0), -1.0));
 }
 
+inline double
+slew_time_GGAO_helper(double x1, double x2, double vel, double acc) {
+    double dist = fabs(x1 - x2);
+    double t_acc = vel / acc;
+    return (dist <= acc * t_acc * t_acc) ? (2.0 * sqrt(dist / acc)) : (dist / vel + t_acc);
+}
+
 unsigned int
-Station_slew_time_raw(const Station* const sta, const Source* const src[2], unsigned int seconds[2]){
-    // TODO: There are special cases for a few antennas that I need to handle
-    // See: Initializer.cpp:437
+slew_time_ggao12m(const Station* const sta, const Source* const src[2], unsigned int seconds[2]) {
+    // NOTE: Taken from SKED's ggao_slew.f and referenced from Antenna_GGAO.cpp:32
+
+    double az_off = sta->axes_limits[0].overhead;
+    double el_off = sta->axes_limits[1].overhead;
+
+    double az_vel = sta->axes_limits[0].rate * DPI / 180.0; 
+    double el_vel = sta->axes_limits[1].rate * DPI / 180.0; 
+
+    double az_beg, az_end, el_beg, el_end;
+    Station_src_az_el(sta, src[0], seconds[0], &az_beg, &el_beg); // starting point
+    Station_src_az_el(sta, src[1], seconds[1], &az_end, &el_end); // ending point
+
+    double az_pk1 = 192.0;
+    double az_pk2 = 552.0;
+    double el_pk = 42.0;
+    double fudge = 1.0;
+    double half_width = el_pk;
+
+    double az_pk1_lft = az_pk1 - half_width;
+    double az_pk1_rt = az_pk1 + half_width;
+    double az_pk2_lft = az_pk2 - half_width;
+    double az_pk2_rt = az_pk2 + half_width;
+
+    double az_acc = az_vel / az_off;
+    double el_acc = el_vel / el_off;
+
+    double tmp;
+    if(az_beg > az_end) {
+        tmp = az_beg;
+        az_beg = az_end;
+        az_end = tmp;
+        tmp = el_beg;
+        el_beg = el_end;
+        el_end = tmp;
+    }
+
+    double el_slewt = slew_time_GGAO_helper(el_beg, el_end, el_vel, el_acc);
+    double az_slewt = slew_time_GGAO_helper(az_beg, az_end, az_vel, az_acc);
+
+    double slew0 = HH_MAX(az_slewt, el_slewt);
+    
+    // Above the mask
+    if(el_beg >= el_pk && el_end >= el_pk) return (unsigned int) ceil(slew0);
+    // Both to the left of the first mask
+    if(az_beg <= az_pk1_lft && az_end <= az_pk1_lft) return (unsigned int) ceil(slew0);
+    // Both to the right of the second mask
+    if(az_beg >= az_pk2_rt && az_end >= az_pk2_rt) return (unsigned int) ceil(slew0);
+    // Both between the masks
+    if((az_beg >= az_pk1_rt && az_beg <= az_pk2_lft ) && ( az_end >= az_pk1_rt && az_end <= az_pk2_lft)) return (unsigned int) ceil(slew0);
+
+    // This handles case where starting and ending below mask and both starting and ending points are in same valley.
+    // starting and ending below the peaks  
+    if((el_beg <= el_pk && el_end <= el_pk)) {
+        // Both to the left of the first mask.
+        if(az_beg <= az_pk1 && az_end <= az_pk1) return (unsigned int) ceil(slew0);
+        if(az_beg >= az_pk2 && az_end >= az_pk2) return (unsigned int) ceil(slew0);
+        if((az_beg >= az_pk1 && az_beg <= az_pk2) && (az_end >= az_pk1 && az_end <= az_pk2)) return (unsigned int) ceil(slew0);
+    }
+
+    // Handle some rare cases.  Both within LHS of mask or RHS of mask.   Assume normal slewing.
+    if((az_beg >= az_pk1_lft && az_beg <= az_pk1) && (az_end >= az_pk1_lft && az_end <= az_pk1)) return (unsigned int) ceil(slew0);
+    if((az_beg >= az_pk2_lft && az_beg <= az_pk2) && (az_end >= az_pk2_lft && az_end <= az_pk2)) return (unsigned int) ceil(slew0);
+    if((az_beg >= az_pk1 && az_beg <= az_pk1_rt) && (az_end >= az_pk1 && az_end <= az_pk1_rt)) return (unsigned int) ceil(slew0);
+    if((az_beg >= az_pk2 && az_beg <= az_pk2_rt) && (az_end >= az_pk2 && az_end <= az_pk2_rt)) return (unsigned int) ceil(slew0);
+
+    // In the region of a peak and going up. This is OK if going up from right side of peak.
+    if(el_end > el_beg && el_end > el_pk) {
+        if((az_beg > az_pk1 && az_beg < az_pk1_rt) || (az_beg > az_pk2 && az_beg < az_pk2_rt)) return (unsigned int) ceil(slew0);
+    }
+    // In the region of a peak and going done. This is OK if coming down from left side.
+    if(el_beg > el_end && el_beg > el_pk) {
+        if((az_end > az_pk1_lft && az_end < az_pk1) || (az_end > az_pk2_lft && az_end < az_pk2)) return (unsigned int) ceil(slew0);
+    }
+
+    // For many of the remaining cases we split the motion into two or three line segments.
+    // Each line segment starts or ends at a peak.
+    double el_mid = el_pk + fudge;  // for many parts below assume that one line segment ends at a peak.
+
+    // FIRST CASE.
+    // The beginning and ending elevation are below the peak.
+    // This means that we start in one valley and end in another.
+    // (The case where we started and ended in the same valley are covered above.)
+
+    // We split the calculation into several segments.
+    // 1. To the top of a peak.
+    // 2. Down from a peak.  (May not be the first peak as before.
+    // 3. Optional:  travel time between the peaks.
+    // For segments 1&2:
+    //    For the elevation time we add in the full-offset since we come to a stop.
+    //    For the azimuth time we add in only 1/2 the offset since we only have to account for starting acceleration.
+    // For segment 3
+    //    We  don't have to account for azimuth acceleration since we are already at speed.
+    if(el_beg <= el_mid && el_end <= el_mid) { // both starting and ending points below a peak.
+        // Break the problem into pieces.
+        // 1. What peak do we have to climb?
+        // 2. What peak do we descend.
+        // 3. Did we go over both peaks.
+
+        // 1. Find which peak we are climbing
+        double az_mid1 = (az_beg <= az_pk1) ? az_pk1_lft : az_pk2_lft;
+ 
+        // Find slew time for first segment.
+        az_mid1 = HH_MAX(az_beg, az_mid1);  // handles rare case when within rectangular mask
+        double az_slew1 = slew_time_GGAO_helper(az_beg, az_mid1, az_vel, az_acc);
+        double el_slew1 = slew_time_GGAO_helper(el_beg, el_mid, el_vel, el_acc);
+
+        // 2. Find which peak we are descending
+        double az_mid2 = (az_end >= az_pk2) ? az_pk2_rt : az_pk1_rt;
+ 
+        // Find slew time for second segment
+        az_mid2 = HH_MIN(az_mid2, az_end);  // handles rare case when within rectangular mask
+        double az_slew2 = slew_time_GGAO_helper(az_mid2, az_end, az_vel, az_acc);
+        double el_slew2 = slew_time_GGAO_helper(el_mid, el_end, el_vel, el_acc);
+
+        // Slew values used for comparison of time.
+        // Subtract 1/2 offset because we don't worry about stopping/starting
+        double el_slew2p = el_slew2 - el_off / 2.0;
+        double az_slew1p = az_slew1 - az_off / 2.0;
+        double az_slew2p = az_slew2 - az_off / 2.0;
+        double el_slew1p = el_slew1 - el_off / 2.0;
+
+        double slewt;
+        if(az_slew1p >= el_slew1p && az_slew2p >= el_slew2p) // One very long slew in azimuth
+            slewt = slew_time_GGAO_helper( az_beg, az_end, az_vel, az_acc);
+        // A long slew in Az followed by the descent in Elevation
+        // Subtract 1/2 of the offset because this coincides with el starting.
+        else if(az_slew1p >= el_slew1p && az_slew2p <= el_slew2p) 
+            slewt = slew_time_GGAO_helper(az_beg, az_mid2, az_vel, az_acc) + el_slew2 - az_off / 2.0;
+        else if(az_slew1p <= el_slew1p && az_slew2p >= el_slew2p)
+            slewt = el_slew1 + slew_time_GGAO_helper(az_mid1, az_end, az_vel, az_acc) - az_off / 2.0;
+        else slewt = el_slew1 + (az_mid2 - az_mid1) / az_vel + el_slew2;
+
+        return (unsigned int) ceil(slewt);
+    }
+
+    // SECOND CASE
+    // Start in a valley and and above a peak
+    // --OR--
+    // Start above a peak and end in a valley.
+    // In both cases ceck if we would hit a peak in the normal course of business.
+    // If we don't can use the normal slewing.
+
+    // First case. Start low, come up high.
+    double az_mid1;
+    if(el_beg < el_end) az_mid1 = (az_beg < az_pk1) ? az_pk1_lft : az_pk2_lft;
+    // Start high, come down low
+    else az_mid1 = (az_beg < az_pk1_rt) ? az_pk1_rt : az_pk2_rt;
+
+    az_mid1 = HH_MAX(az_beg, az_mid1);  // middle can't be before beginning
+    az_mid1 = HH_MIN(az_mid1, az_end);  // middle can't be after ending
+
+    double az_slew1 = slew_time_GGAO_helper(az_beg, az_mid1, az_vel, az_acc);
+    double el_slew1 = slew_time_GGAO_helper(el_beg, el_mid, el_vel, el_acc);
+    (void) az_slew1;
+    (void) el_slew1;
+
+    // This is slew time used for comparison. Don't worry about stopping
+    double az_slew1p = fabs(az_beg - az_mid1) / az_vel + az_off / 2.0;
+    double el_slew1p = fabs(el_beg - el_mid) / el_vel + el_off / 2.0;
+    
+    double slewt;
+    if(el_beg < el_end) {
+        if(az_slew1p >= el_slew1p) return (unsigned int) ceil(slew0); // Don't hit side on the way up. Normal slew.
+        // Two possibilities.
+        // 1. A long slew in elevation
+        // 2. A slew in elevation followed by one in azimuth
+        double az_slew2 = slew_time_GGAO_helper(az_mid1, az_end, az_vel, az_acc);
+        slewt = HH_MAX(el_slewt, el_slew1p + az_slew2);
+    } else {
+        if(el_slew1p > az_slew1p) return (unsigned int) ceil(slew0); // don't hit top on the way down. Normal slew
+        // Two possibilities.
+        // 1. A long slew in azimuth
+        // 2. A slew in azimuth followed by one in elevation.
+        double el_slew2 = slew_time_GGAO_helper(el_mid, el_end, el_vel, el_acc);
+        // Use az_slew1p because antenna is still moving. It will stop while el is moving.
+        slewt = HH_MAX(az_slewt, az_slew1p + el_slew2);
+    }
+
+    return (unsigned int) ceil(slewt);
+}
+
+struct rate_onsala {
+    double very_slow_rate;
+    double slow_rate;
+    double normal_rate;
+    double very_slow_lower;
+    double slow_lower;
+    double slow_upper;
+    double very_slow_upper;
+};
+
+const struct rate_onsala RATE_AZ = {
+    DPI / 180.0 *   1.0, 
+    DPI / 180.0 *   3.5, 
+    DPI / 180.0 *  12.0, 
+    DPI / 180.0 * -65.0, 
+    DPI / 180.0 * -40.0, 
+    DPI / 180.0 * 400.0, 
+    DPI / 180.0 * 425.0
+};
+
+const struct rate_onsala RATE_EL = {
+    DPI / 180.0 *  0.3, 
+    DPI / 180.0 *  3.5, 
+    DPI / 180.0 *  6.0, 
+    DPI / 180.0 *  5.0, 
+    DPI / 180.0 * 15.0, 
+    DPI / 180.0 * 85.0, 
+    DPI / 180.0 * 95.0
+};
+
+double
+slew_time_rate_onsala_a(const struct rate_onsala* const rate, double start, double end) {
+    if (start <= rate->very_slow_lower && end <= rate->very_slow_lower)
+        return fabs(end - start) / ((end < start) ? rate->very_slow_rate : rate->normal_rate);
+    if(start < rate->very_slow_lower)
+        return (rate->very_slow_lower - start) / rate->normal_rate;
+    if(end < rate->very_slow_lower)
+        return (rate->very_slow_lower - end) / rate->very_slow_rate;
+    return 0.0;
+}
+
+double
+slew_time_rate_onsala_b(const struct rate_onsala* const rate, double start, double end) {
+    if((start >= rate->slow_lower && end >= rate->slow_lower) || (start <= rate->very_slow_lower && end <= rate->very_slow_lower)) 
+        return 0.0;
+    if(end < start) return (HH_MIN(start, rate->slow_lower) - HH_MAX(rate->very_slow_lower, end)) / rate->slow_rate;
+    else return (HH_MIN(rate->slow_lower, end) - HH_MAX(start, rate->very_slow_lower)) / rate->normal_rate;
+}
+
+double
+slew_time_rate_onsala_c(const struct rate_onsala* const rate, double start, double end) {
+    if((start <= rate->slow_lower && end <= rate->slow_lower) || (start >= rate->slow_upper && end >= rate->slow_upper))
+        return 0.0;
+    // full slew through C section (unlikely)
+    if((start < rate->slow_lower && end > rate->slow_upper) || (start > rate->slow_upper && end < rate->slow_lower)) {
+        return (rate->slow_upper - rate->slow_lower) / rate->normal_rate;
+    } else {
+        double tmp;
+        if(start > end) {
+            tmp = start;
+            start = end;
+            end = tmp;
+        }
+        return (HH_MIN(end, rate->slow_upper) - HH_MAX(start, rate->slow_lower)) / rate->normal_rate;
+    }
+}
+
+double
+slew_time_rate_onsala_d(const struct rate_onsala* const rate, double start, double end) {
+    if((start <= rate->slow_upper && end <= rate->slow_upper) || (start >= rate->very_slow_upper && end >= rate->very_slow_upper))
+        return 0.0;
+    if(end > start) return (HH_MIN(rate->very_slow_upper, end) - HH_MAX(start, rate->slow_upper)) / rate->slow_rate;
+    else return (HH_MIN(rate->very_slow_upper, start) - HH_MAX(end, rate->slow_upper)) / rate->normal_rate;
+}
+
+double
+slew_time_rate_onsala_e(const struct rate_onsala* const rate, double start, double end) {
+    if(start >= rate->very_slow_upper && end >= rate->very_slow_upper)
+        return fabs(end - start) / ((start < end) ? rate->very_slow_rate : rate->normal_rate);
+    if(start >= rate->very_slow_upper)
+        return (start - rate->very_slow_upper) / rate->normal_rate;
+    if(end >= rate->very_slow_upper)
+        return (end - rate->very_slow_upper) / rate->very_slow_rate;
+    return 0.0;
+}
+
+unsigned int
+slew_time_rate_onsala(const struct rate_onsala* const rate, double start, double end) {
+    double a, b, c, d, e;
+    a = slew_time_rate_onsala_a(rate, start, end);
+    b = slew_time_rate_onsala_b(rate, start, end);
+    c = slew_time_rate_onsala_c(rate, start, end);
+    d = slew_time_rate_onsala_d(rate, start, end);
+    e = slew_time_rate_onsala_e(rate, start, end);
+    return (unsigned int) (a + b + c + d + e);
+}
+
+unsigned int
+slew_time_onsala(const Station* const sta, const Source* const src[2], unsigned int seconds[2]) {
+    double az_fst, el_fst, az_snd, el_snd;
+    Station_src_az_el(sta, src[0], seconds[0], &az_fst, &el_fst);
+    Station_src_az_el(sta, src[0], seconds[0], &az_snd, &el_snd);
+    unsigned int t_az, t_el;
+    t_az = slew_time_rate_onsala(&RATE_AZ, az_fst, az_snd) + sta->axes_limits[0].overhead;
+    t_el = slew_time_rate_onsala(&RATE_EL, el_fst, el_snd) + sta->axes_limits[1].overhead;
+    return (t_az > t_el) ? t_az : t_el;
+}
+
+unsigned int
+slew_time_vlba_pietown_helper(double delta, double rate, double acc, double dec, double settle) {
+    double t_acc = rate / acc;
+    double t_dec = rate / dec;
+    double s_acc = acc * t_acc * t_acc / 2.0;
+    double s_dec = dec * t_dec * t_dec / 2.0;
+    double t;
+    if(delta < s_acc + s_dec) {
+        double t1 = (sqrt(2.0) * sqrt(dec) * sqrt(delta)) / (sqrt(acc * (acc + dec)));
+        double t2 = (sqrt(2.0) * acc * sqrt(delta)) / (sqrt(dec) * sqrt(acc * (acc + dec)));
+        t = t1 + t2 + settle;
+    } else t = t_acc + t_dec + (delta - s_acc - s_dec) / rate + settle;
+    return (unsigned int) ceil(t);
+}
+
+unsigned int
+slew_time_vlba_pietown(const Station* const sta, const Source* const src[2], unsigned int seconds[2]) {
+    double az_fst, el_fst, az_snd, el_snd;
+    Station_src_az_el(sta, src[0], seconds[0], &az_fst, &el_fst);
+    Station_src_az_el(sta, src[1], seconds[1], &az_snd, &el_snd);
+    double delta1 = fabs(az_fst - az_snd);
+    double delta2 = fabs(el_fst - el_snd);
+#define AZ_ACC (0.750 * DPI / 180.0)
+#define AZ_DEC (0.750 * DPI / 180.0)
+#define EL_ACC (0.250 * DPI / 180.0)
+#define EL_DEC (0.250 * DPI / 180.0)
+    unsigned int t_fst = slew_time_vlba_pietown_helper(delta1, sta->axes_limits[0].rate * DPI / 180.0, AZ_ACC, AZ_DEC, sta->axes_limits[0].overhead);
+    unsigned int t_snd = slew_time_vlba_pietown_helper(delta2, sta->axes_limits[1].rate * DPI / 180.0, EL_ACC, EL_DEC, sta->axes_limits[1].overhead);
+#undef AZ_ACC
+#undef AZ_DEC
+#undef EL_ACC
+#undef EL_DEC
+    return (t_fst > t_snd) ? t_fst : t_snd;
+}
+
+unsigned int
+Station_slew_time_raw(const Station* const sta, const Source* const src[2], unsigned int seconds[2]) {
+    if(sta->id[0] == 'G' && sta->id[1] == 's') {
+        // special case for GGAO12M
+        return slew_time_ggao12m(sta, src, seconds);
+    } else if(sta->id[0] == 'O' && (sta->id[1] == 'w' || sta->id[1] == 'e')) {
+        // special case for ONSA13SW and ONSA13NE
+        return slew_time_onsala(sta, src, seconds);
+    } else {
+        // special case for all stations ending in "VLBA" and PIETOWN
+        size_t sta_name_len = cat_name_len(sta->name);
+        if(sta_name_len > 4) {
+            bool matches = true;
+            for(size_t i = 0; i < 4; ++i) matches &= sta->name[sta_name_len - 4 + i] == "VLBA"[i];
+            matches |= (sta->id[0] == 'P' && sta->id[1] == 't');
+            if(matches) return slew_time_vlba_pietown(sta, src, seconds);
+        }
+    }
+    // standard cases
     double ax_fst[2], ax_snd[2];
     switch(sta->axes) {
     case AXES_AZEL:
@@ -351,7 +705,7 @@ Station_slew_time_raw(const Station* const sta, const Source* const src[2], unsi
     unsigned int t_fst, t_snd;
     t_snd = Station_slew_time_by_axis(sta, fabs(ax_fst[1] - ax_snd[1]), false);
     t_fst = Station_slew_time_by_axis(sta, fabs(ax_fst[0] - ax_snd[0]), true);
-    return t_fst > t_snd ? t_fst : t_snd;
+    return (t_fst > t_snd) ? t_fst : t_snd;
 }
 
 unsigned int
