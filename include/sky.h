@@ -26,8 +26,11 @@ bool*
 sky_src_active(const char id[static 8]);
 void
 sky_dump(void);
+void
+sky_dump_flux_scores(void);
 bool
 sky_xml_parse(struct xml_node* root);
+
 
 // macro internals
 #define sky_it_filter(it_, only_active_) \

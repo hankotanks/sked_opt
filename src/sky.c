@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <math.h>
+#include <float.h>
 
 #include <sofam.h>
 
@@ -142,6 +143,70 @@ void
 sky_dump(void) {
     for(size_t i = 0; i < SKY->count; ++i) {
         if(SKY->entries[i].used) Source_dump(&(SKY->entries[i].source));
+    }
+}
+
+// TODO: This is a rough comparison just to aid
+// the construction of schedule configs
+// In the future, once I have a good metric, this could
+// be added as a sort option in the UI
+int 
+compare_flux_densities(const void* fst, const void* snd) {
+    const Source* src_fst = (const Source*)(*(const uintptr_t*)fst);
+    const Source* src_snd = (const Source*)(*(const uintptr_t*)snd);
+
+    double src_fst_score = 0.0;
+    double src_snd_score = 0.0;
+    size_t src_fst_band_count = 0;
+    size_t src_snd_band_count = 0;
+    for(size_t i = 0; i < (size_t) BAND_OTHER; ++i) {
+        if(src_fst->band[i]) {
+            double flux_max = -DBL_MAX;
+            for(size_t j = 0; j < hh_arrlen(src_fst->flux[i]); ++j) {
+                double flux = src_fst->flux[i][j].flux;
+                flux_max = (flux > flux_max) ? flux : flux_max;
+            }
+            src_fst_score += flux_max;
+            src_fst_band_count++;
+        }
+        if(src_snd->band[i]) {
+            double flux_max = -DBL_MAX;
+            for(size_t j = 0; j < hh_arrlen(src_snd->flux[i]); ++j) {
+                double flux = src_snd->flux[i][j].flux;
+                flux_max = (flux > flux_max) ? flux : flux_max;
+            }
+            src_snd_score += flux_max;
+            src_snd_band_count++;
+        }
+    }
+    if(src_fst_band_count > 0) src_fst_score /= (double) src_fst_band_count;
+    if(src_snd_band_count > 0) src_snd_score /= (double) src_snd_band_count;
+    if(src_fst_score < src_snd_score) return -1;
+    else if(src_fst_score > src_snd_score) return 1;
+    else return 0;
+}
+
+void
+sky_dump_flux_scores(void) {
+    uintptr_t* ranking = NULL;
+    const Source* src;
+    sky_it(src) hh_arrput(ranking, (uintptr_t) src);
+    qsort(ranking, hh_arrlen(ranking), sizeof(uintptr_t), compare_flux_densities);
+    for(size_t i = 0; i < hh_arrlen(ranking); ++i) {
+        src = (const Source*) ranking[i];
+        cat_name_print(src->name);   
+        printf(": ");
+        for(size_t j = 0; j < (size_t) BAND_OTHER; ++j) {
+            if(!(src->band[j])) continue;
+            printf("%c ", BAND_CODES[(enum band) j]);
+            double flux_max = -DBL_MAX;
+            for(size_t k = 0; k < hh_arrlen(src->flux[j]); ++k) {
+                double flux = src->flux[j][k].flux;
+                flux_max = (flux > flux_max) ? flux : flux_max;
+            }
+            printf("[%.3f], ", flux_max);
+        }
+        printf("\n");
     }
 }
 

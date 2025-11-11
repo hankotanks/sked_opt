@@ -14,8 +14,7 @@ void cat_init(const char* path) {
     size_t len;
 #define X(type_) \
     do { \
-        path_file = hh_path(path); \
-        hh_path_join(path_file, CAT_H__##type_##_file); \
+        path_file = hh_path_join(hh_path(path), CAT_H__##type_##_file); \
         file = fopen(path_file, "r"); \
         HH_ASSERT(file != NULL, "Failed to open catalog [%s].", path_file); \
         (void) hh_arradd(CAT->type_##_list, 1); \

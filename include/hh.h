@@ -490,6 +490,7 @@ hh_path_exists(const char* path) {
 
 bool
 hh_path_is_file(const char* path) {
+	if(path == NULL) return false;
 #ifdef _WIN32
     DWORD attr = GetFileAttributesA(path);
     return (attr != INVALID_FILE_ATTRIBUTES) && !(attr & FILE_ATTRIBUTE_DIRECTORY);
@@ -501,6 +502,8 @@ hh_path_is_file(const char* path) {
 
 char*
 hh_path_join(char* path, const char* sub) {
+	if(path == NULL) return NULL;
+	if(sub == NULL) return path;
 	if(sub[0] == '/' || sub[0] == '\\') ++sub;
 	(void) hh_arrpop(path);
 	if(hh_arrlast(path) != '/') hh_strput(path, "/");
@@ -513,6 +516,7 @@ hh_path_join(char* path, const char* sub) {
 
 const char*
 hh_path_name(const char* path) {
+	if(path == NULL) return NULL;
 	const char *prev = path;
     for(const char *p = path; *p; ++p) if(*p == '/') prev = p + 1;
 	if(prev[0] == '\0') return NULL;
@@ -521,6 +525,7 @@ hh_path_name(const char* path) {
 
 char*
 hh_path_parent(const char* path) {
+	if(path == NULL) return NULL;
 	char* path_parent = NULL;
 	hh_strput(path_parent, path);
 	while(hh_arrlast(path_parent) != '/') (void) hh_arrpop(path_parent);
@@ -546,6 +551,7 @@ hh_path_parent(const char* path) {
 
 char*
 hh_path_parent_in_place(char* path) {
+	if(path == NULL) return NULL;
 	while(hh_arrlast(path) != '/') (void) hh_arrpop(path);
 #ifdef _WIN32
 	if(hh_arrlen(path) == 3 && path[0] >= 'A' && path[0] <= 'Z' && path[1] == ':' && path[2] == '/') {

@@ -80,6 +80,7 @@ GUROBI_DECL(GRBsetintattrelement, int, GRBmodel *model, const char *attrname, in
 static void HH_UNUSED
 ILP_H__load_gurobi(ILP* const prog);
 
+// TODO: hard coding these values is unacceptable in the long run...
 #define GRB_VERSION_MAJOR     12
 #define GRB_VERSION_MINOR     0
 #define GRB_VERSION_TECHNICAL 2
