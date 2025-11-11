@@ -49,7 +49,7 @@ vis_layer_run_update(glenv_Panel* const panel, RGFW_rect original, RGFW_rect cur
 void 
 vis_layer_run_layout(void* const data, struct nk_context* ctx, float row_height) {
     struct vis_layer_run_state* state = data;
-    nk_layout_row_begin(ctx, NK_DYNAMIC, row_height * 2.5f, 2);
+    nk_layout_row_begin(ctx, NK_DYNAMIC, row_height * 2.5f, 3);
     nk_layout_row_push(ctx, 0.75f); // output directory
     if(nk_group_begin(ctx, "group_out_path", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);
@@ -62,7 +62,14 @@ vis_layer_run_layout(void* const data, struct nk_context* ctx, float row_height)
         nk_layout_row_end(ctx);
         nk_group_end(ctx);
     }
-    nk_layout_row_push(ctx, 0.25f); // run
+    nk_layout_row_push(ctx, 0.125f); // generate_statistics
+    if(nk_group_begin(ctx, "group_gen_stat", NK_WINDOW_NO_SCROLLBAR)) {
+        nk_layout_row_dynamic(ctx, row_height, 1);
+        nk_label(ctx, "statistics", NK_TEXT_LEFT);
+        META->generate_statistics = !nk_check_label(ctx, "generate", !META->generate_statistics);
+        nk_group_end(ctx);
+    }
+    nk_layout_row_push(ctx, 0.125f); // run
     double mjd = DateTime_to_mjd(TIME_SYS->start);
     if(nk_group_begin(ctx, "group_sched", NK_WINDOW_NO_SCROLLBAR)) {
         nk_layout_row_dynamic(ctx, row_height, 1);

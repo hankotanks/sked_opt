@@ -1,9 +1,12 @@
 #ifndef META_H__
 #define META_H__
 
+#include <stdbool.h>
+
 struct META_H__META {
     char* path_parent;
     char* name;
+    bool generate_statistics;
 };
 
 extern struct META_H__META* META;

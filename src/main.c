@@ -1,3 +1,51 @@
+#define HH_ARGS \
+    HH_ARG_OPT(char*, NULL,  path_cfg, "-c", "--config",   "path to XML configuration",         args_parse_path_cfg, args_parse_path_clean) \
+    HH_ARG_OPT(bool,  false, headless, "-H", "--headless", "headless (skip GUI configuration)", NULL, NULL) \
+    HH_ARG_OPT(bool,  false, gen_stat, "-s", "--stats",    "generate schedule statistics",      NULL, NULL) \
+    HH_ARG_OPT(char*, NULL,  path_out, "-o", "--output",   "output path",                       args_parse_path_out, args_parse_path_clean)
+
+#include "hh.h"
+
+void* HH_UNUSED
+args_parse_path_cfg(char* arg, int* ok) {
+	char* path = hh_path(arg);
+	if(!hh_path_exists(path) || !hh_path_is_file(path)) {
+		HH_ERR("Provided input file path argument did not exist [%s].", path);
+		(*ok) = 0;
+		return NULL;
+	}
+    if(!hh_ends_with(path, ".xml")) {
+        HH_ERR("Provided configuration file path must have an '.xml' extension.");
+        (*ok) = 0;
+        return NULL;
+    }
+	return path;
+}
+
+void* HH_UNUSED
+args_parse_path_out(char* arg, int* ok) {
+    char* path = hh_path(arg);
+    char* path_parent = hh_path_parent(path);
+	if(!hh_path_exists(path_parent)) {
+		HH_ERR("Provided output file path contained nonexistent directories [%s].", path);
+		(*ok) = 0;
+		return NULL;
+	}
+    if(!hh_ends_with(path, ".skd")) {
+        HH_ERR("Provided output file path must have an '.skd' extension.");
+        (*ok) = 0;
+        return NULL;
+    }
+    hh_arrfree(path_parent);
+    (*ok) = 1;
+	return path;
+}
+
+void HH_UNUSED
+args_parse_path_clean(void* val) {
+	hh_arrfree(val);
+}
+
 #define HH_IMPL
 #include "hh.h"
 #undef HH_IMPL
@@ -25,7 +73,7 @@ const char WINDOW_TITLE[256] = "sked_opt";
 // TODO: VieSchedpp.xml configuration files
 // contain a list of catalog paths, when supplied, we should use these instead
 void
-configure_using_xml(const char* const path_xml) {
+configure_using_xml(const char* const path_xml, bool name) {
     char* contents = hh_read_entire_file(path_xml);
     HH_ASSERT(contents != NULL, "Failed to read provided configuration [%s].", path_xml);
     struct xml_document* doc = xml_parse_document_skip_preamble(contents);
@@ -37,10 +85,12 @@ configure_using_xml(const char* const path_xml) {
     // read metadata from <general>
     struct xml_node* general = xml_node_find(root, "general");
     HH_ASSERT(general != NULL, "Failed to parse provided configuration [%s].", path_xml);
-    struct xml_node* experimentName = xml_node_find(general, "experimentName");
-    HH_ASSERT(experimentName != NULL, "Failed to parse provided configuration [%s].", path_xml);
-    (void) hh_arradd(META->name, xml_node_content(experimentName)->length + 1);
-    strncpy(META->name, (const char*) xml_node_content(experimentName)->buffer, xml_node_content(experimentName)->length);
+    if(name) {
+        struct xml_node* experimentName = xml_node_find(general, "experimentName");
+        HH_ASSERT(experimentName != NULL, "Failed to parse provided configuration [%s].", path_xml);
+        (void) hh_arradd(META->name, xml_node_content(experimentName)->length + 1);
+        strncpy(META->name, (const char*) xml_node_content(experimentName)->buffer, xml_node_content(experimentName)->length);
+    }
     // clean up
     xml_document_free(doc, false);
     hh_arrfree(contents);
@@ -48,28 +98,40 @@ configure_using_xml(const char* const path_xml) {
 
 bool
 args(int argc, char* argv[]) {
-    if(argc == 1) goto args_default_meta;
-    // validate configuration path
-    char* path_xml = hh_path(argv[1]);
-    HH_ASSERT(hh_path_exists(path_xml) && hh_path_is_file(path_xml), 
-        "Unable to locate provided configuration [%s].", argv[1]);
-    HH_MSG("Found configuration at [%s].", path_xml);
-    // get parent path
-    META->path_parent = hh_path_parent(path_xml);
-    HH_ASSERT(hh_path_exists(META->path_parent), 
-        "Unable to locate provided configuration [%s].", argv[1]);
-    // parse xml
-    configure_using_xml(path_xml);
-    hh_arrfree(path_xml);
-    if(argc == 3 && ((strcmp(argv[2], "--headless") == 0) || strcmp(argv[2], "-H") == 0)) {
+    // parse CLI args
+    if(!hh_args_parse(argc, argv)) {
+        HH_ERR("Failed to parse CLI arguments.");
+        // TODO: hh_args need auto-generated help printouts
+        exit(1);
+    }
+    // parse XML configuration
+    if(hh_args->path_cfg) {
+        HH_MSG("Found configuration at [%s].", hh_args->path_cfg);
+        configure_using_xml(hh_args->path_cfg, (hh_args->path_out) ? false : true);
+    }
+    // assign output name and path
+    if(hh_args->path_out) {
+        META->path_parent = hh_path_parent(hh_args->path_out);
+        HH_ASSERT(META->name == NULL, "Unreachable!");
+        hh_strput(META->name, hh_path_name(hh_args->path_out));
+        // strip extension
+        for(size_t i = 5; i > 0; --i) HH_ASSERT(hh_arrpop(META->name) == (".skd")[i - 1], "Unreachable!");
+        hh_arrput(META->name, '\0');    
+    } else if(hh_args->path_cfg) {
+        META->path_parent = hh_path_parent(hh_args->path_cfg);
+    } else {
+        META->path_parent = hh_path(".");
+        HH_ASSERT(hh_path_exists(META->path_parent), "Unreachable!");
+    }
+    // configure statistics generation
+    if(hh_args->gen_stat) META->generate_statistics = true;
+    // skip GUI creation if running headless
+    if(hh_args->headless) {
         Sched_init_output_and_free(SCHED_DEFAULT);
         return true;
     }
-    return false;
-args_default_meta:
-    META->path_parent = hh_path(".");
-    HH_ASSERT(hh_path_exists(META->path_parent), "Unreachable!");
-    META->name = NULL;
+    // clean up hh_args allocation
+    hh_args_clean();
     return false;
 }
 

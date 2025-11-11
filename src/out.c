@@ -391,8 +391,8 @@ static char OUT_H__TEMP[512];
 
 void
 generate_statistics(const Sched* const out) {
+    HH_ASSERT(out != NULL, "Unreachable!");
     const struct map* map = Sched_map(out);
-    Sched_dump(out);
     // two buffers, one for fields and one for values
     char* fields = NULL;
     char* values = NULL;

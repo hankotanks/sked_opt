@@ -136,6 +136,13 @@ Sched_init(enum sched_type ty) {
     // allocate remaining buffers
     HH_CALLOC(out->scans, sizeof(Scan*) * (TIME_SYS->duration / TIME_SYS->scan_length));
     HH_CALLOC(out->activity, sizeof(enum station_state*) * out->map.count_sta);
+    // check if we need to return early
+    if((out->map.count_sta < 2) || (out->map.count_src == 0) || (out->map.count_seg < 2)) {
+        HH_ERR("Cannot produce a schedule with %zu stations and %zu sources across %zu segments.", 
+            out->map.count_sta, out->map.count_src, out->map.count_seg);
+        Sched_free(out);
+        return NULL;
+    }
     // solve the corresponding ILP
     bool ret;
     switch(ty) {

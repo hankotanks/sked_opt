@@ -14,6 +14,7 @@ void
 meta_init(void) {
     META->path_parent = NULL;
     META->name = NULL;
+    META->generate_statistics = false;
 }
 
 void
