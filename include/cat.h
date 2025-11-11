@@ -497,7 +497,6 @@ parse_flux_result:
             } else hh_arrput(entry->entry.b.flux, step);
             first = false;
         } while(true);
-        // TODO: consider parsing additional (baseline limit, flux) pairs, not sure if they're needed
     } else if(hh_span_equals(span, "M")) {
         entry->type = FLUX_M;
         // flux
@@ -604,10 +603,10 @@ CAT_DECL(cat_Equip) {
     size_t x_flux;
     size_t s_flux;
     enum EquipBand x, s;
-    // TODO: Omitting SEFD param/Equip field
+    // NOTE: Omitting SEFD param/Equip field
 };
 
-// TODO: modes.cat
+// NOTE: modes.cat
 // The idea is to read the modes from modes.cat,
 // then construct a list of stations that can participate in a scan of each mode type
 // using the values presented in equip.cat

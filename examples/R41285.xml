@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VieSchedpp>
+	<software>
+		<name>VieSched++ GUI</name>
+		<GUI_version>ff1463c8ca1824692a2eb784ca3b004aa0242f18</GUI_version>
+	</software>
+	<created>
+		<time>2025.11.11 13:05:31</time>
+		<name>unknown</name>
+		<email>unknown</email>
+	</created>
+	<general>
+		<experimentName>r41285</experimentName>
+		<startTime>2026.11.12 18:30:00</startTime>
+		<endTime>2026.11.13 00:30:00</endTime>
+		<subnetting>true</subnetting>
+		<subnettingMinAngle>150</subnettingMinAngle>
+		<subnettingMinNStaAllBut>1</subnettingMinNStaAllBut>
+		<fillinmodeDuringScanSelection>true</fillinmodeDuringScanSelection>
+		<fillinmodeInfluenceOnSchedule>true</fillinmodeInfluenceOnSchedule>
+		<idleToObservingTime>true</idleToObservingTime>
+		<idleToObservingTimeGroup>__all__</idleToObservingTimeGroup>
+		<stations>
+			<station>BADARY</station>
+			<station>FORTLEZA</station>
+			<station>HART15M</station>
+			<station>HOBART12</station>
+			<station>KATH12M</station>
+			<station>KOKEE</station>
+			<station>NYALE13S</station>
+			<station>WARK12M</station>
+			<station>WETTZELL</station>
+			<station>YARRA12M</station>
+			<station>ZELENCHK</station>
+		</stations>
+		<onlyUseListedSources>
+			<source>0202+319</source>
+			<source>0308-611</source>
+			<source>0332-403</source>
+			<source>0420-014</source>
+			<source>0437-454</source>
+			<source>0438-436</source>
+			<source>0446+112</source>
+			<source>0642+449</source>
+			<source>0646-306</source>
+			<source>0648-165</source>
+			<source>0700-197</source>
+			<source>0736+017</source>
+			<source>0748+126</source>
+			<source>1213-172</source>
+			<source>1244-255</source>
+			<source>1546+027</source>
+			<source>1751+288</source>
+			<source>1936-155</source>
+			<source>2059+034</source>
+			<source>2126-158</source>
+		</onlyUseListedSources>
+		<scanAlignment>start</scanAlignment>
+		<logSeverityConsole>info</logSeverityConsole>
+		<logSeverityFile>info</logSeverityFile>
+		<doNotObserveSourcesWithinMinRepeat>true</doNotObserveSourcesWithinMinRepeat>
+		<ignore_successive_scans_same_source>true</ignore_successive_scans_same_source>
+	</general>
+	<output>
+		<experimentDescription>IVS-R4</experimentDescription>
+		<scheduler>USNO</scheduler>
+		<correlator>WASH</correlator>
+		<initializer_log>true</initializer_log>
+		<iteration_log>true</iteration_log>
+		<createSummary>false</createSummary>
+		<createNGS>true</createNGS>
+		<createSKD>true</createSKD>
+		<createVEX>true</createVEX>
+		<createVEX_satelliteTracking>false</createVEX_satelliteTracking>
+		<createVEX_satelliteTracking_deltaT>10</createVEX_satelliteTracking_deltaT>
+		<createSnrTable>false</createSnrTable>
+		<createOperationsNotes>true</createOperationsNotes>
+		<createSourceGroupStatistics>false</createSourceGroupStatistics>
+		<createSlewFile>false</createSlewFile>
+		<debugSkyCoverage>false</debugSkyCoverage>
+		<createTimeTable>false</createTimeTable>
+	</output>
+	<catalogs>
+		<antenna>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/antenna.cat</antenna>
+		<equip>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/equip.cat</equip>
+		<flux>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/flux.cat</flux>
+		<freq>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/freq.cat</freq>
+		<hdpos>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/hdpos.cat</hdpos>
+		<loif>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/loif.cat</loif>
+		<mask>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/mask.cat</mask>
+		<modes>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/modes.cat</modes>
+		<position>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/position.cat</position>
+		<rec>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/rec.cat</rec>
+		<rx>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/rx.cat</rx>
+		<satellite/>
+		<satellite_avoid/>
+		<source>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/source.cat.geodetic.good</source>
+		<tracks>/home/hank/Projects/VieSchedpp/VieSchedppGUI/AUTO_DOWNLOAD_CATALOGS/tracks.cat</tracks>
+		<stp_dir/>
+	</catalogs>
+	<station>
+		<setup>
+			<member>__all__</member>
+			<parameter>default</parameter>
+			<transition>hard</transition>
+		</setup>
+		<parameters>
+			<parameter name="default">
+				<available> 1</available>
+				<availableForFillinmode> 1</availableForFillinmode>
+				<weight> 1</weight>
+				<minScan> 30</minScan>
+				<maxScan> 600</maxScan>
+				<minSlewtime> 0</minSlewtime>
+				<maxSlewtime> 600</maxSlewtime>
+				<maxSlewDistance> 175</maxSlewDistance>
+				<minSlewDistance> 0</minSlewDistance>
+				<maxWait> 600</maxWait>
+				<minElevation> 5</minElevation>
+				<maxNumberOfScans> 9999</maxNumberOfScans>
+				<maxNumberOfScansDist> 9999</maxNumberOfScansDist>
+				<maxTotalObsTime> 999999</maxTotalObsTime>
+				<preob> 10</preob>
+				<midob> 3</midob>
+				<systemDelay> 6</systemDelay>
+			</parameter>
+			<parameter name="down">
+				<available> 0</available>
+			</parameter>
+		</parameters>
+		<cableWrapBuffers>
+			<cableWrapBuffer member="__all__">
+				<axis1LowOffset>5</axis1LowOffset>
+				<axis1UpOffset>5</axis1UpOffset>
+				<axis2LowOffset>0</axis2LowOffset>
+				<axis2UpOffset>0</axis2UpOffset>
+			</cableWrapBuffer>
+		</cableWrapBuffers>
+	</station>
+	<source>
+		<setup>
+			<member>__all__</member>
+			<parameter>default</parameter>
+			<transition>hard</transition>
+		</setup>
+		<parameters>
+			<parameter name="default">
+				<available> 1</available>
+				<availableForFillinmode> 1</availableForFillinmode>
+				<weight> 1</weight>
+				<minElevation> 0</minElevation>
+				<minSunDistance> 4</minSunDistance>
+				<minScan> 0</minScan>
+				<maxScan> 9999</maxScan>
+				<minNumberOfSites> 3</minNumberOfSites>
+				<minRepeat> 1800</minRepeat>
+				<minFlux> 0.05</minFlux>
+				<maxNumberOfScans> 999</maxNumberOfScans>
+			</parameter>
+		</parameters>
+	</source>
+	<baseline>
+		<setup>
+			<member>__all__</member>
+			<parameter>default</parameter>
+			<transition>hard</transition>
+		</setup>
+		<parameters>
+			<parameter name="default">
+				<ignore> 0</ignore>
+				<minScan> 0</minScan>
+				<maxScan> 9999</maxScan>
+				<weight> 1</weight>
+			</parameter>
+		</parameters>
+	</baseline>
+	<skyCoverage>
+		<influenceDistance>30</influenceDistance>
+		<influenceInterval>3600</influenceInterval>
+		<maxTwinTelecopeDistance>0</maxTwinTelecopeDistance>
+		<interpolationDistance>cosine</interpolationDistance>
+		<interpolationTime>cosine</interpolationTime>
+	</skyCoverage>
+	<weightFactor>
+		<skyCoverage>1</skyCoverage>
+		<numberOfObservations>1</numberOfObservations>
+		<duration>1</duration>
+		<idleTime>1</idleTime>
+		<idleTimeInterval>300</idleTimeInterval>
+	</weightFactor>
+	<mode>
+		<skdMode>256-16(R1-R4)</skdMode>
+		<bandPolicies>
+			<bandPolicy name="X">
+				<minSNR>20</minSNR>
+				<station>
+					<tag>required</tag>
+					<backup_value>0</backup_value>
+				</station>
+				<source>
+					<tag>required</tag>
+					<backup_internalModel/>
+				</source>
+			</bandPolicy>
+			<bandPolicy name="S">
+				<minSNR>15</minSNR>
+				<station>
+					<tag>required</tag>
+					<backup_value>0</backup_value>
+				</station>
+				<source>
+					<tag>required</tag>
+					<backup_internalModel/>
+				</source>
+			</bandPolicy>
+		</bandPolicies>
+	</mode>
+</VieSchedpp>
