@@ -7,7 +7,7 @@ DIR_INC := include
 DIR_SRC := src
 DIR_OBJ := build
 
-CFLAGS := -ggdb3 -std=c99 -Wall -Wextra -Wconversion -Wpedantic -I$(DIR_INC) 
+CFLAGS := -ggdb3 -std=c99 -Wall -Wextra -Wconversion -Wpedantic
 # log level
 CFLAGS += -DHH_LOG=HH_LOG_DBG 
 # set absolute project root

@@ -88,3 +88,4 @@ const char BAND_CODES[BAND_OTHER] = {
     [BAND_C] = 'C',
     [BAND_K] = 'K'
 };
+

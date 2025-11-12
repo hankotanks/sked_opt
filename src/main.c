@@ -2,7 +2,8 @@
     HH_ARG_OPT(char*, NULL,  path_cfg, "-c", "--config",   "path to XML configuration",         args_parse_path_cfg, args_parse_path_clean) \
     HH_ARG_OPT(bool,  false, headless, "-H", "--headless", "headless (skip GUI configuration)", NULL, NULL) \
     HH_ARG_OPT(bool,  false, gen_stat, "-s", "--stats",    "generate schedule statistics",      NULL, NULL) \
-    HH_ARG_OPT(char*, NULL,  path_out, "-o", "--output",   "output path",                       args_parse_path_out, args_parse_path_clean)
+    HH_ARG_OPT(char*, NULL,  path_out, "-o", "--output",   "output path",                       args_parse_path_out, args_parse_path_clean) \
+    HH_ARG_OPT(bool,  false, rankings, "-R", "--rankings", "dump source flux rankings (debug)", NULL, NULL)
 
 #include "hh.h"
 
@@ -130,6 +131,8 @@ args(int argc, char* argv[]) {
         Sched_init_output_and_free(SCHED_DEFAULT);
         return true;
     }
+    // dump flux rankings
+    if(hh_args->rankings) sky_dump_flux_scores();
     // clean up hh_args allocation
     hh_args_clean();
     return false;

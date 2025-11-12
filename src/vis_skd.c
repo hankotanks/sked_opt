@@ -165,11 +165,12 @@ vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height)
     nk_layout_row_dynamic(ctx, row_height + 1.f, 1);
     // pinned search bar
     nk_edit_string_zero_terminated(ctx, FLAGS_EDIT, state->buf_filter, sizeof(state->buf_filter), nk_filter_ascii);
-    nk_layout_row_dynamic(ctx, row_height, 1);
     const Source* src;
     bool* active;
-    size_t i = 0;
+    size_t i = 0, j;
     sky_it(src) {
+        nk_layout_row_begin(ctx, NK_DYNAMIC, row_height, 1 + (int) BAND_OTHER);
+        nk_layout_row_push(ctx, 0.5f);
         active = sky_src_active(src->name);
         if(state->buf_filter[0] != '\0' && !cat_name_contains(src->name, state->buf_filter)) continue;
         int temp = *active ? nk_false : nk_true;
@@ -180,6 +181,15 @@ vis_layer_sky_layout(void* const data, struct nk_context* ctx, float row_height)
             glBufferSubData(GL_ARRAY_BUFFER, (GLintptr) ((i * 4 + 3) * sizeof(GLfloat)), sizeof(GLfloat), &val);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
+        for(j = 0; j < (size_t) BAND_OTHER; ++j) {
+            nk_layout_row_push(ctx, 0.5f / (float) BAND_OTHER);
+            if(src->band[j]) {
+                nk_labelf(ctx, NK_TEXT_CENTERED | NK_TEXT_ALIGN_MIDDLE, "%c", BAND_CODES[j]);
+            } else {
+                nk_spacer(ctx);
+            }
+        }
+        nk_layout_row_end(ctx);
         i++;
     }
 }

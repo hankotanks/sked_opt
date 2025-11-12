@@ -16,7 +16,7 @@
 #define SKY_COV_CELL_INDEX Station_sky_cov_idx_13v1
 
 #define WEIGHT_SKY_COV  1.0
-#define WEIGHT_BASELINE 0.0
+#define WEIGHT_BASELINE 1.0
 
 #define VAR_TYPES \
     VAR_BIN(STA_ACTIVE) \

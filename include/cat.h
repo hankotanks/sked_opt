@@ -428,8 +428,10 @@ enum band {
     BAND_OTHER,
 };
 
-// NOTE: If adding support for other bands... MUST update band_codes in cat.c
+// NOTE: If adding support for other bands... MUST update BAND_CODES in cat.c
 extern const char BAND_CODES[BAND_OTHER];
+// NOTE: If adding support for other bands... MUST update BAND_COLORS in cat.c
+extern const char BAND_COLORS[BAND_OTHER][3];
 
 enum flux_entry_type {
     FLUX_B,

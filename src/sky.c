@@ -194,6 +194,7 @@ sky_dump_flux_scores(void) {
     qsort(ranking, hh_arrlen(ranking), sizeof(uintptr_t), compare_flux_densities);
     for(size_t i = 0; i < hh_arrlen(ranking); ++i) {
         src = (const Source*) ranking[i];
+        printf("%4zu ", i);
         cat_name_print(src->name);   
         printf(": ");
         for(size_t j = 0; j < (size_t) BAND_OTHER; ++j) {

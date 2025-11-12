@@ -99,7 +99,7 @@ Vis_get_panel(Vis* const vis, const char* title);
 //
 
 #define VIS_CFG_ROWS 5
-#define VIS_SKD_ROWS 5
+#define VIS_SKD_ROWS 9
 #define VIS_RUN_ROWS 3
 
 #define VIS_CFG_RATIO 0.75f
